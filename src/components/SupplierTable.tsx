@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Edit2, Trash2, Search, Filter, Image as ImageIcon, ExternalLink, Paperclip } from 'lucide-react';
 import { Supplier } from '../types';
 import { formatCurrency, formatDateBR, isCurtoPrazo } from '../data/initialData';
+import { Card, Badge } from './ui';
 
 interface SupplierTableProps {
   suppliers: Supplier[];
@@ -47,7 +48,7 @@ export const SupplierTable: React.FC<SupplierTableProps> = ({
     .reduce((sum, s) => sum + s.dividaTotal, 0);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden mb-8">
+    <Card className="mb-8">
       {/* Table Header Controls */}
       <div className="p-5 border-b border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -187,30 +188,22 @@ export const SupplierTable: React.FC<SupplierTableProps> = ({
 
                     {/* CP/LP */}
                     <td className="py-3.5 px-4 text-center">
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wide border ${
-                          cp
-                            ? 'bg-amber-100 text-amber-800 border-amber-300'
-                            : 'bg-blue-100 text-blue-800 border-blue-300'
-                        }`}
-                      >
-                        {cp ? 'CP' : 'LP'}
-                      </span>
+                      <Badge tone={cp ? 'amber' : 'blue'}>{cp ? 'CP' : 'LP'}</Badge>
                     </td>
 
                     {/* Status */}
                     <td className="py-3.5 px-4 text-center">
-                      <span
-                        className={`inline-block px-2.5 py-1 rounded-full font-bold text-[10px] uppercase tracking-wider border ${
+                      <Badge
+                        tone={
                           supplier.status === 'PENDENTE'
-                            ? 'bg-amber-100/80 text-amber-900 border-amber-300/80'
+                            ? 'amber'
                             : supplier.status === 'PAGO'
-                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                            : 'bg-rose-100 text-rose-900 border-rose-300'
-                        }`}
+                            ? 'emerald'
+                            : 'rose'
+                        }
                       >
                         {supplier.status}
-                      </span>
+                      </Badge>
                     </td>
 
                     {/* Direct Image Link Button */}
@@ -267,6 +260,6 @@ export const SupplierTable: React.FC<SupplierTableProps> = ({
           </tfoot>
         </table>
       </div>
-    </div>
+    </Card>
   );
 };

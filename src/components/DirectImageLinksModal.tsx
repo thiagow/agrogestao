@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, Copy, Check, Image as ImageIcon, Code, ExternalLink, Sparkles, FileCode } from 'lucide-react';
+import { Copy, Check, Image as ImageIcon, Code, ExternalLink, FileCode } from 'lucide-react';
 import { Supplier } from '../types';
+import { Modal, Button } from './ui';
 
 interface DirectImageLinksModalProps {
   isOpen: boolean;
@@ -47,8 +48,6 @@ export const DirectImageLinksModal: React.FC<DirectImageLinksModalProps> = ({
     selectedSupplier ? `Fornecedor ${selectedSupplier.nome}` : 'Imagem AgroGestão'
   );
 
-  if (!isOpen) return null;
-
   const directUrl = customUrl.trim() || presetImages[0].url;
 
   const htmlImgTag = `<img src="${directUrl}" alt="${altText}" class="agro-img" style="max-width:100%; height:auto; border-radius:12px; border:1px solid #e2e8f0; shadow:0 4px 6px rgba(0,0,0,0.05);" />`;
@@ -68,32 +67,19 @@ export const DirectImageLinksModal: React.FC<DirectImageLinksModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200">
-        {/* Modal Header */}
-        <div className="p-5 bg-white text-slate-900 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
-              <ImageIcon className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-[#0b2310]">Gerador de Links Diretos de Imagens para HTML</h3>
-              <p className="text-xs text-slate-500">
-                Copie o link direto ou a tag &lt;img&gt; do HTML pronta para uso
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Modal Body */}
-        <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-          {/* Preset selector */}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      icon={<ImageIcon className="w-5 h-5" />}
+      title="Gerador de Links Diretos de Imagens para HTML"
+      subtitle="Copie o link direto ou a tag <img> do HTML pronta para uso"
+      footer={
+        <Button variant="ghost" onClick={onClose} className="w-auto px-5 py-2 text-xs">
+          Fechar
+        </Button>
+      }
+    >
+      {/* Preset selector */}
           <div>
             <label className="block text-xs font-bold uppercase text-slate-600 mb-2">
               Escolher Imagem Preset do Sistema ou Inserir URL:
@@ -226,18 +212,6 @@ export const DirectImageLinksModal: React.FC<DirectImageLinksModalProps> = ({
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Modal Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition"
-          >
-            Fechar
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 };
