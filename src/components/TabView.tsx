@@ -2,14 +2,33 @@
 
 import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
-import { ActiveTab, Supplier, CulturaSafraAno, ContratoBancario } from '../types';
+import {
+  ActiveTab,
+  Supplier,
+  CulturaSafraAno,
+  ContratoBancario,
+  Aquisicao,
+  ContratoArrendamento,
+  ContratoComercial
+} from '../types';
 import {
   initialSuppliers,
   initialCulturaSafras,
   initialContratosBancarios,
   initialBalanco,
   initialIndicadores,
-  initialSaudeFinanceira
+  initialSaudeFinanceira,
+  initialAquisicoes,
+  initialArrendamentos,
+  initialContratosComerciais,
+  initialPosicaoComercializacao,
+  initialEmpresasBalanco,
+  initialFluxoSafra,
+  RECEITA_PROJETADA_SAFRA,
+  initialCotacaoDolar,
+  initialCotacoesCommodities,
+  initialLancamentosMensais,
+  initialCalendarioAgricola
 } from '../data/initialData';
 import { Header } from './Header';
 import { MetricCards } from './MetricCards';
@@ -22,6 +41,13 @@ import { QuadroSafraView } from './views/QuadroSafraView';
 import { CotacoesView } from './views/CotacoesView';
 import { CadastroMestreView } from './views/CadastroMestreView';
 import { AnaliseFinanceiraView } from './views/AnaliseFinanceiraView';
+import { AquisicaoFazendaView } from './views/AquisicaoFazendaView';
+import { ArrendamentosView } from './views/ArrendamentosView';
+import { ComercializacaoView } from './views/ComercializacaoView';
+import { BalancoPjView } from './views/BalancoPjView';
+import { FluxoSafraView } from './views/FluxoSafraView';
+import { FluxoMensalView } from './views/FluxoMensalView';
+import { ApresentacaoGrupoView } from './views/ApresentacaoGrupoView';
 import { GenericView } from './views/GenericView';
 import { useAppShell } from '../lib/app-shell-context';
 
@@ -40,8 +66,17 @@ export const TabView: React.FC<TabViewProps> = ({ tab }) => {
   // Quadro de Safra (usado também no Resumo)
   const [culturaSafras, setCulturaSafras] = useState<CulturaSafraAno[]>(initialCulturaSafras);
 
-  // Bancos (usado também no Resumo)
+  // Bancos (usado também no Resumo e Fluxo de Safra)
   const [contratosBancarios, setContratosBancarios] = useState<ContratoBancario[]>(initialContratosBancarios);
+
+  // Aquisição de Fazendas
+  const [aquisicoes, setAquisicoes] = useState<Aquisicao[]>(initialAquisicoes);
+
+  // Arrendamentos
+  const [arrendamentos, setArrendamentos] = useState<ContratoArrendamento[]>(initialArrendamentos);
+
+  // Comercialização
+  const [contratosComerciais, setContratosComerciais] = useState<ContratoComercial[]>(initialContratosComerciais);
 
   const handleSaveSupplier = (supplierData: Partial<Supplier>) => {
     if (supplierData.id) {
@@ -147,6 +182,96 @@ export const TabView: React.FC<TabViewProps> = ({ tab }) => {
     }
   };
 
+  const handleSaveAquisicao = (data: Partial<Aquisicao>) => {
+    if (data.id) {
+      setAquisicoes((prev) => prev.map((a) => (a.id === data.id ? ({ ...a, ...data } as Aquisicao) : a)));
+    } else {
+      const nova: Aquisicao = {
+        id: `aquisicao-${Date.now()}`,
+        nomeFazenda: data.nomeFazenda || '',
+        localizacao: data.localizacao || '',
+        areaHectares: data.areaHectares || 0,
+        valorTotal: data.valorTotal || 0,
+        dataAquisicao: data.dataAquisicao || new Date().toISOString().split('T')[0],
+        culturaPrincipal: data.culturaPrincipal,
+        safraInicio: data.safraInicio || '',
+        safraFim: data.safraFim || '',
+        valorTotalFluxo: data.valorTotalFluxo || 0,
+        totalSacas: data.totalSacas || 0
+      };
+      setAquisicoes((prev) => [nova, ...prev]);
+    }
+  };
+
+  const handleDeleteAquisicao = (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir esta aquisição?')) {
+      setAquisicoes((prev) => prev.filter((a) => a.id !== id));
+    }
+  };
+
+  const handleSaveArrendamento = (data: Partial<ContratoArrendamento>) => {
+    if (data.id) {
+      setArrendamentos((prev) =>
+        prev.map((a) => (a.id === data.id ? ({ ...a, ...data } as ContratoArrendamento) : a))
+      );
+    } else {
+      const novo: ContratoArrendamento = {
+        id: `arrendamento-${Date.now()}`,
+        nomePropriedade: data.nomePropriedade || '',
+        localizacao: data.localizacao || '',
+        proprietarioNome: data.proprietarioNome || '',
+        proprietarioCpfCnpj: data.proprietarioCpfCnpj || '',
+        areaHectares: data.areaHectares || 0,
+        culturaPrincipal: data.culturaPrincipal || '',
+        custoAnualHectare: data.custoAnualHectare || 0,
+        dataInicio: data.dataInicio || new Date().toISOString().split('T')[0],
+        dataFim: data.dataFim || '',
+        periodicidade: data.periodicidade || 'Anual',
+        renovavel: data.renovavel ?? true,
+        status: data.status || 'ATIVO',
+        safraInicio: data.safraInicio || '',
+        safraFim: data.safraFim || '',
+        observacoes: data.observacoes
+      };
+      setArrendamentos((prev) => [novo, ...prev]);
+    }
+  };
+
+  const handleDeleteArrendamento = (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir este contrato de arrendamento?')) {
+      setArrendamentos((prev) => prev.filter((a) => a.id !== id));
+    }
+  };
+
+  const handleSaveContratoComercial = (data: Partial<ContratoComercial>) => {
+    if (data.id) {
+      setContratosComerciais((prev) =>
+        prev.map((c) => (c.id === data.id ? ({ ...c, ...data } as ContratoComercial) : c))
+      );
+    } else {
+      const novo: ContratoComercial = {
+        id: `comercial-${Date.now()}`,
+        cultura: data.cultura || '',
+        safra: data.safra || '',
+        quantidadeSc: data.quantidadeSc || 0,
+        precoFixado: data.precoFixado || 0,
+        tipoContrato: data.tipoContrato || 'FUTURO',
+        dataContrato: data.dataContrato || new Date().toISOString().split('T')[0],
+        dataVencimento: data.dataVencimento || '',
+        status: data.status || 'ATIVO',
+        compradorNome: data.compradorNome,
+        observacoes: data.observacoes
+      };
+      setContratosComerciais((prev) => [novo, ...prev]);
+    }
+  };
+
+  const handleDeleteContratoComercial = (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir este contrato comercial?')) {
+      setContratosComerciais((prev) => prev.filter((c) => c.id !== id));
+    }
+  };
+
   return (
     <>
       <Header
@@ -193,6 +318,37 @@ export const TabView: React.FC<TabViewProps> = ({ tab }) => {
       {tab === 'bancos' && (
         <BancosView contratos={contratosBancarios} onSave={handleSaveContrato} onDelete={handleDeleteContrato} />
       )}
+      {tab === 'aquisicao_fazenda' && (
+        <AquisicaoFazendaView
+          aquisicoes={aquisicoes}
+          onSave={handleSaveAquisicao}
+          onDelete={handleDeleteAquisicao}
+        />
+      )}
+      {tab === 'arrendamentos' && (
+        <ArrendamentosView
+          arrendamentos={arrendamentos}
+          onSave={handleSaveArrendamento}
+          onDelete={handleDeleteArrendamento}
+        />
+      )}
+      {tab === 'comercializacao' && (
+        <ComercializacaoView
+          posicoes={initialPosicaoComercializacao}
+          contratos={contratosComerciais}
+          onSave={handleSaveContratoComercial}
+          onDelete={handleDeleteContratoComercial}
+        />
+      )}
+      {tab === 'balanco_pj' && <BalancoPjView empresas={initialEmpresasBalanco} />}
+      {tab === 'fluxo_safra' && (
+        <FluxoSafraView
+          itens={initialFluxoSafra}
+          receitaProjetada={RECEITA_PROJETADA_SAFRA}
+          saldoDevedorBancos={contratosBancarios.reduce((sum, c) => sum + c.saldoAtual, 0)}
+        />
+      )}
+      {tab === 'cotacoes' && <CotacoesView dolar={initialCotacaoDolar} commodities={initialCotacoesCommodities} />}
       {tab === 'analise_financeira' && (
         <AnaliseFinanceiraView
           balanco={initialBalanco}
@@ -200,15 +356,25 @@ export const TabView: React.FC<TabViewProps> = ({ tab }) => {
           saudeFinanceira={initialSaudeFinanceira}
         />
       )}
-      {tab === 'cotacoes' && <CotacoesView />}
+      {tab === 'fluxo_mensal' && (
+        <FluxoMensalView lancamentos={initialLancamentosMensais} calendario={initialCalendarioAgricola} />
+      )}
+      {tab === 'apresentacao_grupo' && <ApresentacaoGrupoView />}
 
       {tab !== 'fornecedores' &&
         tab !== 'resumo' &&
         tab !== 'cadastro_mestre' &&
         tab !== 'quadro_safra' &&
         tab !== 'bancos' &&
+        tab !== 'aquisicao_fazenda' &&
+        tab !== 'arrendamentos' &&
+        tab !== 'comercializacao' &&
+        tab !== 'balanco_pj' &&
+        tab !== 'fluxo_safra' &&
+        tab !== 'cotacoes' &&
         tab !== 'analise_financeira' &&
-        tab !== 'cotacoes' && <GenericView activeTab={tab} />}
+        tab !== 'fluxo_mensal' &&
+        tab !== 'apresentacao_grupo' && <GenericView activeTab={tab} />}
     </>
   );
 };

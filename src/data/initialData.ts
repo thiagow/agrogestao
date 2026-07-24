@@ -1,14 +1,20 @@
 import {
   Supplier,
-  LandLease,
-  CommodityContract,
-  CommodityQuote,
   Socio,
   CulturaSafraAno,
   ContratoBancario,
   BalancoPatrimonial,
   IndicadorFinanceiro,
-  IndicadorSaudeFinanceira
+  IndicadorSaudeFinanceira,
+  Aquisicao,
+  ContratoArrendamento,
+  ContratoComercial,
+  PosicaoComercializacao,
+  EmpresaBalanco,
+  FluxoSafraItem,
+  Cotacao,
+  LancamentoMensal,
+  CalendarioAgricolaEtapa
 } from '../types';
 
 export const initialSuppliers: Supplier[] = [
@@ -325,106 +331,280 @@ export const initialSaudeFinanceira: IndicadorSaudeFinanceira[] = [
   { dimensao: 'Cobertura', valor: 95 }
 ];
 
-// ---- Demais módulos (ainda GenericView) ----
+// ---- Aquisição de Fazendas ----
 
-export const initialLeases: LandLease[] = [
+export const initialAquisicoes: Aquisicao[] = [
   {
-    id: 'lease-1',
-    proprietario: 'Família Silveira',
-    fazenda: 'Gleba Sul - Sorriso/MT',
-    areaHa: 1200,
-    valorSacasHa: 12,
-    vencimento: '2026-08-30',
-    status: 'EM_DIA'
-  },
-  {
-    id: 'lease-2',
-    proprietario: 'Agropecuária Primavera Ltda',
-    fazenda: 'Fazenda Retiro',
-    areaHa: 850,
-    valorSacasHa: 14,
-    vencimento: '2026-11-15',
-    status: 'EM_DIA'
+    id: 'aquisicao-1',
+    nomeFazenda: 'Fazenda Pedra',
+    localizacao: 'Ofitoma - GO',
+    areaHectares: 5000,
+    valorTotal: 130000000,
+    dataAquisicao: '2025-02-10',
+    dataOcupacao: '2026-07-01',
+    culturaPrincipal: 'Soja',
+    safraInicio: '2026/2027',
+    safraFim: '2029/2030',
+    valorTotalFluxo: 470000000,
+    totalSacas: 4085957
   }
 ];
 
-export const initialContracts: CommodityContract[] = [
+// ---- Arrendamentos ----
+
+export const initialArrendamentos: ContratoArrendamento[] = [
   {
-    id: 'contract-1',
-    comprador: 'Cargill Agrícola',
-    produto: 'Soja em Grãos',
-    safra: '24/25',
-    quantidadeSacas: 150000,
-    precoSaca: 132.5,
-    valorTotal: 19875000,
-    dataEntrega: '2026-05-30',
-    status: 'PARCIAL'
+    id: 'arrendamento-1',
+    nomePropriedade: 'Fazenda Matagal',
+    localizacao: 'Centro-Oeste',
+    proprietarioNome: 'Família Silveira',
+    proprietarioCpfCnpj: '123.456.789-01',
+    areaHectares: 1499,
+    culturaPrincipal: 'Soja',
+    custoAnualHectare: Math.round((2014656 / 1499) * 100) / 100,
+    sacasPorHectare: 12.0,
+    dataInicio: '2026-07-01',
+    dataFim: '2030-06-30',
+    periodicidade: 'Anual',
+    renovavel: true,
+    status: 'ATIVO',
+    safraInicio: '2026/2027',
+    safraFim: '2029/2030'
   },
   {
-    id: 'contract-2',
-    comprador: 'ADM do Brasil',
-    produto: 'Milho',
-    safra: '24/25',
-    quantidadeSacas: 200000,
-    precoSaca: 64.0,
-    valorTotal: 12800000,
-    dataEntrega: '2026-09-15',
-    status: 'ABERTO'
-  },
-  {
-    id: 'contract-3',
-    comprador: 'Amaggi',
-    produto: 'Soja em Grãos',
-    safra: '24/25',
-    quantidadeSacas: 100000,
-    precoSaca: 135.0,
-    valorTotal: 13500000,
-    dataEntrega: '2026-04-30',
-    status: 'ENTREGUE'
+    id: 'arrendamento-2',
+    nomePropriedade: 'Fazenda Pedra II',
+    localizacao: 'Cruzília - MG',
+    proprietarioNome: 'Agropecuária Primavera Ltda',
+    proprietarioCpfCnpj: '12.345.678/0001-90',
+    areaHectares: 800,
+    culturaPrincipal: 'Soja',
+    custoAnualHectare: 1200,
+    sacasPorHectare: 10.5,
+    dataInicio: '2025-07-01',
+    dataFim: '2032-06-30',
+    periodicidade: 'Anual',
+    renovavel: true,
+    status: 'ATIVO',
+    safraInicio: '2025/2026',
+    safraFim: '2031/2032'
   }
 ];
 
-export const initialQuotes: CommodityQuote[] = [
+// ---- Comercialização (Futuros/Hedge) ----
+
+export const initialContratosComerciais: ContratoComercial[] = [];
+
+export const initialPosicaoComercializacao: PosicaoComercializacao[] = [
+  { cultura: 'Soja', producaoTotalSc: 368400, cotacaoAtual: 120 },
+  { cultura: 'Milho', producaoTotalSc: 154700, cotacaoAtual: 52 },
+  { cultura: 'Seringueira', producaoTotalSc: 1664, cotacaoAtual: 6100 },
+  { cultura: 'Cana de Açúcar', producaoTotalSc: 188400, cotacaoAtual: 129 },
+  { cultura: 'Café Irrigado', producaoTotalSc: 99855, cotacaoAtual: 1800 },
+  { cultura: 'Eucalipto', producaoTotalSc: 513285, cotacaoAtual: 150 },
+  { cultura: 'Arroz', producaoTotalSc: 150060, cotacaoAtual: 108 },
+  { cultura: 'Bovino', producaoTotalSc: 222260, cotacaoAtual: 365 }
+];
+
+// ---- Balanço PJ ----
+
+export const initialEmpresasBalanco: EmpresaBalanco[] = [
   {
-    produto: 'Soja (Saca 60kg)',
-    praca: 'Rondonópolis - MT',
-    precoAtual: 134.8,
-    variacao: 1.25,
+    id: 'empresa-1',
+    empresa: 'Grupo Pereira Agropecuária Ltda',
+    safra: '2026/2027',
+    ativoCirculante: 320000000,
+    ativoNaoCirculante: 1600000000,
+    passivoCirculante: 48000000,
+    passivoNaoCirculante: 190000000,
+    capitalReservas: 0,
+    receitaBruta: 340000000,
+    custos: 132000000,
+    despesasOperacionais: 28000000
+  },
+  {
+    id: 'empresa-2',
+    empresa: 'Pereira Participações S.A.',
+    safra: '2026/2027',
+    ativoCirculante: 123003709,
+    ativoNaoCirculante: 628194990,
+    passivoCirculante: 16800239,
+    passivoNaoCirculante: 71548518,
+    capitalReservas: 0,
+    receitaBruta: 98003709,
+    custos: 38958647,
+    despesasOperacionais: 9500000
+  }
+];
+
+// ---- Fluxo de Safra Projetado ----
+
+export const initialFluxoSafra: FluxoSafraItem[] = [
+  { id: 'fluxo-1', tipo: 'SAIDA', categoria: 'Custo de Produção', descricao: 'Custo de Produção da Safra', valor: 170958647 },
+  { id: 'fluxo-2', tipo: 'SAIDA', categoria: 'Fornecedores', descricao: 'Fornecedores (insumos e serviços)', valor: 0 },
+  { id: 'fluxo-3', tipo: 'SAIDA', categoria: 'Bancos', descricao: 'Amortização Programada (Bancos)', valor: 45531491 },
+  { id: 'fluxo-4', tipo: 'SAIDA', categoria: 'Bancos', descricao: 'Juros Programados (Bancos)', valor: 6219828 },
+  { id: 'fluxo-5', tipo: 'SAIDA', categoria: 'Arrendamentos', descricao: 'Arrendamentos', valor: 2014656 },
+  { id: 'fluxo-6', tipo: 'SAIDA', categoria: 'Comercial', descricao: 'Despesa Comercial (3 sc/ha soja)', valor: 1900000 },
+  { id: 'fluxo-7', tipo: 'SAIDA', categoria: 'Aquisições', descricao: 'Parcelas de Aquisição de Fazenda', valor: 115000000 }
+];
+
+export const RECEITA_PROJETADA_SAFRA = 438003709;
+
+// ---- Cotações de Mercado ----
+
+export const initialCotacaoDolar: Cotacao = {
+  id: 'cot-usd',
+  commodity: 'Dólar Americano',
+  bolsa: 'PTAX',
+  ticker: 'USD/BRL',
+  precoBrl: 5.0735,
+  unidade: 'R$',
+  variacaoPercentual: -1.04,
+  maxima: 5.09,
+  minima: 5.0635,
+  volume: 0,
+  precoDefinidoSafra: 5.0735,
+  atualizadoEm: '11:05:39'
+};
+
+export const initialCotacoesCommodities: Cotacao[] = [
+  {
+    id: 'cot-soja',
+    commodity: 'Soja Grão',
+    bolsa: 'CBOT',
+    ticker: 'ZS=F',
+    precoUsd: 27.43,
+    precoBrl: 139.14,
     unidade: 'R$/sc',
-    atualizacao: 'Ao vivo'
+    variacaoPercentual: 1.47,
+    maxima: 1253.0,
+    minima: 1238.0,
+    volume: 59556,
+    precoDefinidoSafra: 139.14,
+    atualizadoEm: '11:05:39'
   },
   {
-    produto: 'Milho (Saca 60kg)',
-    praca: 'Campinas - SP (B3)',
-    precoAtual: 68.2,
-    variacao: -0.45,
+    id: 'cot-milho',
+    commodity: 'Milho Grão',
+    bolsa: 'CBOT',
+    ticker: 'ZC=F',
+    precoUsd: 11.36,
+    precoBrl: 57.64,
     unidade: 'R$/sc',
-    atualizacao: 'Ao vivo'
+    variacaoPercentual: -7.01,
+    maxima: 492.0,
+    minima: 480.0,
+    volume: 100740,
+    precoDefinidoSafra: 57.64,
+    atualizadoEm: '11:05:39'
   },
   {
-    produto: 'Algodão em Pluma',
-    praca: 'Barreiras - BA',
-    precoAtual: 142.5,
-    variacao: 0.8,
-    unidade: 'R$/arroba',
-    atualizacao: 'Ao vivo'
+    id: 'cot-algodao',
+    commodity: 'Algodão Pluma',
+    bolsa: 'ICE',
+    ticker: 'CT=F',
+    precoUsd: 396.83,
+    precoBrl: 2013.33,
+    unidade: 'R$/sc',
+    variacaoPercentual: -3.4,
+    maxima: 81.75,
+    minima: 79.75,
+    volume: 11312,
+    atualizadoEm: '11:05:39'
   },
   {
-    produto: 'Boi Gordo',
-    praca: 'Araçatuba - SP (B3)',
-    precoAtual: 248.0,
-    variacao: 0.3,
+    id: 'cot-boi',
+    commodity: 'Boi Gordo',
+    bolsa: 'CME',
+    ticker: 'GF=F',
+    precoBrl: 5.79,
     unidade: 'R$/@',
-    atualizacao: 'Ao vivo'
+    variacaoPercentual: -1.97,
+    maxima: 0,
+    minima: 0,
+    volume: 0,
+    atualizadoEm: '11:05:39'
   },
   {
-    produto: 'Dólar Comercial',
-    praca: 'PTAX / Banco Central',
-    precoAtual: 5.482,
-    variacao: -0.18,
-    unidade: 'R$/USD',
-    atualizacao: 'Ao vivo'
+    id: 'cot-trigo',
+    commodity: 'Trigo',
+    bolsa: 'CBOT',
+    ticker: 'ZW=F',
+    precoBrl: 74.38,
+    unidade: 'R$/sc',
+    variacaoPercentual: -1.34,
+    maxima: 0,
+    minima: 0,
+    volume: 0,
+    atualizadoEm: '11:05:39'
+  },
+  {
+    id: 'cot-cafe',
+    commodity: 'Café Arábica',
+    bolsa: 'ICE',
+    ticker: 'KC=F',
+    precoBrl: 2118.01,
+    unidade: 'R$/sc',
+    variacaoPercentual: -5.62,
+    maxima: 0,
+    minima: 0,
+    volume: 0,
+    atualizadoEm: '11:05:39'
   }
+];
+
+// ---- Fluxo de Caixa Mensal ----
+
+const MESES_LABEL = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+export function mesLabel(mes: number): string {
+  return MESES_LABEL[mes - 1] ?? String(mes);
+}
+
+function gerarLancamentosMensais(): LancamentoMensal[] {
+  const lancamentos: LancamentoMensal[] = [];
+  let seq = 1;
+
+  CULTURA_BASES.forEach((base) => {
+    for (let mes = 1; mes <= 12; mes++) {
+      const fatorSazonal = 1 + Math.sin((mes / 12) * Math.PI * 2) * 0.6;
+      const entrada = mes >= 4 && mes <= 7 ? Math.round(base.hectares2627 * base.precoMedio * base.rendimento * 0.08) : 0;
+      const saida = Math.round(base.hectares2627 * base.despesaPorHa * 0.09 * Math.max(fatorSazonal, 0.3));
+
+      if (entrada > 0) {
+        lancamentos.push({
+          id: `lanc-${seq++}`,
+          cultura: base.cultura,
+          mes,
+          tipo: 'ENTRADA',
+          categoria: 'Receita de Colheita',
+          valor: entrada
+        });
+      }
+
+      lancamentos.push({
+        id: `lanc-${seq++}`,
+        cultura: base.cultura,
+        mes,
+        tipo: 'SAIDA',
+        categoria: 'Custeio Operacional',
+        valor: saida
+      });
+    }
+  });
+
+  return lancamentos;
+}
+
+export const initialLancamentosMensais: LancamentoMensal[] = gerarLancamentosMensais();
+
+export const initialCalendarioAgricola: CalendarioAgricolaEtapa[] = [
+  { cultura: 'Soja', mesesPlantioColheita: [3, 6], mesesDesenvolvimento: [4, 5] },
+  { cultura: 'Milho 1ª Safra', mesesPlantioColheita: [2, 10, 11], mesesDesenvolvimento: [3, 4, 5, 6] },
+  { cultura: 'Milho Safrinha', mesesPlantioColheita: [5, 6, 7, 8], mesesDesenvolvimento: [5, 6] },
+  { cultura: 'Algodão', mesesPlantioColheita: [4, 10, 11], mesesDesenvolvimento: [5, 6, 7] },
+  { cultura: 'Bovino', mesesPlantioColheita: [], mesesDesenvolvimento: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] }
 ];
 
 export function formatCurrency(amount: number, currency: string = 'BRL'): string {

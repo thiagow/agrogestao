@@ -145,35 +145,135 @@ export interface IndicadorSaudeFinanceira {
   valor: number; // 0-100
 }
 
-// ---- Demais módulos (mocks já existentes) ----
+// ---- Aquisição de Fazendas ----
 
-export interface LandLease {
+export interface Aquisicao {
   id: string;
-  proprietario: string;
-  fazenda: string;
-  areaHa: number;
-  valorSacasHa: number;
-  vencimento: string;
-  status: 'EM_DIA' | 'PENDENTE';
-}
-
-export interface CommodityContract {
-  id: string;
-  comprador: string;
-  produto: string;
-  safra: string;
-  quantidadeSacas: number;
-  precoSaca: number;
+  nomeFazenda: string;
+  localizacao: string;
+  areaHectares: number;
   valorTotal: number;
-  dataEntrega: string;
-  status: 'ABERTO' | 'ENTREGUE' | 'PARCIAL';
+  dataAquisicao: string; // YYYY-MM-DD
+  dataOcupacao?: string;
+  culturaPrincipal?: string;
+  safraInicio: string; // "2026/2027"
+  safraFim: string; // "2029/2030"
+  valorTotalFluxo: number; // fluxo de pagamento total previsto
+  totalSacas: number; // produção estimada total no período
 }
 
-export interface CommodityQuote {
-  produto: string;
-  praca: string;
-  precoAtual: number;
-  variacao: number;
+// ---- Arrendamentos ----
+
+export type PeriodicidadeArrendamento = 'Anual' | 'Mensal' | 'Por Safra';
+export type StatusArrendamento = 'ATIVO' | 'ENCERRADO';
+
+export interface ContratoArrendamento {
+  id: string;
+  nomePropriedade: string;
+  localizacao: string;
+  proprietarioNome: string;
+  proprietarioCpfCnpj: string;
+  areaHectares: number;
+  culturaPrincipal: string;
+  custoAnualHectare: number; // R$/ha/ano (ou sacas/ha convertido)
+  sacasPorHectare?: number;
+  dataInicio: string;
+  dataFim: string;
+  periodicidade: PeriodicidadeArrendamento;
+  renovavel: boolean;
+  status: StatusArrendamento;
+  safraInicio: string;
+  safraFim: string;
+  observacoes?: string;
+}
+
+// ---- Comercialização (Futuros/Hedge) ----
+
+export type TipoContratoComercial = 'FUTURO' | 'VENDA_A_TERMO' | 'HEDGE_CALL' | 'HEDGE_PUT';
+export type StatusContratoComercial = 'ATIVO' | 'LIQUIDADO' | 'CANCELADO';
+
+export interface ContratoComercial {
+  id: string;
+  cultura: string;
+  safra: string;
+  quantidadeSc: number;
+  precoFixado: number;
+  tipoContrato: TipoContratoComercial;
+  dataContrato: string;
+  dataVencimento: string;
+  status: StatusContratoComercial;
+  compradorNome?: string;
+  observacoes?: string;
+}
+
+export interface PosicaoComercializacao {
+  cultura: string;
+  producaoTotalSc: number;
+  cotacaoAtual: number; // R$/sc
+}
+
+// ---- Balanço PJ ----
+
+export interface EmpresaBalanco {
+  id: string;
+  empresa: string;
+  safra: string;
+  ativoCirculante: number;
+  ativoNaoCirculante: number;
+  passivoCirculante: number;
+  passivoNaoCirculante: number;
+  capitalReservas: number;
+  receitaBruta: number;
+  custos: number;
+  despesasOperacionais: number;
+}
+
+// ---- Fluxo de Safra Projetado ----
+
+export interface FluxoSafraItem {
+  id: string;
+  tipo: 'ENTRADA' | 'SAIDA';
+  categoria: string;
+  descricao: string;
+  valor: number;
+}
+
+// ---- Cotações de Mercado ----
+
+export type Bolsa = 'CBOT' | 'CME' | 'ICE' | 'B3' | 'PTAX';
+
+export interface Cotacao {
+  id: string;
+  commodity: string;
+  bolsa: Bolsa;
+  ticker: string;
+  precoUsd?: number;
+  precoBrl: number;
   unidade: string;
-  atualizacao: string;
+  variacaoPercentual: number;
+  maxima: number;
+  minima: number;
+  volume: number;
+  precoDefinidoSafra?: number;
+  atualizadoEm: string; // HH:MM:SS
+}
+
+// ---- Fluxo de Caixa Mensal ----
+
+export type TipoLancamentoMensal = 'ENTRADA' | 'SAIDA' | 'ESTIMADO';
+
+export interface LancamentoMensal {
+  id: string;
+  cultura: string;
+  mes: number; // 1-12
+  tipo: TipoLancamentoMensal;
+  categoria: string;
+  valor: number;
+  descricao?: string;
+}
+
+export interface CalendarioAgricolaEtapa {
+  cultura: string;
+  mesesPlantioColheita: number[]; // 1-12, etapa de plantio/colheita
+  mesesDesenvolvimento: number[]; // 1-12, etapa de desenvolvimento/crescimento
 }

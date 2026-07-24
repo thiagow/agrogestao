@@ -1,6 +1,6 @@
 # CLAUDE.md — AgroGestão
 
-Sistema de gestão financeira e controle agrícola (fornecedores, safras, bancos, cotações, arrendamentos, comercialização), replicando o sistema **AgroFlow** com base em engenharia reversa documentada localmente (`ENGENHARIA_REVERSA_AGROFLOW_2026.md.pdf`, não versionado). Roadmap completo de replicação, por fase e tela: `docs/PLANO_REPLICACAO_AGROFLOW.md`.
+Sistema de gestão financeira e controle agrícola (fornecedores, safras, bancos, cotações, arrendamentos, comercialização), replicando o sistema **AgroFlow** com base em engenharia reversa documentada localmente (arquivos `ENGENHARIA_REVERSA_AGROFLOW*.md*`, não versionados). **Os 14 módulos do menu estão todos implementados** (dados mockados, sem persistência real). Roadmap completo de replicação, por fase e tela: `docs/PLANO_REPLICACAO_AGROFLOW.md`.
 
 ## Stack
 
@@ -85,7 +85,7 @@ Componentes disponíveis (`import { X } from './ui'`):
 
 Para ativar uma nova tela: adicionar a entrada em `src/lib/nav.ts`, criar a `*View.tsx` em `views/`, e adicionar o branch em `TabView.tsx` (substituindo o fallback `GenericView`). Estado de dados mockados que precisa ser compartilhado entre telas (ex: `culturaSafras` usado em Resumo e Quadro de Safra) fica em `TabView.tsx`; estado local de uma única tela (ex: `Socio` em Cadastro Mestre) pode viver dentro da própria `*View.tsx`.
 
-**Módulos sem spec documentada**: 8 dos 14 módulos do menu ainda não têm engenharia reversa detalhada e continuam em `GenericView` — lista completa em `docs/PLANO_REPLICACAO_AGROFLOW.md`. Não inventar telas para eles sem uma fonte de spec.
+**Todos os 14 módulos do menu já têm tela própria** (`GenericView` não é mais usado por nenhuma rota, mas continua no código como fallback defensivo). Várias telas ainda têm sub-abas "em construção" por falta de spec detalhada nelas — lista completa em `docs/PLANO_REPLICACAO_AGROFLOW.md`. Não inventar conteúdo para essas sub-abas sem uma fonte de spec.
 
 ## Prisma (scaffolded, não conectado)
 

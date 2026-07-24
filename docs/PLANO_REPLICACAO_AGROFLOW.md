@@ -1,53 +1,57 @@
 # Plano de Replicação do AgroFlow
 
-Roadmap de replicação do sistema AgroFlow no AgroGestão, com base em `ENGENHARIA_REVERSA_AGROFLOW_2026.md.pdf` (arquivo local, não versionado — engenharia reversa de 21/07/2026 do sistema em `https://agroflow-rkqdvzdd.manus.space`).
-
-A documentação de origem detalha em nível de tela/campo **5 dos 14 módulos** do menu (Resumo, Cadastro Mestre, Quadro de Safra, Bancos, Análise Financeira) + 3 entidades (Sócio, Safra/Cultura, Contrato Bancário), além de um diagrama de entidades que cobre também Fornecedores. Os demais 8 módulos aparecem só como nome + URL, sem spec de tela — ficam como backlog até que exista mais engenharia reversa.
+Roadmap de replicação do sistema AgroFlow no AgroGestão, com base em duas engenharias reversas locais (não versionadas, gitignored):
+- `ENGENHARIA_REVERSA_AGROFLOW_2026.md.pdf` — versão inicial (21/07/2026), detalhava 5 dos 14 módulos.
+- `ENGENHARIA_REVERSA_AGROFLOW_COMPLETA_2026.md` — versão expandida (21/07/2026), detalha os **14 módulos** em profundidade, com schema relacional completo.
 
 ## Etapa 1 — Telas navegáveis com dados mockados (concluída em 2026-07-24)
 
-Escopo: só frontend, sem persistência real (Prisma/Postgres seguem scaffolded e desconectados — ver `CLAUDE.md`). Todas as telas abaixo usam dados mock de `src/data/initialData.ts`, com CRUD apenas em memória (state React), navegação real via `src/app/(app)/[tab]/page.tsx`.
+Escopo: só frontend, sem persistência real (Prisma/Postgres seguem scaffolded e desconectados — ver `CLAUDE.md`). Todas as telas usam dados mock de `src/data/initialData.ts`, com CRUD apenas em memória (state React), navegação real via `src/app/(app)/[tab]/page.tsx`.
 
-| Fase | Tela | Status | Arquivos principais |
-|---|---|---|---|
-| 0 | Fundamentos (tipos, mocks, `Tabs`, `KpiCard`, `recharts`) | ✅ | `src/types.ts`, `src/data/initialData.ts`, `src/components/ui/Tabs.tsx`, `src/components/ui/KpiCard.tsx` |
-| 1 | Login | ✅ | `src/app/login/page.tsx`, `src/app/(app)/layout.tsx` |
-| 2 | Resumo | ✅ | `src/components/views/ResumoView.tsx` |
-| 3 | Cadastro Mestre (aba Sócios) | ✅ | `src/components/views/CadastroMestreView.tsx`, `src/components/SocioDrawer.tsx` |
-| 4 | Quadro de Safra | ✅ | `src/components/views/QuadroSafraView.tsx`, `src/components/SafraDrawer.tsx` |
-| 5 | Bancos | ✅ | `src/components/views/BancosView.tsx`, `src/components/ContratoBancarioDrawer.tsx` |
-| 6 | Análise Financeira (aba Índices) | ✅ | `src/components/views/AnaliseFinanceiraView.tsx` |
-| 7 | Fornecedores (ajuste de campos) | ✅ | `src/components/SupplierDrawer.tsx` |
+### Rodada 1 — 5 módulos detalhados na doc inicial + Login + Fornecedores
+
+| Tela | Arquivos principais |
+|---|---|
+| Login (não coberto pela doc, mock visual) | `src/app/login/page.tsx`, `src/app/(app)/layout.tsx` |
+| Resumo | `src/components/views/ResumoView.tsx` |
+| Cadastro Mestre (aba Sócios) | `src/components/views/CadastroMestreView.tsx`, `src/components/SocioDrawer.tsx` |
+| Quadro de Safra | `src/components/views/QuadroSafraView.tsx`, `src/components/SafraDrawer.tsx` |
+| Bancos | `src/components/views/BancosView.tsx`, `src/components/ContratoBancarioDrawer.tsx` |
+| Análise Financeira (aba Índices) | `src/components/views/AnaliseFinanceiraView.tsx` |
+| Fornecedores (ajuste de campos: CNPJ/CPF, contato, Compras/Faturas) | `src/components/SupplierDrawer.tsx` |
+
+### Rodada 2 — 8 módulos restantes, a partir da doc expandida (14/14 módulos)
+
+| Tela | Arquivos principais |
+|---|---|
+| Aquisição de Fazendas | `src/components/views/AquisicaoFazendaView.tsx`, `src/components/AquisicaoDrawer.tsx` |
+| Arrendamentos | `src/components/views/ArrendamentosView.tsx`, `src/components/ArrendamentoDrawer.tsx` |
+| Comercialização (Futuros/Hedge) | `src/components/views/ComercializacaoView.tsx`, `src/components/ContratoComercialDrawer.tsx` |
+| Balanço PJ | `src/components/views/BalancoPjView.tsx` |
+| Fluxo de Safra Projetado | `src/components/views/FluxoSafraView.tsx` |
+| Cotações (upgrade da versão simples herdada do template original) | `src/components/views/CotacoesView.tsx` |
+| Fluxo de Caixa Mensal | `src/components/views/FluxoMensalView.tsx` |
+| Apresentação do Grupo | `src/components/views/ApresentacaoGrupoView.tsx` |
+
+**Todos os 14 módulos do menu estão implementados.** `GenericView` deixou de ser usado por qualquer rota (mantido no código como fallback defensivo, não removido).
 
 ### Decisões e recortes desta etapa
 
-- **Cadastro Mestre**: só a aba "Sócios" tem grid/formulário completo (única com spec na doc). As abas Bens e Direitos, Garantias, CAPEX, Grupo Econômico e Histórico do Grupo mostram um estado "em construção".
-- **Bancos**: só a aba "Contratos" tem grid completo. Por Credor, Cronograma e Fluxo Detalhado mostram "em construção".
-- **Análise Financeira**: só a aba "Índices" tem conteúdo (radar de saúde financeira, balanço resumido, grupos de indicadores Liquidez e Estrutura de Capital). O **Grupo 3 — Rentabilidade e Lucratividade** não foi implementado: a documentação de origem registra esse grupo como "parcialmente visível", sem nomes/valores de indicador confirmados.
-- **Fornecedores**: campos `cnpjCpf`, `contatoNome`, `contatoTelefone`, `contatoEmail` adicionados ao tipo `Supplier` e ao `SupplierDrawer`. Sub-lista "Compras/Faturas" implementada como listagem mock (somente leitura) dentro do Drawer de edição — a doc marca essa sub-entidade como "estimado", então não ganhou CRUD completo.
-- **Login**: não coberto pela documentação do AgroFlow (a engenharia reversa começa direto no dashboard autenticado). Desenhado a partir dos tokens do `DESIGN.md`, sem integração de autenticação real (auth segue adiada — ver memória do projeto).
-- **Valores de mock com base na doc**: sempre que a documentação trazia um valor concreto (ex: hectares por cultura no Resumo, saldos de contratos bancários, índices de liquidez/estrutura de capital), esse valor foi usado como base do mock. Onde a doc tinha inconsistências de OCR (ex: PL Total do balanço, "Área Arrendada 6,4%"), os campos foram preenchidos item a item e a inconsistência não foi reproduzida artificialmente.
-
-## Backlog — módulos sem spec de tela (fases futuras)
-
-Estes módulos existem no menu (`src/lib/nav.ts`) e continuam em `GenericView` (placeholder) até que haja engenharia reversa detalhada:
-
-| Módulo | URL no AgroFlow | `ActiveTab` |
-|---|---|---|
-| Aquisição de Fazendas | `/dashboard/{id}/aquisicoes` | `aquisicao_fazenda` |
-| Arrendamentos | `/dashboard/{id}/arrendamentos` | `arrendamentos` |
-| Comercialização (Futuros/Hedge) | `/dashboard/{id}/futuros` | `comercializacao` |
-| Balanço PJ | `/dashboard/{id}/balanco-pj` | `balanco_pj` |
-| Fluxo de Safra | `/dashboard/{id}/fluxo-caixa` | `fluxo_safra` |
-| Cotações | `/dashboard/{id}/cotacoes` | `cotacoes` (já tem uma view própria, herdada do template original — não a doc) |
-| Fluxo Mensal | `/dashboard/{id}/fluxo-mensal` | `fluxo_mensal` |
-| Apresentação do Grupo | `/dashboard/{id}/apresentacao` | `apresentacao_grupo` |
+- **Cadastro Mestre**: só a aba "Sócios" tem grid/formulário completo (única com spec na doc). Bens e Direitos, Garantias, CAPEX, Grupo Econômico e Histórico do Grupo mostram um estado "em construção".
+- **Bancos**: só a aba "Contratos" tem grid completo. Por Credor, Cronograma e Fluxo Detalhado mostram "em construção". Cronograma de amortização por parcela (`Parcela`) não foi implementado — fica para quando houver persistência real.
+- **Análise Financeira**: só a aba "Índices" tem conteúdo completo. O **Grupo 3 — Rentabilidade e Lucratividade** não foi implementado — mesmo a doc expandida lista as fórmulas (ROA, ROE, margens) mas não os valores/status, então os cards ficariam sem dado real para mostrar.
+- **Fornecedores**: campos `cnpjCpf`, `contatoNome`, `contatoTelefone`, `contatoEmail`; sub-lista "Compras/Faturas" mockada (somente leitura no Drawer).
+- **Login**: mock visual sem integração real, a partir dos tokens do `DESIGN.md` (auth segue adiada).
+- **Aquisição de Fazendas / Arrendamentos / Comercialização**: abas "Fluxo por Safra", "Análise de Impacto", "Por Comprador" e "Gráficos" ficam "em construção" — a doc só detalha a aba principal (Contratos / Posição por Cultura) de cada uma.
+- **Balanço PJ**: a doc original registra esse módulo como PREMIUM/paywall no AgroFlow real, mas por decisão do usuário foi implementado **desbloqueado**, com balanço + DRE mockados por empresa (não há paywall no AgroGestão).
+- **Apresentação do Grupo**: o botão "Gerar Apresentação" simula a transição de estado (idle → gerando → pronta) sem produzir um arquivo `.pptx` real — geração de arquivo de verdade fica para quando houver backend.
+- **Cotações**: reconstruída para bater com a doc (câmbio USD/BRL, cards de commodities com ticker/bolsa/máx/mín/volume, ações "Salvar"). A calculadora de trava que existia na versão anterior (não documentada na doc) foi removida para não divergir do padrão AgroFlow.
+- **Fluxo de Caixa Mensal**: gráfico de curva de caixa (entradas/saídas/saldo acumulado) via `recharts`, calendário agrícola simplificado (pontos coloridos por mês/cultura em vez de Gantt completo), lançamentos mensais só como contagem/resumo (sem CRUD linha a linha nesta fase).
+- **Discrepâncias entre as duas versões da doc**: a versão expandida traz valores diferentes da inicial para os mesmos campos em alguns pontos (ex: card "Endividamento" do Resumo, "Bancos: R$ 284.597" na doc expandida vs. saldo devedor total de ~R$ 171M no módulo Bancos da mesma doc — inconsistência da fonte, não do AgroGestão). Nesses casos os mocks foram preenchidos por módulo, sem tentar reconciliar artificialmente números que a própria fonte não reconcilia.
 
 ## Próximas etapas (fora do escopo desta rodada)
 
-Conforme o "Resumo Final" da engenharia reversa e decisões já registradas em memória do projeto:
-
-- **Etapa 2 — Persistência real**: conectar o schema Prisma (`prisma/schema.prisma`) a um Postgres real (Neon/Supabase), migrar as entidades hoje mockadas (Fornecedor, Sócio, Safra, Contrato Bancário, Balanço, Indicadores) e trocar leitura de `initialData.ts` por queries via `@prisma/client`.
-- **Etapa 3 — Autenticação real**: sair da tela de Login mockada para autenticação de verdade (NextAuth/Auth.js ou similar), proteger as rotas do route group `(app)`.
-- **Etapa 4 — Módulos do backlog**: assim que houver engenharia reversa detalhada dos 8 módulos listados acima, replicar o mesmo processo desta etapa (tipos → mocks → tela → drawer).
-- **Etapa 5 — Regras de negócio avançadas**: cronograma de amortização por parcela (`Parcela`), sincronização de IR, permissões por papel de usuário — todos mencionados na engenharia reversa mas fora do escopo de telas navegáveis.
+- **Etapa 2 — Persistência real**: conectar o schema Prisma (`prisma/schema.prisma`) a um Postgres real (Neon/Supabase) e migrar todas as entidades hoje mockadas — inclusive as 8 novas (Aquisição, Arrendamento, Contrato Comercial, Cotação, Lançamento Mensal, Empresa/Balanço PJ) — trocando `initialData.ts` por queries via `@prisma/client`.
+- **Etapa 3 — Autenticação real**: sair do Login mockado para autenticação de verdade (NextAuth/Auth.js ou similar), proteger as rotas do route group `(app)`.
+- **Etapa 4 — Abas "em construção"**: Bens e Direitos/Garantias/CAPEX/Grupo Econômico/Histórico (Cadastro Mestre), Por Credor/Cronograma/Fluxo Detalhado (Bancos), Fluxo por Safra/Análise de Impacto/Gráficos (Aquisição, Arrendamentos), Por Comprador/Gráficos (Comercialização), Balanço/Dados Complementares/Consolidado (Análise Financeira), Índices/Comparativo (Balanço PJ) — todas precisam de mais detalhamento de spec (campos, fórmulas) antes de sair do estado placeholder.
+- **Etapa 5 — Regras de negócio avançadas**: cronograma de amortização por parcela, sincronização de IR (import de PDF), geração real de `.pptx`, cotações ao vivo (integração Yahoo Finance/CBOT/CME/ICE), permissões por papel de usuário.
