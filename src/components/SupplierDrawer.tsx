@@ -167,10 +167,10 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
         />
 
         <div className="pt-4 border-t border-slate-200 grid grid-cols-2 gap-3">
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={onClose} className="w-full">
             Cancelar
           </Button>
-          <Button type="submit" variant="primary">
+          <Button type="submit" variant="primary" className="w-full">
             {editingSupplier ? 'Salvar' : 'Cadastrar'}
           </Button>
         </div>

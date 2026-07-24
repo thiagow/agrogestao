@@ -1,71 +1,28 @@
+'use client';
+
 import React from 'react';
-import { ActiveTab } from '../types';
-import {
-  LayoutDashboard,
-  Database,
-  Sprout,
-  Building2,
-  Users,
-  MapPin,
-  FileText,
-  TrendingUp,
-  Scale,
-  GitBranch,
-  DollarSign,
-  BarChart3,
-  Calendar,
-  Presentation,
-  LogOut,
-  X,
-  Menu,
-  Image as ImageIcon
-} from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { LogOut, X, Sprout, Image as ImageIcon } from 'lucide-react';
+import { navEntries } from '../lib/nav';
+import { useAppShell } from '../lib/app-shell-context';
 
 interface SidebarProps {
-  activeTab: ActiveTab;
-  setActiveTab: (tab: ActiveTab) => void;
   isOpenMobile: boolean;
-  setIsOpenMobile: (open: boolean) => void;
-  onOpenImageModal: () => void;
+  onCloseMobile: () => void;
 }
 
-interface NavItem {
-  id: ActiveTab;
-  label: string;
-  icon: React.ElementType;
-}
+export const Sidebar: React.FC<SidebarProps> = ({ isOpenMobile, onCloseMobile }) => {
+  const pathname = usePathname();
+  const { openImageModal } = useAppShell();
 
-const navItems: NavItem[] = [
-  { id: 'resumo', label: 'Resumo', icon: LayoutDashboard },
-  { id: 'cadastro_mestre', label: 'Cadastro Mestre', icon: Database },
-  { id: 'quadro_safra', label: 'Quadro Safra', icon: Sprout },
-  { id: 'bancos', label: 'Bancos', icon: Building2 },
-  { id: 'fornecedores', label: 'Fornecedores', icon: Users },
-  { id: 'aquisicao_fazenda', label: 'Aquisição Fazenda', icon: MapPin },
-  { id: 'arrendamentos', label: 'Arrendamentos', icon: FileText },
-  { id: 'comercializacao', label: 'Comercialização', icon: TrendingUp },
-  { id: 'balanco_pj', label: 'Balanço PJ', icon: Scale },
-  { id: 'fluxo_safra', label: 'Fluxo de Safra', icon: GitBranch },
-  { id: 'cotacoes', label: 'Cotações', icon: DollarSign },
-  { id: 'analise_financeira', label: 'Análise Financeira', icon: BarChart3 },
-  { id: 'fluxo_mensal', label: 'Fluxo Mensal', icon: Calendar },
-  { id: 'apresentacao_grupo', label: 'Apresentação do Grupo', icon: Presentation },
-];
-
-export const Sidebar: React.FC<SidebarProps> = ({
-  activeTab,
-  setActiveTab,
-  isOpenMobile,
-  setIsOpenMobile,
-  onOpenImageModal
-}) => {
   return (
     <>
       {/* Mobile Backdrop */}
       {isOpenMobile && (
         <div
           className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-xs"
-          onClick={() => setIsOpenMobile(false)}
+          onClick={onCloseMobile}
         />
       )}
 
@@ -86,7 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           <button
-            onClick={() => setIsOpenMobile(false)}
+            onClick={onCloseMobile}
             className="lg:hidden p-1 text-slate-400 hover:text-white rounded-md"
             aria-label="Fechar menu"
           >
@@ -96,17 +53,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation Items */}
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1 custom-scrollbar">
-          {navItems.map((item) => {
+          {navEntries.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isActive = pathname === `/${item.id}`;
 
             return (
-              <button
+              <Link
                 key={item.id}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  setIsOpenMobile(false);
-                }}
+                href={`/${item.id}`}
+                onClick={onCloseMobile}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
                   isActive
                     ? 'bg-[#a3e635] text-[#0b2310] shadow-md shadow-[#a3e635]/20 font-semibold'
@@ -119,7 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }`}
                 />
                 <span className="truncate">{item.label}</span>
-              </button>
+              </Link>
             );
           })}
         </div>
@@ -127,7 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Image / HTML Link Helper Shortcut Button */}
         <div className="px-3 py-2 border-t border-emerald-900/40">
           <button
-            onClick={onOpenImageModal}
+            onClick={() => openImageModal()}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium bg-emerald-900/40 hover:bg-emerald-800/50 text-emerald-200 hover:text-white rounded-lg transition border border-emerald-800/50"
           >
             <ImageIcon className="w-3.5 h-3.5 text-[#a3e635]" />
@@ -135,7 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* Footer User Profile (Matching Screenshot) */}
+        {/* Footer User Profile */}
         <div className="p-3 border-t border-emerald-900/50 bg-[#081a0c] flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-full bg-[#a3e635] text-[#0b2310] font-bold text-xs flex items-center justify-center shrink-0 border border-[#a3e635]/30">

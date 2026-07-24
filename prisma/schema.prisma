@@ -1,0 +1,55 @@
+// Schema scaffolded para estabelecer o padrão Prisma + Postgres do projeto.
+// Ainda não está conectado ao app (que segue usando src/data/initialData.ts nesta etapa).
+// Rodar `npm run db:migrate` só depois de configurar DATABASE_URL com uma connection string real.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Identificadores em ASCII (Prisma não aceita acento em nomes de enum);
+// os rótulos originais (MAQUINÁRIOS, COMBUSTÍVEL, SERVIÇOS) ficam preservados
+// via @map, que é o valor de fato gravado no banco.
+enum Category {
+  FERTILIZANTES
+  DEFENSIVOS
+  SEMENTES
+  MAQUINARIOS @map("MAQUINÁRIOS")
+  COMBUSTIVEL @map("COMBUSTÍVEL")
+  SERVICOS    @map("SERVIÇOS")
+  OUTROS
+}
+
+enum Currency {
+  BRL
+  USD
+}
+
+enum SupplierStatus {
+  PENDENTE
+  PAGO
+  VENCIDO
+}
+
+model Supplier {
+  id            String         @id @default(cuid())
+  nome          String
+  categoria     Category
+  cultura       String?
+  safra         String?
+  dividaTotal   Float
+  moeda         Currency
+  vencimento    DateTime
+  observacoes   String?
+  status        SupplierStatus @default(PENDENTE)
+  imageUrl      String?
+  comprovanteUrl String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@map("suppliers")
+}

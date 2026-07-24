@@ -23,11 +23,11 @@ export const Button: React.FC<ButtonProps> = ({
   children,
   ...rest
 }) => {
-  const sizing = variant === 'icon' ? '' : 'w-full py-2.5 px-4 text-sm';
+  const sizing = variant === 'icon' ? '' : 'py-2.5 px-4 text-sm';
 
   return (
     <button
-      className={`${sizing} rounded-xl transition cursor-pointer ${variantClasses[variant]} ${className}`}
+      className={`rounded-xl transition cursor-pointer ${variantClasses[variant]} ${sizing} ${className}`}
       {...rest}
     >
       {children}
