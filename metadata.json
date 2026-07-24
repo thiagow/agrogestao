@@ -1,0 +1,6 @@
+{
+  "name": "AgroGestão",
+  "description": "Sistema de gestão financeira e controle agrícola com fornecedores, safras e cotações",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
