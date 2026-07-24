@@ -127,7 +127,7 @@ export const navEntries: NavEntry[] = [
 
 export const navEntriesById = new Map(navEntries.map((entry) => [entry.id, entry]));
 
-export const defaultTab: ActiveTab = 'fornecedores';
+export const defaultTab: ActiveTab = 'resumo';
 
 export function isActiveTab(value: string): value is ActiveTab {
   return navEntriesById.has(value as ActiveTab);
