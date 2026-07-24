@@ -101,12 +101,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpenMobile, onCloseMobile })
               <p className="text-[11px] text-emerald-300/70 truncate">thiago@techhive.com.br</p>
             </div>
           </div>
-          <button
+          <Link
+            href="/login"
             title="Sair do Sistema"
             className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-emerald-900/40 rounded-lg transition"
           >
             <LogOut className="w-4 h-4" />
-          </button>
+          </Link>
         </div>
       </aside>
     </>

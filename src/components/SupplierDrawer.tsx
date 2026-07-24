@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Supplier, Category, Currency, Status } from '../types';
+import { formatCurrency, formatDateBR } from '../data/initialData';
 import { Drawer, Input, Select, Textarea, Button } from './ui';
 
 interface SupplierDrawerProps {
@@ -25,6 +26,10 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
   const [observacoes, setObservacoes] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [status, setStatus] = useState<Status>('PENDENTE');
+  const [cnpjCpf, setCnpjCpf] = useState('');
+  const [contatoNome, setContatoNome] = useState('');
+  const [contatoTelefone, setContatoTelefone] = useState('');
+  const [contatoEmail, setContatoEmail] = useState('');
 
   useEffect(() => {
     if (editingSupplier) {
@@ -38,6 +43,10 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
       setObservacoes(editingSupplier.observacoes || '');
       setImageUrl(editingSupplier.imageUrl || '');
       setStatus(editingSupplier.status || 'PENDENTE');
+      setCnpjCpf(editingSupplier.cnpjCpf || '');
+      setContatoNome(editingSupplier.contatoNome || '');
+      setContatoTelefone(editingSupplier.contatoTelefone || '');
+      setContatoEmail(editingSupplier.contatoEmail || '');
     } else {
       setNome('');
       setCategoria('FERTILIZANTES');
@@ -49,6 +58,10 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
       setObservacoes('');
       setImageUrl('');
       setStatus('PENDENTE');
+      setCnpjCpf('');
+      setContatoNome('');
+      setContatoTelefone('');
+      setContatoEmail('');
     }
   }, [editingSupplier, isOpen]);
 
@@ -67,7 +80,11 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
       vencimento,
       observacoes: observacoes.trim(),
       imageUrl: imageUrl.trim(),
-      status
+      status,
+      cnpjCpf: cnpjCpf.trim() || undefined,
+      contatoNome: contatoNome.trim() || undefined,
+      contatoTelefone: contatoTelefone.trim() || undefined,
+      contatoEmail: contatoEmail.trim() || undefined
     });
 
     onClose();
@@ -88,6 +105,14 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
           placeholder="Ex: Cargill, Bunge, Syngenta..."
           value={nome}
           onChange={(e) => setNome(e.target.value)}
+        />
+
+        <Input
+          label="CNPJ / CPF"
+          type="text"
+          placeholder="00.000.000/0000-00"
+          value={cnpjCpf}
+          onChange={(e) => setCnpjCpf(e.target.value)}
         />
 
         <Select label="Categoria" value={categoria} onChange={(e) => setCategoria(e.target.value as Category)}>
@@ -165,6 +190,56 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
           value={observacoes}
           onChange={(e) => setObservacoes(e.target.value)}
         />
+
+        <div className="pt-3 border-t border-slate-200 space-y-3">
+          <p className="text-xs font-semibold text-slate-700">Contato</p>
+          <Input
+            label="Nome do Contato"
+            type="text"
+            placeholder="Nome do representante comercial"
+            value={contatoNome}
+            onChange={(e) => setContatoNome(e.target.value)}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Telefone"
+              type="tel"
+              placeholder="(00) 00000-0000"
+              value={contatoTelefone}
+              onChange={(e) => setContatoTelefone(e.target.value)}
+            />
+            <Input
+              label="Email"
+              type="email"
+              placeholder="contato@fornecedor.com"
+              value={contatoEmail}
+              onChange={(e) => setContatoEmail(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {editingSupplier?.compras && editingSupplier.compras.length > 0 && (
+          <div className="pt-3 border-t border-slate-200">
+            <p className="text-xs font-semibold text-slate-700 mb-2">Compras / Faturas</p>
+            <div className="space-y-2">
+              {editingSupplier.compras.map((compra) => (
+                <div
+                  key={compra.id}
+                  className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200/80 text-xs"
+                >
+                  <div>
+                    <p className="font-semibold text-slate-800">{compra.descricao}</p>
+                    <p className="text-[11px] text-slate-500">
+                      {formatDateBR(compra.data)}
+                      {compra.culturaReferencia ? ` · ${compra.culturaReferencia}` : ''}
+                    </p>
+                  </div>
+                  <p className="font-bold text-slate-900">{formatCurrency(compra.valor)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="pt-4 border-t border-slate-200 grid grid-cols-2 gap-3">
           <Button type="button" variant="secondary" onClick={onClose} className="w-full">

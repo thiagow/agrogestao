@@ -1,133 +1,236 @@
+'use client';
+
 import React from 'react';
-import { Supplier, BankAccount, CropSeason } from '../../types';
-import { formatCurrency } from '../../data/initialData';
-import { DollarSign, ShieldAlert, Sprout, Building2, TrendingDown, Clock, ArrowUpRight } from 'lucide-react';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Supplier, CulturaSafraAno, ContratoBancario } from '../../types';
+import { formatCurrency, calcularSafra } from '../../data/initialData';
+import { Card } from '../ui';
+import { TrendingDown, TrendingUp, Landmark, Scale } from 'lucide-react';
 
 interface ResumoViewProps {
   suppliers: Supplier[];
-  banks: BankAccount[];
-  crops: CropSeason[];
+  culturaSafras: CulturaSafraAno[];
+  contratosBancarios: ContratoBancario[];
 }
 
-export const ResumoView: React.FC<ResumoViewProps> = ({ suppliers, banks, crops }) => {
-  const totalDebt = suppliers.reduce((sum, s) => sum + s.dividaTotal, 0);
-  const totalLiquidity = banks.reduce((sum, b) => sum + b.saldo, 0);
-  const totalCreditLimit = banks.reduce((sum, b) => sum + b.limiteCredito, 0);
-  const totalHectares = crops.reduce((sum, c) => sum + c.areaHectares, 0);
+const ANO_REFERENCIA = '2026/2027';
+const COLUNAS_ANO = ['2025/2026', '2026/2027', '2027/2028'];
 
-  // Group debt by category
-  const categoryDebt: Record<string, number> = {};
-  suppliers.forEach((s) => {
-    categoryDebt[s.categoria] = (categoryDebt[s.categoria] || 0) + s.dividaTotal;
+// Aquisição Fazenda e Arrendamentos ainda não têm módulo próprio (Fase futura) —
+// valores ilustrativos até existir uma fonte de dados real.
+const ENDIVIDAMENTO_AQUISICAO_FAZENDA = 32000000;
+const ENDIVIDAMENTO_ARRENDAMENTOS = 6800000;
+const CUSTO_ARRENDAMENTO_HA = 1500;
+
+export const ResumoView: React.FC<ResumoViewProps> = ({ suppliers, culturaSafras, contratosBancarios }) => {
+  const culturas = Array.from(new Set(culturaSafras.map((s) => s.cultura)));
+
+  const linhas = culturas.map((cultura) => {
+    const registros = culturaSafras.filter((s) => s.cultura === cultura);
+    const porAno = new Map(registros.map((r) => [r.anoSafra, r]));
+    const referencia = porAno.get(ANO_REFERENCIA);
+    const anterior = porAno.get(COLUNAS_ANO[0]);
+
+    const calc = referencia ? calcularSafra(referencia) : null;
+    const varArea =
+      referencia && anterior && anterior.hectares > 0
+        ? ((referencia.hectares - anterior.hectares) / anterior.hectares) * 100
+        : 0;
+
+    return {
+      cultura,
+      porAno,
+      referencia,
+      faturamento: calc?.receitaBruta ?? 0,
+      varArea,
+      producaoFixada: calc ? Math.round((calc.totalProducao * (referencia?.producaoFixadaPercent ?? 0)) / 100) : 0
+    };
   });
+
+  const faturamentoTotal = linhas.reduce((sum, l) => sum + l.faturamento, 0);
+
+  const totalHectares = linhas.reduce((sum, l) => sum + (l.referencia?.hectares ?? 0), 0);
+  const totalHaPropria = linhas.reduce((sum, l) => sum + (l.referencia?.haPropria ?? 0), 0);
+  const totalHaArrendada = linhas.reduce((sum, l) => sum + (l.referencia?.haArrendada ?? 0), 0);
+
+  const receitaBrutaTotal = linhas.reduce((sum, l) => {
+    const calc = l.referencia ? calcularSafra(l.referencia) : null;
+    return sum + (calc?.receitaBruta ?? 0);
+  }, 0);
+  const despesaTotal = linhas.reduce((sum, l) => sum + (l.referencia?.despesa ?? 0), 0);
+  const receitaLiquidaTotal = receitaBrutaTotal - despesaTotal;
+
+  const endividamentoBancos = contratosBancarios.reduce((sum, c) => sum + c.saldoAtual, 0);
+  const endividamentoFornecedores = suppliers.reduce((sum, s) => sum + s.dividaTotal, 0);
+  const endividamentoTotal =
+    ENDIVIDAMENTO_AQUISICAO_FAZENDA + ENDIVIDAMENTO_ARRENDAMENTOS + endividamentoBancos + endividamentoFornecedores;
+
+  const chartData = [
+    { nome: 'Receita Líquida', valor: receitaLiquidaTotal },
+    { nome: 'Endividamento', valor: endividamentoTotal }
+  ];
 
   return (
     <div className="space-y-6">
-      {/* Top Stat Overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs">
-          <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold mb-2">
-            <TrendingDown className="w-4 h-4 text-rose-600" />
-            <span>Passivo com Fornecedores</span>
-          </div>
-          <div className="text-2xl font-black text-rose-800">
-            {formatCurrency(totalDebt)}
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">Classificado em CP/LP automático</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs">
-          <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold mb-2">
-            <Building2 className="w-4 h-4 text-emerald-600" />
-            <span>Saldo Bancário Disponível</span>
-          </div>
-          <div className="text-2xl font-black text-emerald-700">
-            {formatCurrency(totalLiquidity)}
-          </div>
-          <p className="text-[11px] text-emerald-600 mt-1 font-medium">Liquidez imediata disponível</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs">
-          <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold mb-2">
-            <DollarSign className="w-4 h-4 text-blue-600" />
-            <span>Limite de Crédito Aprovado</span>
-          </div>
-          <div className="text-2xl font-black text-blue-700">
-            {formatCurrency(totalCreditLimit)}
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">Bancos e tradings parceiras</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs">
-          <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold mb-2">
-            <Sprout className="w-4 h-4 text-amber-600" />
-            <span>Área Plantada (Safra 24/25)</span>
-          </div>
-          <div className="text-2xl font-black text-slate-900">
-            {totalHectares.toLocaleString('pt-BR')} ha
-          </div>
-          <p className="text-[11px] text-slate-400 mt-1">Soja, Milho e Algodão</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight font-sans">Grupo Pereira</h1>
+        <p className="text-xs md:text-sm text-slate-500 mt-1">Goiânia - GO</p>
       </div>
 
-      {/* Main Grid Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Debt Breakdown by Category */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs">
-          <h3 className="text-base font-bold text-slate-900 mb-4">
-            Distribuição da Dívida por Categoria de Insumos
-          </h3>
-          <div className="space-y-4">
-            {Object.entries(categoryDebt).map(([cat, amount]) => {
-              const percentage = Math.round((amount / (totalDebt || 1)) * 100);
-              return (
-                <div key={cat} className="space-y-1.5">
-                  <div className="flex justify-between text-xs font-bold text-slate-800">
-                    <span>{cat}</span>
-                    <span>
-                      {formatCurrency(amount)} ({percentage}%)
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                    <div
-                      className="bg-[#8cc627] h-full rounded-full transition-all duration-500"
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+      <Card>
+        <div className="p-5 border-b border-slate-200/80">
+          <h2 className="text-lg font-bold text-slate-900">Quadro de Safra por Cultura</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Área, faturamento e produção fixada por cultura</p>
         </div>
 
-        {/* Upcoming Maturities */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs">
-          <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-amber-600" />
-            Próximos Vencimentos
-          </h3>
-          <div className="space-y-3">
-            {suppliers.slice(0, 4).map((s) => (
-              <div
-                key={s.id}
-                className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between"
-              >
-                <div>
-                  <p className="text-xs font-bold text-slate-900">{s.nome}</p>
-                  <p className="text-[11px] text-slate-500">{s.categoria}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-black text-rose-700">
-                    {formatCurrency(s.dividaTotal, s.moeda)}
-                  </p>
-                  <p className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md inline-block mt-0.5">
-                    {s.vencimento}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] uppercase tracking-wider text-slate-600 font-bold">
+                <th className="py-3 px-4">Cultura</th>
+                {COLUNAS_ANO.map((ano) => (
+                  <th key={ano} className="py-3 px-4 text-right whitespace-nowrap">
+                    {ano}
+                  </th>
+                ))}
+                <th className="py-3 px-4 text-right">Var. Área %</th>
+                <th className="py-3 px-4 text-right">Faturamento</th>
+                <th className="py-3 px-4 text-right">% Receita</th>
+                <th className="py-3 px-4 text-right">Prod. Fixada</th>
+                <th className="py-3 px-4 text-right">% Fixado</th>
+                <th className="py-3 px-4 text-right">Preço Médio</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+              {linhas.map((linha) => (
+                <tr key={linha.cultura} className="hover:bg-slate-50/60 transition-colors">
+                  <td className="py-3 px-4 font-bold text-slate-900">{linha.cultura}</td>
+                  {COLUNAS_ANO.map((ano) => (
+                    <td key={ano} className="py-3 px-4 text-right font-medium text-slate-600">
+                      {linha.porAno.get(ano)?.hectares.toLocaleString('pt-BR') ?? '—'} ha
+                    </td>
+                  ))}
+                  <td
+                    className={`py-3 px-4 text-right font-semibold ${
+                      linha.varArea >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                    }`}
+                  >
+                    {linha.varArea >= 0 ? '+' : ''}
+                    {linha.varArea.toFixed(1)}%
+                  </td>
+                  <td className="py-3 px-4 text-right font-extrabold text-slate-900">
+                    {formatCurrency(linha.faturamento)}
+                  </td>
+                  <td className="py-3 px-4 text-right text-slate-600">
+                    {faturamentoTotal > 0 ? ((linha.faturamento / faturamentoTotal) * 100).toFixed(1) : '0.0'}%
+                  </td>
+                  <td className="py-3 px-4 text-right text-slate-600">
+                    {linha.producaoFixada.toLocaleString('pt-BR')} {linha.referencia?.unidadeProducao}
+                  </td>
+                  <td className="py-3 px-4 text-right text-slate-600">
+                    {linha.referencia?.producaoFixadaPercent ?? 0}%
+                  </td>
+                  <td className="py-3 px-4 text-right font-semibold text-slate-800">
+                    {formatCurrency(linha.referencia?.precoMedio ?? 0)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-slate-50 border-t-2 border-slate-200 font-bold text-xs text-slate-800">
+                <td className="py-3 px-4 uppercase tracking-wider font-extrabold text-slate-900">Total</td>
+                <td colSpan={2} className="py-3 px-4 text-right font-extrabold text-slate-900">
+                  {totalHectares.toLocaleString('pt-BR')} ha
+                </td>
+                <td className="py-3 px-4 text-right text-slate-600 font-semibold">
+                  Própria: {totalHaPropria.toLocaleString('pt-BR')} ha (
+                  {totalHectares > 0 ? ((totalHaPropria / totalHectares) * 100).toFixed(1) : '0.0'}%)
+                </td>
+                <td colSpan={2} className="py-3 px-4 text-right text-slate-600 font-semibold">
+                  Arrendada: {totalHaArrendada.toLocaleString('pt-BR')} ha (
+                  {totalHectares > 0 ? ((totalHaArrendada / totalHectares) * 100).toFixed(1) : '0.0'}%)
+                </td>
+                <td colSpan={3} className="py-3 px-4 text-right text-slate-600 font-semibold">
+                  Custo Arrendamento/ha: {formatCurrency(CUSTO_ARRENDAMENTO_HA)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="p-6">
+          <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-emerald-600" />
+            Receita
+          </h3>
+          <dl className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <dt className="text-slate-500">Receita Bruta</dt>
+              <dd className="font-bold text-slate-900">{formatCurrency(receitaBrutaTotal)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-slate-500">Despesas/Custos</dt>
+              <dd className="font-bold text-rose-700">{formatCurrency(despesaTotal)}</dd>
+            </div>
+            <div className="flex justify-between border-t border-slate-100 pt-3">
+              <dt className="text-slate-500">Receita Líquida</dt>
+              <dd className="font-extrabold text-emerald-700">{formatCurrency(receitaLiquidaTotal)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-slate-500">Área Total</dt>
+              <dd className="font-bold text-slate-900">{totalHectares.toLocaleString('pt-BR')} ha</dd>
+            </div>
+          </dl>
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <TrendingDown className="w-4 h-4 text-rose-600" />
+            Endividamento
+          </h3>
+          <dl className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <dt className="text-slate-500 flex items-center gap-1.5">
+                <Landmark className="w-3.5 h-3.5" /> Aquisição Fazenda
+              </dt>
+              <dd className="font-bold text-slate-900">{formatCurrency(ENDIVIDAMENTO_AQUISICAO_FAZENDA)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-slate-500 flex items-center gap-1.5">
+                <Scale className="w-3.5 h-3.5" /> Arrendamentos
+              </dt>
+              <dd className="font-bold text-slate-900">{formatCurrency(ENDIVIDAMENTO_ARRENDAMENTOS)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-slate-500">Bancos</dt>
+              <dd className="font-bold text-slate-900">{formatCurrency(endividamentoBancos)}</dd>
+            </div>
+            <div className="flex justify-between border-t border-slate-100 pt-3">
+              <dt className="text-slate-500">Fornecedores</dt>
+              <dd className="font-extrabold text-rose-700">{formatCurrency(endividamentoFornecedores)}</dd>
+            </div>
+          </dl>
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="text-base font-bold text-slate-900 mb-4">Receita vs Endividamento</h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+              <XAxis dataKey="nome" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+              <YAxis
+                tick={{ fontSize: 10, fill: '#64748b' }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `${(v / 1_000_000).toFixed(0)}M`}
+              />
+              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+              <Bar dataKey="valor" radius={[8, 8, 0, 0]} fill="#4a6700" />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
       </div>
     </div>
   );

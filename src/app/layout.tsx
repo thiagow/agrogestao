@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { Manrope, JetBrains_Mono } from 'next/font/google';
-import { AppShell } from '../components/AppShell';
 import './globals.css';
 
 const manrope = Manrope({
@@ -24,9 +23,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" className={`${manrope.variable} ${jetBrainsMono.variable}`}>
-      <body className="font-sans">
-        <AppShell>{children}</AppShell>
-      </body>
+      <body className="font-sans">{children}</body>
     </html>
   );
 }

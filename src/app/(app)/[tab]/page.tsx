@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
-import { isActiveTab } from '../../lib/nav';
-import { TabView } from '../../components/TabView';
+import { isActiveTab } from '@/lib/nav';
+import { TabView } from '@/components/TabView';
 
 interface TabPageProps {
   params: Promise<{ tab: string }>;

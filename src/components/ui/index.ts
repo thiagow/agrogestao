@@ -6,3 +6,6 @@ export { Card } from './Card';
 export { Badge } from './Badge';
 export { Drawer } from './Drawer';
 export { Modal } from './Modal';
+export { Tabs } from './Tabs';
+export type { TabItem } from './Tabs';
+export { KpiCard } from './KpiCard';
