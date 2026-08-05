@@ -134,11 +134,7 @@ export const TabView: React.FC<TabViewProps> = ({
         vencimento: supplierData.vencimento || new Date().toISOString().split('T')[0],
         status: supplierData.status || 'PENDENTE',
         observacoes: supplierData.observacoes || '',
-        imageUrl: supplierData.imageUrl || '',
-        cnpjCpf: supplierData.cnpjCpf,
-        contatoNome: supplierData.contatoNome,
-        contatoTelefone: supplierData.contatoTelefone,
-        contatoEmail: supplierData.contatoEmail
+        imageUrl: supplierData.imageUrl || ''
       });
       setSuppliers((prev) =>
         supplierData.id ? prev.map((s) => (s.id === saved.id ? saved : s)) : [saved, ...prev]

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Plus } from 'lucide-react';
 import { Supplier, Category, Currency, Status } from '../types';
 import { formatCurrency, formatDateBR } from '../data/initialData';
 import { Drawer, Input, Select, Textarea, Button } from './ui';
@@ -20,16 +21,12 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
   const [categoria, setCategoria] = useState<Category>('FERTILIZANTES');
   const [cultura, setCultura] = useState('—');
   const [safra, setSafra] = useState('—');
+  const [status, setStatus] = useState<Status>('PENDENTE');
   const [dividaTotal, setDividaTotal] = useState('');
   const [moeda, setMoeda] = useState<Currency>('BRL');
   const [vencimento, setVencimento] = useState('2026-10-11');
-  const [observacoes, setObservacoes] = useState('');
   const [imageUrl, setImageUrl] = useState('');
-  const [status, setStatus] = useState<Status>('PENDENTE');
-  const [cnpjCpf, setCnpjCpf] = useState('');
-  const [contatoNome, setContatoNome] = useState('');
-  const [contatoTelefone, setContatoTelefone] = useState('');
-  const [contatoEmail, setContatoEmail] = useState('');
+  const [observacoes, setObservacoes] = useState('');
 
   useEffect(() => {
     if (editingSupplier) {
@@ -37,37 +34,29 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
       setCategoria(editingSupplier.categoria);
       setCultura(editingSupplier.cultura || '—');
       setSafra(editingSupplier.safra || '—');
+      setStatus(editingSupplier.status || 'PENDENTE');
       setDividaTotal(editingSupplier.dividaTotal.toString());
       setMoeda(editingSupplier.moeda);
       setVencimento(editingSupplier.vencimento);
-      setObservacoes(editingSupplier.observacoes || '');
       setImageUrl(editingSupplier.imageUrl || '');
-      setStatus(editingSupplier.status || 'PENDENTE');
-      setCnpjCpf(editingSupplier.cnpjCpf || '');
-      setContatoNome(editingSupplier.contatoNome || '');
-      setContatoTelefone(editingSupplier.contatoTelefone || '');
-      setContatoEmail(editingSupplier.contatoEmail || '');
+      setObservacoes(editingSupplier.observacoes || '');
     } else {
       setNome('');
       setCategoria('FERTILIZANTES');
       setCultura('—');
       setSafra('—');
+      setStatus('PENDENTE');
       setDividaTotal('1000000');
       setMoeda('BRL');
       setVencimento('2026-12-31');
-      setObservacoes('');
       setImageUrl('');
-      setStatus('PENDENTE');
-      setCnpjCpf('');
-      setContatoNome('');
-      setContatoTelefone('');
-      setContatoEmail('');
+      setObservacoes('');
     }
   }, [editingSupplier, isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nome.trim()) return;
+    if (!nome.trim() || safra === '—') return;
 
     onSave({
       id: editingSupplier?.id,
@@ -75,16 +64,12 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
       categoria,
       cultura,
       safra,
+      status,
       dividaTotal: parseFloat(dividaTotal) || 0,
       moeda,
       vencimento,
-      observacoes: observacoes.trim(),
       imageUrl: imageUrl.trim(),
-      status,
-      cnpjCpf: cnpjCpf.trim() || undefined,
-      contatoNome: contatoNome.trim() || undefined,
-      contatoTelefone: contatoTelefone.trim() || undefined,
-      contatoEmail: contatoEmail.trim() || undefined
+      observacoes: observacoes.trim()
     });
 
     onClose();
@@ -102,67 +87,63 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
           label="Nome do Fornecedor"
           type="text"
           required
-          placeholder="Ex: Cargill, Bunge, Syngenta..."
+          placeholder="Razão social ou nome"
           value={nome}
           onChange={(e) => setNome(e.target.value)}
         />
 
-        <Input
-          label="CNPJ / CPF"
-          type="text"
-          placeholder="00.000.000/0000-00"
-          value={cnpjCpf}
-          onChange={(e) => setCnpjCpf(e.target.value)}
-        />
+        <div className="grid grid-cols-2 gap-3">
+          <Select label="Categoria" value={categoria} onChange={(e) => setCategoria(e.target.value as Category)}>
+            <option value="FERTILIZANTES">FERTILIZANTES</option>
+            <option value="DEFENSIVOS">DEFENSIVOS</option>
+            <option value="SEMENTES">SEMENTES</option>
+            <option value="MAQUINÁRIOS">MAQUINÁRIOS</option>
+            <option value="COMBUSTÍVEL">COMBUSTÍVEL</option>
+            <option value="SERVIÇOS">SERVIÇOS</option>
+            <option value="OUTROS">OUTROS</option>
+          </Select>
 
-        <Select label="Categoria" value={categoria} onChange={(e) => setCategoria(e.target.value as Category)}>
-          <option value="FERTILIZANTES">FERTILIZANTES</option>
-          <option value="DEFENSIVOS">DEFENSIVOS</option>
-          <option value="SEMENTES">SEMENTES</option>
-          <option value="MAQUINÁRIOS">MAQUINÁRIOS</option>
-          <option value="COMBUSTÍVEL">COMBUSTÍVEL</option>
-          <option value="SERVIÇOS">SERVIÇOS</option>
-          <option value="OUTROS">OUTROS</option>
-        </Select>
-
-        <Select label="Cultura" value={cultura} onChange={(e) => setCultura(e.target.value)}>
-          <option value="—">—</option>
-          <option value="Soja">Soja</option>
-          <option value="Milho">Milho</option>
-          <option value="Algodão">Algodão</option>
-          <option value="Café">Café</option>
-          <option value="Trigo">Trigo</option>
-        </Select>
-
-        <Select label="Safra" value={safra} onChange={(e) => setSafra(e.target.value)}>
-          <option value="—">—</option>
-          <option value="23/24">23/24</option>
-          <option value="24/25">24/25</option>
-          <option value="25/26">25/26</option>
-          <option value="26/27">26/27</option>
-        </Select>
-
-        <Input
-          label="Dívida Total"
-          type="number"
-          required
-          step="1000"
-          prefix={moeda === 'BRL' ? 'R$' : 'US$'}
-          value={dividaTotal}
-          onChange={(e) => setDividaTotal(e.target.value)}
-          className="font-extrabold"
-        />
+          <Select label="Cultura Relacionada" value={cultura} onChange={(e) => setCultura(e.target.value)}>
+            <option value="—">—</option>
+            <option value="Soja">Soja</option>
+            <option value="Milho">Milho</option>
+            <option value="Algodão">Algodão</option>
+            <option value="Café">Café</option>
+            <option value="Trigo">Trigo</option>
+          </Select>
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Select label="Moeda" value={moeda} onChange={(e) => setMoeda(e.target.value as Currency)}>
-            <option value="BRL">BRL</option>
-            <option value="USD">USD</option>
+          <Select label="Safra" required value={safra} onChange={(e) => setSafra(e.target.value)}>
+            <option value="—">Selecione a safra</option>
+            <option value="23/24">23/24</option>
+            <option value="24/25">24/25</option>
+            <option value="25/26">25/26</option>
+            <option value="26/27">26/27</option>
           </Select>
 
           <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value as Status)}>
             <option value="PENDENTE">PENDENTE</option>
             <option value="PAGO">PAGO</option>
             <option value="VENCIDO">VENCIDO</option>
+          </Select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Valor da Dívida"
+            type="number"
+            required
+            step="1000"
+            prefix={moeda === 'BRL' ? 'R$' : 'US$'}
+            value={dividaTotal}
+            onChange={(e) => setDividaTotal(e.target.value)}
+            className="font-extrabold"
+          />
+
+          <Select label="Moeda" value={moeda} onChange={(e) => setMoeda(e.target.value as Currency)}>
+            <option value="BRL">BRL</option>
+            <option value="USD">USD</option>
           </Select>
         </div>
 
@@ -186,37 +167,10 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
         <Textarea
           label="Observações"
           rows={3}
-          placeholder="Adicione detalhes do contrato, condições ou notas..."
+          placeholder="Notas adicionais"
           value={observacoes}
           onChange={(e) => setObservacoes(e.target.value)}
         />
-
-        <div className="pt-3 border-t border-slate-200 space-y-3">
-          <p className="text-xs font-semibold text-slate-700">Contato</p>
-          <Input
-            label="Nome do Contato"
-            type="text"
-            placeholder="Nome do representante comercial"
-            value={contatoNome}
-            onChange={(e) => setContatoNome(e.target.value)}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Telefone"
-              type="tel"
-              placeholder="(00) 00000-0000"
-              value={contatoTelefone}
-              onChange={(e) => setContatoTelefone(e.target.value)}
-            />
-            <Input
-              label="Email"
-              type="email"
-              placeholder="contato@fornecedor.com"
-              value={contatoEmail}
-              onChange={(e) => setContatoEmail(e.target.value)}
-            />
-          </div>
-        </div>
 
         {editingSupplier?.compras && editingSupplier.compras.length > 0 && (
           <div className="pt-3 border-t border-slate-200">
@@ -245,8 +199,9 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
           <Button type="button" variant="secondary" onClick={onClose} className="w-full">
             Cancelar
           </Button>
-          <Button type="submit" variant="primary" className="w-full">
-            {editingSupplier ? 'Salvar' : 'Cadastrar'}
+          <Button type="submit" variant="primary" className="w-full flex items-center justify-center gap-1.5">
+            <Plus className="w-3.5 h-3.5" />
+            {editingSupplier ? 'Salvar' : 'Cadastrar Fornecedor'}
           </Button>
         </div>
       </form>

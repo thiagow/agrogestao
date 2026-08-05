@@ -33,10 +33,6 @@ interface SaveSupplierInput {
   imageUrl?: string;
   comprovanteUrl?: string;
   status?: Supplier['status'];
-  cnpjCpf?: string;
-  contatoNome?: string;
-  contatoTelefone?: string;
-  contatoEmail?: string;
 }
 
 export async function saveSupplier(input: SaveSupplierInput): Promise<Supplier> {
@@ -56,11 +52,7 @@ export async function saveSupplier(input: SaveSupplierInput): Promise<Supplier> 
     observacoes: parsed.observacoes || null,
     imageUrl: parsed.imageUrl || null,
     comprovanteUrl: parsed.comprovanteUrl || null,
-    status: parsed.status ?? 'PENDENTE',
-    cnpjCpf: parsed.cnpjCpf || null,
-    contatoNome: parsed.contatoNome || null,
-    contatoTelefone: parsed.contatoTelefone || null,
-    contatoEmail: parsed.contatoEmail || null
+    status: parsed.status ?? 'PENDENTE'
   };
 
   const row = input.id
@@ -105,10 +97,6 @@ type SupplierRow = {
   status: string;
   imageUrl: string | null;
   comprovanteUrl: string | null;
-  cnpjCpf: string | null;
-  contatoNome: string | null;
-  contatoTelefone: string | null;
-  contatoEmail: string | null;
   compras: { id: string; data: Date; valor: unknown; descricao: string; culturaReferencia: string | null }[];
 };
 
@@ -126,10 +114,6 @@ function toSupplierDTO(row: SupplierRow): Supplier {
     status: row.status as Supplier['status'],
     imageUrl: row.imageUrl ?? undefined,
     comprovanteUrl: row.comprovanteUrl ?? undefined,
-    cnpjCpf: row.cnpjCpf ?? undefined,
-    contatoNome: row.contatoNome ?? undefined,
-    contatoTelefone: row.contatoTelefone ?? undefined,
-    contatoEmail: row.contatoEmail ?? undefined,
     compras: row.compras.map((c) => ({
       id: c.id,
       data: c.data.toISOString().slice(0, 10),

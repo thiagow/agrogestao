@@ -112,10 +112,6 @@ export const supplierSchema = z.object({
   observacoes: z.string().trim().optional().or(z.literal('')),
   imageUrl: z.string().trim().optional().or(z.literal('')),
   comprovanteUrl: z.string().trim().optional().or(z.literal('')),
-  cnpjCpf: z.string().trim().optional().or(z.literal('')),
-  contatoNome: z.string().trim().optional().or(z.literal('')),
-  contatoTelefone: z.string().trim().optional().or(z.literal('')),
-  contatoEmail: z.string().trim().optional().or(z.literal('')),
   status: z.enum(['PENDENTE', 'PAGO', 'VENCIDO']).optional(),
   compras: z.array(compraFornecedorSchema).optional()
 });

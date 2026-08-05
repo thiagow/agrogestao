@@ -461,6 +461,10 @@ enum SupplierStatus {
   VENCIDO
 }
 
+// Formulário "Cadastrar Fornecedor" fotografado pelo usuário em 05/08/2026 — réplica
+// confirmada; substitui os campos cnpj_cpf/contato_nome/contato_telefone/contato_email da
+// doc de engenharia reversa ("Entidade: FORNECEDOR (estimado)", nunca confirmados por
+// print), removidos por não existirem na tela real.
 model Supplier {
   id              String         @id @default(cuid())
   propriedadeId   String
@@ -475,10 +479,6 @@ model Supplier {
   status          SupplierStatus @default(PENDENTE)
   imageUrl        String?
   comprovanteUrl  String?
-  cnpjCpf         String?
-  contatoNome     String?
-  contatoTelefone String?
-  contatoEmail    String?
   ativo           Boolean        @default(true)
 
   propriedade Propriedade        @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)

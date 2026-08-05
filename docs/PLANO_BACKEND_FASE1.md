@@ -120,7 +120,7 @@ model Propriedade {
 - `Cultura` — `contaId String?` nullable: `null` = catálogo global seedado (Soja, Milho, Algodão, Café, Cana, Eucalipto, Arroz, Bovino); preenchido = cultura própria da conta. `@@unique([contaId, nome])`.
 - `Safra` — `contaId`, `anoSafra` ("2026/2027"), `dataInicio`, `dataFim`, `atual Boolean`. `@@unique([contaId, anoSafra])`. Normaliza a string livre que hoje se repete em 6+ interfaces de `src/types.ts`.
 - `Socio` — **pendurado em `contaId`**, não em propriedade: participação societária é do grupo econômico, não da fazenda (divergindo conscientemente da engenharia reversa, que usa `propriedade_id`). Campos de `src/types.ts:64-74` + `EstadoCivil` enum + auditoria. `@@unique([contaId, cpf])`.
-- `Supplier` — `propriedadeId`, todos os campos de `src/types.ts:24-42` (incluindo os que faltam no schema atual: `cnpjCpf`, `contatoNome/Telefone/Email`), `vencimento DateTime`, `dividaTotal Decimal(18,2)`.
+- `Supplier` — `propriedadeId`, todos os campos de `src/types.ts:24-42`, `vencimento DateTime`, `dividaTotal Decimal(18,2)`. (`cnpjCpf`/`contatoNome`/`contatoTelefone`/`contatoEmail` chegaram a existir mas foram removidos em 05/08/2026 — não existem no formulário real "Cadastrar Fornecedor" do AgroFlow, print confirmado pelo usuário.)
 - `CompraFornecedor` — `supplierId` (relação 1:N já prevista em `Supplier.compras`), `onDelete: Cascade`.
 
 **Convenções aplicadas a todo model de negócio:**

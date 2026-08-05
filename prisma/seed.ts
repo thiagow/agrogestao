@@ -108,10 +108,6 @@ async function seedDemo() {
         status: s.status,
         imageUrl: s.imageUrl,
         comprovanteUrl: s.comprovanteUrl,
-        cnpjCpf: s.cnpjCpf,
-        contatoNome: s.contatoNome,
-        contatoTelefone: s.contatoTelefone,
-        contatoEmail: s.contatoEmail,
         compras: s.compras
           ? { create: s.compras.map((c) => ({ data: new Date(c.data), valor: c.valor, descricao: c.descricao, culturaReferencia: c.culturaReferencia })) }
           : undefined

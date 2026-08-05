@@ -34,10 +34,6 @@ export interface Supplier {
   status: Status;
   imageUrl?: string;
   comprovanteUrl?: string;
-  cnpjCpf?: string;
-  contatoNome?: string;
-  contatoTelefone?: string;
-  contatoEmail?: string;
   compras?: CompraFornecedor[];
 }
 
