@@ -154,6 +154,14 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
     }
   };
 
+  // Soma bruta entre moedas — a maioria das contas usa uma moeda só por garantia;
+  // sem conversão de câmbio aqui (mesma simplificação assumida em outros totais do app).
+  const garantiaKpis = useMemo(() => {
+    const valorTotal = garantias.reduce((sum, g) => sum + g.valor, 0);
+    const moedaPredominante = garantias[0]?.moeda ?? 'BRL';
+    return { totalGarantias: garantias.length, valorTotal, moedaPredominante };
+  }, [garantias]);
+
   // ---- CAPEX ----
 
   const anosDisponiveis = useMemo(() => {
@@ -424,6 +432,19 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                     >
                       <Plus className="w-3.5 h-3.5" /> Adicionar
                     </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                    <KpiCard
+                      title="Total de Garantias"
+                      value={`${garantiaKpis.totalGarantias} ${garantiaKpis.totalGarantias === 1 ? 'item' : 'itens'}`}
+                      valueClassName="text-emerald-700"
+                    />
+                    <KpiCard
+                      title="Valor Total"
+                      value={formatCurrency(garantiaKpis.valorTotal, garantiaKpis.moedaPredominante)}
+                      valueClassName="text-blue-700"
+                    />
                   </div>
 
                   <div className="overflow-x-auto">
