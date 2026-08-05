@@ -50,7 +50,6 @@ export type ActiveTab =
   | 'aquisicao_fazenda'
   | 'arrendamentos'
   | 'comercializacao'
-  | 'balanco_pj'
   | 'fluxo_safra'
   | 'cotacoes'
   | 'analise_financeira'
@@ -278,22 +277,6 @@ export interface PosicaoComercializacao {
   cultura: string;
   producaoTotalSc: number;
   cotacaoAtual: number; // R$/sc
-}
-
-// ---- Balanço PJ ----
-
-export interface EmpresaBalanco {
-  id: string;
-  empresa: string;
-  safra: string;
-  ativoCirculante: number;
-  ativoNaoCirculante: number;
-  passivoCirculante: number;
-  passivoNaoCirculante: number;
-  capitalReservas: number;
-  receitaBruta: number;
-  custos: number;
-  despesasOperacionais: number;
 }
 
 // ---- Fluxo de Safra Projetado ----

@@ -10,7 +10,6 @@ import {
   ContratoArrendamento,
   ContratoComercial,
   PosicaoComercializacao,
-  EmpresaBalanco,
   FluxoSafraItem,
   Cotacao,
   LancamentoMensal,
@@ -404,37 +403,6 @@ export const initialPosicaoComercializacao: PosicaoComercializacao[] = [
   { cultura: 'Eucalipto', producaoTotalSc: 513285, cotacaoAtual: 150 },
   { cultura: 'Arroz', producaoTotalSc: 150060, cotacaoAtual: 108 },
   { cultura: 'Bovino', producaoTotalSc: 222260, cotacaoAtual: 365 }
-];
-
-// ---- Balanço PJ ----
-
-export const initialEmpresasBalanco: EmpresaBalanco[] = [
-  {
-    id: 'empresa-1',
-    empresa: 'Grupo Pereira Agropecuária Ltda',
-    safra: '2026/2027',
-    ativoCirculante: 320000000,
-    ativoNaoCirculante: 1600000000,
-    passivoCirculante: 48000000,
-    passivoNaoCirculante: 190000000,
-    capitalReservas: 0,
-    receitaBruta: 340000000,
-    custos: 132000000,
-    despesasOperacionais: 28000000
-  },
-  {
-    id: 'empresa-2',
-    empresa: 'Pereira Participações S.A.',
-    safra: '2026/2027',
-    ativoCirculante: 123003709,
-    ativoNaoCirculante: 628194990,
-    passivoCirculante: 16800239,
-    passivoNaoCirculante: 71548518,
-    capitalReservas: 0,
-    receitaBruta: 98003709,
-    custos: 38958647,
-    despesasOperacionais: 9500000
-  }
 ];
 
 // ---- Fluxo de Safra Projetado ----

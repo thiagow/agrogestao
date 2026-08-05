@@ -7,7 +7,6 @@ import {
   MapPin,
   FileText,
   TrendingUp,
-  Scale,
   GitBranch,
   DollarSign,
   BarChart3,
@@ -80,13 +79,6 @@ export const navEntries: NavEntry[] = [
     icon: TrendingUp,
     title: 'Comercialização Agrícola',
     subtitle: 'Contratos futuros de soja, milho e algodão com travamento de preços'
-  },
-  {
-    id: 'balanco_pj',
-    label: 'Balanço PJ',
-    icon: Scale,
-    title: 'Balanço Patrimonial PJ',
-    subtitle: 'Demonstrativo contábil de ativos rurais, máquinas e endividamento'
   },
   {
     id: 'fluxo_safra',

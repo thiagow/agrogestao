@@ -17,7 +17,6 @@ import {
   ContratoComercial,
   LancamentoMensal,
   BalancoPatrimonial,
-  EmpresaBalanco,
   Cotacao
 } from '../types';
 import { saveSupplier, deleteSupplier } from '../server/suppliers';
@@ -48,7 +47,6 @@ import { AnaliseFinanceiraView } from './views/AnaliseFinanceiraView';
 import { AquisicaoFazendaView } from './views/AquisicaoFazendaView';
 import { ArrendamentosView } from './views/ArrendamentosView';
 import { ComercializacaoView } from './views/ComercializacaoView';
-import { BalancoPjView } from './views/BalancoPjView';
 import { FluxoSafraView } from './views/FluxoSafraView';
 import { FluxoMensalView } from './views/FluxoMensalView';
 import { ApresentacaoGrupoView } from './views/ApresentacaoGrupoView';
@@ -73,7 +71,6 @@ interface TabViewProps {
   initialArrendamentos?: ContratoArrendamento[];
   initialContratosComerciais?: ContratoComercial[];
   initialBalanco?: BalancoPatrimonial | null;
-  initialEmpresasPJ?: EmpresaBalanco[];
   initialCotacaoDolar?: Cotacao | null;
   initialCotacoesCommodities?: Cotacao[];
 }
@@ -96,7 +93,6 @@ export const TabView: React.FC<TabViewProps> = ({
   initialArrendamentos = [],
   initialContratosComerciais = [],
   initialBalanco = null,
-  initialEmpresasPJ = [],
   initialCotacaoDolar = null,
   initialCotacoesCommodities = []
 }) => {
@@ -430,7 +426,6 @@ export const TabView: React.FC<TabViewProps> = ({
           onDelete={handleDeleteContratoComercial}
         />
       )}
-      {tab === 'balanco_pj' && <BalancoPjView empresas={initialEmpresasPJ} />}
       {tab === 'fluxo_safra' && (
         <FluxoSafraView
           itens={initialFluxoSafra}
@@ -459,7 +454,6 @@ export const TabView: React.FC<TabViewProps> = ({
         tab !== 'aquisicao_fazenda' &&
         tab !== 'arrendamentos' &&
         tab !== 'comercializacao' &&
-        tab !== 'balanco_pj' &&
         tab !== 'fluxo_safra' &&
         tab !== 'cotacoes' &&
         tab !== 'analise_financeira' &&

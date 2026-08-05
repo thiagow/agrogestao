@@ -122,7 +122,6 @@ model Conta {
   garantias            Garantia[]
   capex                Capex[]
   perfilGrupoEconomico PerfilGrupoEconomico?
-  empresasPJ           EmpresaPJ[]
   balancos             BalancoPatrimonial[]
 
   createdAt   DateTime @default(now())
@@ -721,36 +720,6 @@ model ContratoComercial {
 
   @@index([propriedadeId, ativo])
   @@map("contratos_comerciais")
-}
-
-// ============================================================
-// Balanço PJ (por empresa) — só persistência/leitura nesta fase,
-// sem UI de cadastro (decisão explícita: sem Drawer ainda).
-// ============================================================
-
-model EmpresaPJ {
-  id                   String  @id @default(cuid())
-  contaId              String
-  empresa              String
-  safra                String // "2026/2027"
-  ativoCirculante      Decimal @db.Decimal(18, 2)
-  ativoNaoCirculante   Decimal @db.Decimal(18, 2)
-  passivoCirculante    Decimal @db.Decimal(18, 2)
-  passivoNaoCirculante Decimal @db.Decimal(18, 2)
-  capitalReservas      Decimal @db.Decimal(18, 2)
-  receitaBruta         Decimal @db.Decimal(18, 2)
-  custos               Decimal @db.Decimal(18, 2)
-  despesasOperacionais Decimal @db.Decimal(18, 2)
-  ativo                Boolean @default(true)
-
-  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  createdById String?
-
-  @@index([contaId, ativo])
-  @@map("empresas_pj")
 }
 
 // ============================================================

@@ -15,7 +15,6 @@ import { listAquisicoes } from '@/server/aquisicoes';
 import { listArrendamentos } from '@/server/arrendamentos';
 import { listContratosComerciais } from '@/server/contratos-comerciais';
 import { getBalancoAtual } from '@/server/balanco';
-import { listEmpresasPJ } from '@/server/empresas-pj';
 import { listCotacoes } from '@/server/cotacoes';
 
 interface TabPageProps {
@@ -64,7 +63,6 @@ export default async function TabPage({ params }: TabPageProps) {
   // Só importam à própria aba — buscados sob demanda.
   const initialLancamentosMensais = tab === 'fluxo_mensal' ? await listLancamentosMensais() : undefined;
   const initialBalanco = tab === 'analise_financeira' ? await getBalancoAtual() : undefined;
-  const initialEmpresasPJ = tab === 'balanco_pj' ? await listEmpresasPJ() : undefined;
   const cotacoes = tab === 'cotacoes' ? await listCotacoes() : undefined;
 
   return (
@@ -86,7 +84,6 @@ export default async function TabPage({ params }: TabPageProps) {
       initialArrendamentos={initialArrendamentos}
       initialContratosComerciais={initialContratosComerciais}
       initialBalanco={initialBalanco}
-      initialEmpresasPJ={initialEmpresasPJ}
       initialCotacaoDolar={cotacoes?.dolar}
       initialCotacoesCommodities={cotacoes?.commodities}
     />
