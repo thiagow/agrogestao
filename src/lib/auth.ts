@@ -2,6 +2,7 @@ import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { admin } from 'better-auth/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
+import { nextCookies } from 'better-auth/next-js';
 import { db } from './db';
 
 // Papel de plataforma próprio ("superadmin") — o plugin admin do Better Auth
@@ -36,7 +37,12 @@ export const auth = betterAuth({
       mustChangePassword: { type: 'boolean', defaultValue: true, input: false }
     }
   },
-  plugins: [admin({ ac, roles: { superadmin: superadminRole }, adminRoles: ['superadmin'], defaultRole: 'user' })],
+  // nextCookies() precisa ser o último plugin: sincroniza os Set-Cookie de
+  // qualquer chamada auth.api.* feita dentro de Server Actions (via
+  // next/headers), essencial para refrescar o cookie de cache da sessão
+  // (session.cookieCache) quando mudamos dado do usuário fora do fluxo padrão
+  // do Better Auth (ver clearMustChangePassword em src/server/usuarios.ts).
+  plugins: [admin({ ac, roles: { superadmin: superadminRole }, adminRoles: ['superadmin'], defaultRole: 'user' }), nextCookies()],
   advanced: {
     cookiePrefix: 'agrogestao',
     useSecureCookies: process.env.NODE_ENV === 'production'
