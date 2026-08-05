@@ -10,7 +10,8 @@ import type {
   TipoTaxaBancaria,
   PeriodicidadePagamento,
   PeriodicidadeArrendamento,
-  BemTipo,
+  GrupoIrpfBem,
+  LiquidezBem,
   GarantiaTipo,
   CapexCategoria,
   TipoRelacaoEmpresa
@@ -21,7 +22,8 @@ import {
   TipoTaxaBancaria as PrismaTipoTaxaBancaria,
   PeriodicidadePagamento as PrismaPeriodicidadePagamento,
   PeriodicidadeArrendamento as PrismaPeriodicidadeArrendamento,
-  BemTipo as PrismaBemTipo,
+  GrupoIrpfBem as PrismaGrupoIrpfBem,
+  LiquidezBem as PrismaLiquidezBem,
   GarantiaTipo as PrismaGarantiaTipo,
   CapexCategoria as PrismaCapexCategoria,
   TipoRelacaoEmpresa as PrismaTipoRelacaoEmpresa
@@ -103,18 +105,38 @@ export const PERIODICIDADE_ARRENDAMENTO_FROM_DB: Record<PrismaPeriodicidadeArren
   POR_SAFRA: 'Por Safra'
 };
 
-export const BEM_TIPO_TO_DB: Record<BemTipo, PrismaBemTipo> = {
-  Imóvel: PrismaBemTipo.IMOVEL,
-  Veículo: PrismaBemTipo.VEICULO,
-  Equipamento: PrismaBemTipo.EQUIPAMENTO,
-  Outros: PrismaBemTipo.OUTROS
+export const GRUPO_IRPF_TO_DB: Record<GrupoIrpfBem, PrismaGrupoIrpfBem> = {
+  'Bens Imóveis': PrismaGrupoIrpfBem.BENS_IMOVEIS,
+  'Bens Móveis': PrismaGrupoIrpfBem.BENS_MOVEIS,
+  'Participações Societárias': PrismaGrupoIrpfBem.PARTICIPACOES_SOCIETARIAS,
+  'Aplicações e Investimentos': PrismaGrupoIrpfBem.APLICACOES_INVESTIMENTOS,
+  'Depósitos à Vista e Poupança': PrismaGrupoIrpfBem.DEPOSITOS_POUPANCA,
+  'Créditos e Outros Direitos': PrismaGrupoIrpfBem.CREDITOS_DIREITOS,
+  Criptoativos: PrismaGrupoIrpfBem.CRIPTOATIVOS,
+  'Outros Bens e Direitos': PrismaGrupoIrpfBem.OUTROS_BENS
 };
 
-export const BEM_TIPO_FROM_DB: Record<PrismaBemTipo, BemTipo> = {
-  IMOVEL: 'Imóvel',
-  VEICULO: 'Veículo',
-  EQUIPAMENTO: 'Equipamento',
-  OUTROS: 'Outros'
+export const GRUPO_IRPF_FROM_DB: Record<PrismaGrupoIrpfBem, GrupoIrpfBem> = {
+  BENS_IMOVEIS: 'Bens Imóveis',
+  BENS_MOVEIS: 'Bens Móveis',
+  PARTICIPACOES_SOCIETARIAS: 'Participações Societárias',
+  APLICACOES_INVESTIMENTOS: 'Aplicações e Investimentos',
+  DEPOSITOS_POUPANCA: 'Depósitos à Vista e Poupança',
+  CREDITOS_DIREITOS: 'Créditos e Outros Direitos',
+  CRIPTOATIVOS: 'Criptoativos',
+  OUTROS_BENS: 'Outros Bens e Direitos'
+};
+
+export const LIQUIDEZ_BEM_TO_DB: Record<LiquidezBem, PrismaLiquidezBem> = {
+  Alta: PrismaLiquidezBem.ALTA,
+  Média: PrismaLiquidezBem.MEDIA,
+  Baixa: PrismaLiquidezBem.BAIXA
+};
+
+export const LIQUIDEZ_BEM_FROM_DB: Record<PrismaLiquidezBem, LiquidezBem> = {
+  ALTA: 'Alta',
+  MEDIA: 'Média',
+  BAIXA: 'Baixa'
 };
 
 export const GARANTIA_TIPO_TO_DB: Record<GarantiaTipo, PrismaGarantiaTipo> = {

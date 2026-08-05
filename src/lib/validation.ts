@@ -38,11 +38,27 @@ export const socioSchema = z.object({
 });
 
 export const bemDireitoSchema = z.object({
+  socioId: z.string().trim().optional().or(z.literal('')),
+  grupoIrpf: z.enum([
+    'Bens Imóveis',
+    'Bens Móveis',
+    'Participações Societárias',
+    'Aplicações e Investimentos',
+    'Depósitos à Vista e Poupança',
+    'Créditos e Outros Direitos',
+    'Criptoativos',
+    'Outros Bens e Direitos'
+  ]),
+  codigoTipo: z.string().trim().min(1, 'Informe o código/tipo'),
   descricao: z.string().trim().min(2, 'Informe a descrição'),
-  tipo: z.enum(['Imóvel', 'Veículo', 'Equipamento', 'Outros']),
-  valorContabil: z.coerce.number().nonnegative('Valor não pode ser negativo'),
-  dataAquisicao: z.string().min(1, 'Informe a data de aquisição'),
-  depreciacaoAcumulada: z.coerce.number().nonnegative('Depreciação não pode ser negativa').default(0),
+  valorDeclaradoIrpf: z.coerce.number().nonnegative('Valor não pode ser negativo').optional(),
+  valorMercadoEstimado: z.coerce.number().nonnegative('Valor não pode ser negativo').optional(),
+  dataAquisicao: z.string().trim().optional().or(z.literal('')),
+  valorAquisicao: z.coerce.number().nonnegative('Valor não pode ser negativo').optional(),
+  liquidez: z.enum(['Alta', 'Média', 'Baixa']).default('Baixa'),
+  ltv: z.coerce.number().min(0, 'LTV não pode ser negativo').max(100, 'LTV não pode passar de 100%').optional(),
+  elegivelGarantia: z.coerce.boolean().default(false),
+  geraFluxoCaixa: z.coerce.boolean().default(false),
   observacoes: z.string().trim().optional().or(z.literal(''))
 });
 

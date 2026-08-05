@@ -99,11 +99,18 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
     try {
       const saved = await saveBemDireito({
         id: data.id,
+        socioId: data.socioId,
+        grupoIrpf: data.grupoIrpf || 'Outros Bens e Direitos',
+        codigoTipo: data.codigoTipo || '',
         descricao: data.descricao || '',
-        tipo: data.tipo || 'Outros',
-        valorContabil: data.valorContabil || 0,
-        dataAquisicao: data.dataAquisicao || '',
-        depreciacaoAcumulada: data.depreciacaoAcumulada || 0,
+        valorDeclaradoIrpf: data.valorDeclaradoIrpf,
+        valorMercadoEstimado: data.valorMercadoEstimado,
+        dataAquisicao: data.dataAquisicao,
+        valorAquisicao: data.valorAquisicao,
+        liquidez: data.liquidez || 'Baixa',
+        ltv: data.ltv,
+        elegivelGarantia: data.elegivelGarantia || false,
+        geraFluxoCaixa: data.geraFluxoCaixa || false,
         observacoes: data.observacoes
       });
       setBensDireitos((prev) => (data.id ? prev.map((b) => (b.id === saved.id ? saved : b)) : [saved, ...prev]));
@@ -324,30 +331,37 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                       <thead>
                         <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] uppercase tracking-wider text-slate-600 font-bold">
                           <th className="py-3 px-4">Descrição</th>
-                          <th className="py-3 px-4">Tipo</th>
-                          <th className="py-3 px-4">Aquisição</th>
-                          <th className="py-3 px-4 text-right">Valor Contábil</th>
-                          <th className="py-3 px-4 text-right">Depreciação</th>
-                          <th className="py-3 px-4 text-right">Valor Líquido</th>
+                          <th className="py-3 px-4">Sócio Titular</th>
+                          <th className="py-3 px-4">Grupo IRPF</th>
+                          <th className="py-3 px-4">Código / Tipo</th>
+                          <th className="py-3 px-4">Liquidez</th>
+                          <th className="py-3 px-4 text-right">Valor Declarado IRPF</th>
+                          <th className="py-3 px-4 text-right">Valor de Mercado</th>
                           <th className="py-3 px-4 text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
                         {bensDireitos.map((bem) => (
                           <tr key={bem.id} className="hover:bg-slate-50/60 transition-colors">
-                            <td className="py-3 px-4 font-bold text-slate-900">{bem.descricao}</td>
+                            <td className="py-3 px-4 font-bold text-slate-900">
+                              {bem.descricao}
+                              {bem.elegivelGarantia && (
+                                <span className="block mt-1">
+                                  <Badge tone="emerald">Elegível como garantia</Badge>
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-slate-600">{bem.socioNome ?? 'Grupo'}</td>
                             <td className="py-3 px-4">
-                              <Badge tone="slate">{bem.tipo}</Badge>
+                              <Badge tone="slate">{bem.grupoIrpf}</Badge>
                             </td>
-                            <td className="py-3 px-4 text-slate-600">{formatDateBR(bem.dataAquisicao)}</td>
+                            <td className="py-3 px-4 text-slate-600">{bem.codigoTipo}</td>
+                            <td className="py-3 px-4 text-slate-600">{bem.liquidez}</td>
                             <td className="py-3 px-4 text-right font-semibold text-slate-800">
-                              {formatCurrency(bem.valorContabil)}
-                            </td>
-                            <td className="py-3 px-4 text-right text-rose-600">
-                              {formatCurrency(bem.depreciacaoAcumulada)}
+                              {bem.valorDeclaradoIrpf != null ? formatCurrency(bem.valorDeclaradoIrpf) : '—'}
                             </td>
                             <td className="py-3 px-4 text-right font-bold text-emerald-700">
-                              {formatCurrency(bem.valorContabil - bem.depreciacaoAcumulada)}
+                              {bem.valorMercadoEstimado != null ? formatCurrency(bem.valorMercadoEstimado) : '—'}
                             </td>
                             <td className="py-3 px-4 text-right whitespace-nowrap">
                               <div className="flex items-center justify-end gap-2">
@@ -610,6 +624,7 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
         onClose={() => setIsBemDrawerOpen(false)}
         onSave={handleSaveBem}
         editingBem={editingBem}
+        socios={socios}
       />
 
       <GarantiaDrawer

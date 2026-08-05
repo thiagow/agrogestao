@@ -269,7 +269,8 @@ model Socio {
   dataNascimento DateTime?
   ativo          Boolean      @default(true)
 
-  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  conta        Conta        @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  bensDireitos BemDireito[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -283,34 +284,59 @@ model Socio {
 
 // Sub-abas de Cadastro Mestre (Bens e Direitos, Garantias, CAPEX, Grupo
 // Econômico) — a doc de engenharia reversa do AgroFlow só cita os nomes
-// dessas abas, sem spec de campos (exceto Bens e Direitos, que tem uma
-// seção de "campos estimados", replicada abaixo). O conjunto de campos
-// aqui é design próprio do AgroGestão, não uma réplica confirmada da tela
-// original — mesmo critério de "não inventar" da doc não se aplica porque
-// isso foi uma decisão explícita do usuário, não um preenchimento de mock.
-// Todas penduram em Conta (grupo econômico), mesmo raciocínio de Socio.
+// dessas abas, sem spec de campos, com uma exceção: Bens e Direitos teve seu
+// formulário real ("Novo Bem / Direito") fotografado pelo usuário em
+// 05/08/2026, então o conjunto de campos abaixo é réplica confirmada da tela
+// original — não "campos estimados" nem design próprio (diferente de
+// Garantias/CAPEX/Grupo Econômico, que seguem sem spec). Grupo IRPF segue a
+// taxonomia padrão da Declaração de Bens e Direitos da Receita Federal;
+// Código/Tipo é texto livre (não um enum fechado) porque não temos a tabela
+// oficial completa de códigos por grupo confirmada — só o exemplo do print
+// ("18 — Imóvel Rural") — e inventar códigos de IRPF é arriscado demais para
+// um dado que pode alimentar declaração fiscal real. Todas penduram em Conta
+// (grupo econômico), mesmo raciocínio de Socio; Bens e Direitos também aceita
+// vínculo opcional a um Socio específico (Sócio Titular).
 
-enum BemTipo {
-  IMOVEL      @map("Imóvel")
-  VEICULO     @map("Veículo")
-  EQUIPAMENTO @map("Equipamento")
-  OUTROS      @map("Outros")
+enum GrupoIrpfBem {
+  BENS_IMOVEIS              @map("Bens Imóveis")
+  BENS_MOVEIS                @map("Bens Móveis")
+  PARTICIPACOES_SOCIETARIAS @map("Participações Societárias")
+  APLICACOES_INVESTIMENTOS  @map("Aplicações e Investimentos")
+  DEPOSITOS_POUPANCA         @map("Depósitos à Vista e Poupança")
+  CREDITOS_DIREITOS          @map("Créditos e Outros Direitos")
+  CRIPTOATIVOS               @map("Criptoativos")
+  OUTROS_BENS                @map("Outros Bens e Direitos")
 }
 
-// valorLiquido não é persistido — computado ao vivo (valorContabil -
-// depreciacaoAcumulada), mesmo critério de src/lib/indicadores.ts.
-model BemDireito {
-  id                   String   @id @default(cuid())
-  contaId              String
-  descricao            String
-  tipo                 BemTipo
-  valorContabil        Decimal  @db.Decimal(18, 2)
-  dataAquisicao        DateTime
-  depreciacaoAcumulada Decimal  @default(0) @db.Decimal(18, 2)
-  observacoes          String?
-  ativo                Boolean  @default(true)
+enum LiquidezBem {
+  ALTA  @map("Alta")
+  MEDIA @map("Média")
+  BAIXA @map("Baixa")
+}
 
-  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
+// valorGarantiaEstimado não é persistido — computado ao vivo
+// (valorMercadoEstimado * ltv / 100) quando elegivelGarantia, mesmo critério
+// de src/lib/indicadores.ts (índice derivado nunca é número solto no banco).
+model BemDireito {
+  id                   String       @id @default(cuid())
+  contaId              String
+  socioId              String? // opcional — vazio = "Grupo (sem sócio específico)"
+  grupoIrpf            GrupoIrpfBem
+  codigoTipo           String // ex: "18 — Imóvel Rural" (texto livre, ver nota acima)
+  descricao            String
+  valorDeclaradoIrpf   Decimal?     @db.Decimal(18, 2)
+  valorMercadoEstimado Decimal?     @db.Decimal(18, 2)
+  dataAquisicao        DateTime?
+  valorAquisicao       Decimal?     @db.Decimal(18, 2)
+  liquidez             LiquidezBem  @default(BAIXA)
+  ltv                  Decimal?     @db.Decimal(5, 2) // 0-100
+  elegivelGarantia     Boolean      @default(false)
+  geraFluxoCaixa       Boolean      @default(false)
+  observacoes          String?
+  ativo                Boolean      @default(true)
+
+  conta Conta  @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  socio Socio? @relation(fields: [socioId], references: [id], onDelete: SetNull)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -318,6 +344,7 @@ model BemDireito {
   updatedById String?
 
   @@index([contaId, ativo])
+  @@index([socioId])
   @@map("bens_direitos")
 }
 

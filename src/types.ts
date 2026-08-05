@@ -77,15 +77,33 @@ export interface Socio {
 // Design próprio (fonte AgroFlow não especifica campos para essas abas, exceto
 // Bens e Direitos, que tem "campos estimados" replicados abaixo).
 
-export type BemTipo = 'Imóvel' | 'Veículo' | 'Equipamento' | 'Outros';
+export type GrupoIrpfBem =
+  | 'Bens Imóveis'
+  | 'Bens Móveis'
+  | 'Participações Societárias'
+  | 'Aplicações e Investimentos'
+  | 'Depósitos à Vista e Poupança'
+  | 'Créditos e Outros Direitos'
+  | 'Criptoativos'
+  | 'Outros Bens e Direitos';
+
+export type LiquidezBem = 'Alta' | 'Média' | 'Baixa';
 
 export interface BemDireito {
   id: string;
+  socioId?: string; // vazio = "Grupo (sem sócio específico)"
+  socioNome?: string; // só leitura, resolvido no server pro join da tabela
+  grupoIrpf: GrupoIrpfBem;
+  codigoTipo: string; // ex: "18 — Imóvel Rural" (texto livre — ver nota em schema.prisma)
   descricao: string;
-  tipo: BemTipo;
-  valorContabil: number;
-  dataAquisicao: string; // YYYY-MM-DD
-  depreciacaoAcumulada: number;
+  valorDeclaradoIrpf?: number;
+  valorMercadoEstimado?: number;
+  dataAquisicao?: string; // YYYY-MM-DD
+  valorAquisicao?: number;
+  liquidez: LiquidezBem;
+  ltv?: number; // 0-100
+  elegivelGarantia: boolean;
+  geraFluxoCaixa: boolean;
   observacoes?: string;
 }
 

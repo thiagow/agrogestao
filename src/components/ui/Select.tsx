@@ -2,9 +2,10 @@ import React from 'react';
 
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
+  hint?: string;
 }
 
-export const Select: React.FC<SelectProps> = ({ label, className = '', children, ...rest }) => {
+export const Select: React.FC<SelectProps> = ({ label, hint, className = '', children, ...rest }) => {
   return (
     <div>
       {label && (
@@ -16,6 +17,7 @@ export const Select: React.FC<SelectProps> = ({ label, className = '', children,
       >
         {children}
       </select>
+      {hint && <p className="text-[11px] text-slate-500 mt-1">{hint}</p>}
     </div>
   );
 };

@@ -1,53 +1,105 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { BemDireito, BemTipo } from '../types';
+import { BemDireito, GrupoIrpfBem, LiquidezBem, Socio } from '../types';
 import { Drawer, Input, Select, Textarea, Button } from './ui';
+import { formatCurrency } from '../lib/format';
 
 interface BemDireitoDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: Partial<BemDireito>) => void;
   editingBem?: BemDireito | null;
+  socios?: Socio[];
 }
 
-export const BemDireitoDrawer: React.FC<BemDireitoDrawerProps> = ({ isOpen, onClose, onSave, editingBem }) => {
+const GRUPOS_IRPF: GrupoIrpfBem[] = [
+  'Bens Imóveis',
+  'Bens Móveis',
+  'Participações Societárias',
+  'Aplicações e Investimentos',
+  'Depósitos à Vista e Poupança',
+  'Créditos e Outros Direitos',
+  'Criptoativos',
+  'Outros Bens e Direitos'
+];
+
+export const BemDireitoDrawer: React.FC<BemDireitoDrawerProps> = ({
+  isOpen,
+  onClose,
+  onSave,
+  editingBem,
+  socios = []
+}) => {
+  const [socioId, setSocioId] = useState('');
+  const [grupoIrpf, setGrupoIrpf] = useState<GrupoIrpfBem>('Bens Imóveis');
+  const [codigoTipo, setCodigoTipo] = useState('');
   const [descricao, setDescricao] = useState('');
-  const [tipo, setTipo] = useState<BemTipo>('Imóvel');
-  const [valorContabil, setValorContabil] = useState('');
+  const [valorDeclaradoIrpf, setValorDeclaradoIrpf] = useState('');
+  const [valorMercadoEstimado, setValorMercadoEstimado] = useState('');
   const [dataAquisicao, setDataAquisicao] = useState('');
-  const [depreciacaoAcumulada, setDepreciacaoAcumulada] = useState('');
+  const [valorAquisicao, setValorAquisicao] = useState('');
+  const [liquidez, setLiquidez] = useState<LiquidezBem>('Baixa');
+  const [ltv, setLtv] = useState('65');
+  const [elegivelGarantia, setElegivelGarantia] = useState(false);
+  const [geraFluxoCaixa, setGeraFluxoCaixa] = useState(false);
   const [observacoes, setObservacoes] = useState('');
 
   useEffect(() => {
     if (editingBem) {
+      setSocioId(editingBem.socioId ?? '');
+      setGrupoIrpf(editingBem.grupoIrpf);
+      setCodigoTipo(editingBem.codigoTipo);
       setDescricao(editingBem.descricao);
-      setTipo(editingBem.tipo);
-      setValorContabil(editingBem.valorContabil.toString());
-      setDataAquisicao(editingBem.dataAquisicao);
-      setDepreciacaoAcumulada(editingBem.depreciacaoAcumulada.toString());
+      setValorDeclaradoIrpf(editingBem.valorDeclaradoIrpf?.toString() ?? '');
+      setValorMercadoEstimado(editingBem.valorMercadoEstimado?.toString() ?? '');
+      setDataAquisicao(editingBem.dataAquisicao ?? '');
+      setValorAquisicao(editingBem.valorAquisicao?.toString() ?? '');
+      setLiquidez(editingBem.liquidez);
+      setLtv(editingBem.ltv?.toString() ?? '');
+      setElegivelGarantia(editingBem.elegivelGarantia);
+      setGeraFluxoCaixa(editingBem.geraFluxoCaixa);
       setObservacoes(editingBem.observacoes ?? '');
     } else {
+      setSocioId('');
+      setGrupoIrpf('Bens Imóveis');
+      setCodigoTipo('');
       setDescricao('');
-      setTipo('Imóvel');
-      setValorContabil('');
+      setValorDeclaradoIrpf('');
+      setValorMercadoEstimado('');
       setDataAquisicao('');
-      setDepreciacaoAcumulada('0');
+      setValorAquisicao('');
+      setLiquidez('Baixa');
+      setLtv('65');
+      setElegivelGarantia(false);
+      setGeraFluxoCaixa(false);
       setObservacoes('');
     }
   }, [editingBem, isOpen]);
 
+  const valorGarantiaEstimado =
+    elegivelGarantia && valorMercadoEstimado && ltv
+      ? (parseFloat(valorMercadoEstimado) || 0) * ((parseFloat(ltv) || 0) / 100)
+      : undefined;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!descricao.trim() || !dataAquisicao) return;
+    if (!descricao.trim() || !codigoTipo.trim()) return;
 
     onSave({
       id: editingBem?.id,
+      socioId: socioId || undefined,
+      grupoIrpf,
+      codigoTipo: codigoTipo.trim(),
       descricao: descricao.trim(),
-      tipo,
-      valorContabil: parseFloat(valorContabil) || 0,
-      dataAquisicao,
-      depreciacaoAcumulada: parseFloat(depreciacaoAcumulada) || 0,
+      valorDeclaradoIrpf: valorDeclaradoIrpf ? parseFloat(valorDeclaradoIrpf) : undefined,
+      valorMercadoEstimado: valorMercadoEstimado ? parseFloat(valorMercadoEstimado) : undefined,
+      dataAquisicao: dataAquisicao || undefined,
+      valorAquisicao: valorAquisicao ? parseFloat(valorAquisicao) : undefined,
+      liquidez,
+      ltv: ltv ? parseFloat(ltv) : undefined,
+      elegivelGarantia,
+      geraFluxoCaixa,
       observacoes: observacoes.trim() || undefined
     });
 
@@ -58,58 +110,145 @@ export const BemDireitoDrawer: React.FC<BemDireitoDrawerProps> = ({ isOpen, onCl
     <Drawer
       isOpen={isOpen}
       onClose={onClose}
-      title={editingBem ? 'Editar Bem' : 'Adicionar Bem'}
+      title={editingBem ? 'Editar Bem / Direito' : 'Novo Bem / Direito'}
       subtitle="Patrimônio do grupo econômico"
     >
       <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-        <Input
+        <Select
+          label="Sócio Titular (opcional)"
+          value={socioId}
+          onChange={(e) => setSocioId(e.target.value)}
+          hint="Vincule ao sócio para calcular o PL ponderado pela participação societária."
+        >
+          <option value="">Grupo (sem sócio específico)</option>
+          {socios.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.nome}
+            </option>
+          ))}
+        </Select>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Select
+            label="Grupo IRPF"
+            required
+            value={grupoIrpf}
+            onChange={(e) => setGrupoIrpf(e.target.value as GrupoIrpfBem)}
+          >
+            {GRUPOS_IRPF.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </Select>
+          <Input
+            label="Código / Tipo"
+            required
+            placeholder="Ex: 18 — Imóvel Rural"
+            hint="Código da Declaração de Bens e Direitos (IRPF)."
+            value={codigoTipo}
+            onChange={(e) => setCodigoTipo(e.target.value)}
+          />
+        </div>
+
+        <Textarea
           label="Descrição"
-          type="text"
+          rows={2}
           required
-          placeholder="Ex: Trator John Deere 6110J"
+          placeholder="Ex: Fazenda Santa Maria, Mun. Sorriso/MT, 1.200 ha"
           value={descricao}
           onChange={(e) => setDescricao(e.target.value)}
         />
 
-        <Select label="Tipo" required value={tipo} onChange={(e) => setTipo(e.target.value as BemTipo)}>
-          <option value="Imóvel">Imóvel</option>
-          <option value="Veículo">Veículo</option>
-          <option value="Equipamento">Equipamento</option>
-          <option value="Outros">Outros</option>
-        </Select>
-
         <div className="grid grid-cols-2 gap-3">
           <Input
-            label="Valor Contábil (R$)"
+            label="Valor Declarado IRPF (R$)"
             type="number"
-            required
             min={0}
             step="0.01"
-            value={valorContabil}
-            onChange={(e) => setValorContabil(e.target.value)}
+            value={valorDeclaradoIrpf}
+            onChange={(e) => setValorDeclaradoIrpf(e.target.value)}
           />
           <Input
-            label="Data de Aquisição"
-            type="date"
-            required
-            value={dataAquisicao}
-            onChange={(e) => setDataAquisicao(e.target.value)}
+            label="Valor de Mercado Estimado (R$)"
+            type="number"
+            min={0}
+            step="0.01"
+            value={valorMercadoEstimado}
+            onChange={(e) => setValorMercadoEstimado(e.target.value)}
           />
         </div>
 
-        <Input
-          label="Depreciação Acumulada (R$)"
-          type="number"
-          min={0}
-          step="0.01"
-          hint="Valor líquido é calculado automaticamente (contábil - depreciação)."
-          value={depreciacaoAcumulada}
-          onChange={(e) => setDepreciacaoAcumulada(e.target.value)}
-        />
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Data de Aquisição"
+            type="date"
+            value={dataAquisicao}
+            onChange={(e) => setDataAquisicao(e.target.value)}
+          />
+          <Input
+            label="Valor de Aquisição (R$)"
+            type="number"
+            min={0}
+            step="0.01"
+            value={valorAquisicao}
+            onChange={(e) => setValorAquisicao(e.target.value)}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Select label="Liquidez" value={liquidez} onChange={(e) => setLiquidez(e.target.value as LiquidezBem)}>
+            <option value="Alta">Alta</option>
+            <option value="Média">Média</option>
+            <option value="Baixa">Baixa</option>
+          </Select>
+          <Input
+            label="LTV (%)"
+            type="number"
+            min={0}
+            max={100}
+            step="1"
+            value={ltv}
+            onChange={(e) => setLtv(e.target.value)}
+          />
+        </div>
+
+        <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+          <input
+            type="checkbox"
+            checked={elegivelGarantia}
+            onChange={(e) => setElegivelGarantia(e.target.checked)}
+            className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-600"
+          />
+          Elegível como Garantia
+        </label>
+
+        {elegivelGarantia && (
+          <Input
+            label="Valor de Garantia Estimado (R$)"
+            type="text"
+            disabled
+            hint="Calculado automaticamente (Valor de Mercado Estimado × LTV)."
+            value={valorGarantiaEstimado != null ? formatCurrency(valorGarantiaEstimado) : ''}
+            placeholder="Calculado automaticamente"
+            onChange={() => {}}
+          />
+        )}
+
+        <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+          <input
+            type="checkbox"
+            checked={geraFluxoCaixa}
+            onChange={(e) => setGeraFluxoCaixa(e.target.checked)}
+            className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-600"
+          />
+          Gera Fluxo de Caixa
+        </label>
 
         <Textarea
           label="Observações"
           rows={3}
+          placeholder="Matrícula, localização, observações relevantes..."
           value={observacoes}
           onChange={(e) => setObservacoes(e.target.value)}
         />
@@ -119,7 +258,7 @@ export const BemDireitoDrawer: React.FC<BemDireitoDrawerProps> = ({ isOpen, onCl
             Cancelar
           </Button>
           <Button type="submit" variant="primary" className="w-full">
-            {editingBem ? 'Salvar' : 'Adicionar'}
+            Salvar
           </Button>
         </div>
       </form>
