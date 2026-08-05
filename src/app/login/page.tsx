@@ -5,15 +5,38 @@ import { useRouter } from 'next/navigation';
 import { Sprout } from 'lucide-react';
 import { Input, Button } from '@/components/ui';
 import { defaultTab } from '@/lib/nav';
+import { authClient } from '@/lib/auth-client';
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    router.push(`/${defaultTab}`);
+    setError(null);
+    setIsSubmitting(true);
+
+    const { data, error: signInError } = await authClient.signIn.email({ email, password: senha });
+
+    if (signInError || !data?.user) {
+      setError('E-mail ou senha inválidos.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const user = data.user as { role?: string | null; mustChangePassword?: boolean };
+
+    if (user.role === 'superadmin') {
+      router.push('/admin');
+    } else if (user.mustChangePassword) {
+      router.push('/trocar-senha');
+    } else {
+      router.push(`/${defaultTab}`);
+    }
+    router.refresh();
   };
 
   return (
@@ -33,6 +56,12 @@ export default function LoginPage() {
           <p className="text-xs text-slate-500 mb-6">Acesse o painel de gestão agrícola</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3">
+                {error}
+              </div>
+            )}
+
             <Input
               label="Email"
               type="email"
@@ -53,14 +82,8 @@ export default function LoginPage() {
               autoComplete="current-password"
             />
 
-            <div className="flex justify-end">
-              <a href="#" className="text-xs font-medium text-emerald-700 hover:text-emerald-900">
-                Esqueci minha senha
-              </a>
-            </div>
-
-            <Button type="submit" variant="primary" className="w-full">
-              Entrar
+            <Button type="submit" variant="primary" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? 'Entrando…' : 'Entrar'}
             </Button>
           </form>
         </div>

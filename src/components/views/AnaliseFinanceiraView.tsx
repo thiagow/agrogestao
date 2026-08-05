@@ -9,49 +9,65 @@ import {
   RadarChart,
   ResponsiveContainer
 } from 'recharts';
-import { BalancoPatrimonial, IndicadorFinanceiro, IndicadorSaudeFinanceira } from '../../types';
+import { Pencil } from 'lucide-react';
+import { BalancoPatrimonial, IndicadorSaudeFinanceira } from '../../types';
 import { formatCurrency } from '../../data/initialData';
-import { Card, Tabs, Select, KpiCard } from '../ui';
+import { calcularIndicadores } from '../../lib/indicadores';
+import { Card, Tabs, KpiCard, Button } from '../ui';
+import { BalancoPatrimonialDrawer } from '../BalancoPatrimonialDrawer';
 
 interface AnaliseFinanceiraViewProps {
-  balanco: BalancoPatrimonial;
-  indicadores: IndicadorFinanceiro[];
+  balanco: BalancoPatrimonial | null;
   saudeFinanceira: IndicadorSaudeFinanceira[];
+  onSaveBalanco: (data: BalancoPatrimonial) => void;
 }
-
-const ANOS_DISPONIVEIS = ['2024/2025', '2025/2026', '2026/2027', '2027/2028'];
 
 export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
   balanco,
-  indicadores,
-  saudeFinanceira
+  saudeFinanceira,
+  onSaveBalanco
 }) => {
-  const [anoSelecionado, setAnoSelecionado] = useState(balanco.safra);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  const temDados = anoSelecionado === balanco.safra;
+  if (!balanco) {
+    return (
+      <div className="space-y-6">
+        <div className="py-16 text-center text-slate-400 bg-white rounded-2xl border border-slate-200/80">
+          <p className="text-sm font-semibold">Nenhum balanço cadastrado</p>
+          <p className="text-xs mt-1 mb-4">Cadastre o balanço patrimonial consolidado do grupo para ver os índices.</p>
+          <Button variant="primary" onClick={() => setIsDrawerOpen(true)} className="w-auto px-4 py-2 text-xs mx-auto">
+            Cadastrar Balanço
+          </Button>
+        </div>
+        <BalancoPatrimonialDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          onSave={onSaveBalanco}
+          balancoAtual={null}
+        />
+      </div>
+    );
+  }
 
   const ativoTotal = balanco.ativoCirculante + balanco.ativoNaoCirculante;
   const passivoTotal = balanco.passivoCirculante + balanco.passivoNaoCirculante;
   const patrimonioLiquido = balanco.capitalReservas + balanco.resultadoSafra;
   const ccl = balanco.ativoCirculante - balanco.passivoCirculante;
 
+  const { indicadores, indisponiveis } = calcularIndicadores(balanco);
   const liquidez = indicadores.filter((i) => i.grupo === 'Liquidez');
   const estruturaCapital = indicadores.filter((i) => i.grupo === 'Estrutura de Capital');
 
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <Select
-          value={anoSelecionado}
-          onChange={(e) => setAnoSelecionado(e.target.value)}
-          className="w-auto"
+        <Button
+          variant="secondary"
+          onClick={() => setIsDrawerOpen(true)}
+          className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
         >
-          {ANOS_DISPONIVEIS.map((ano) => (
-            <option key={ano} value={ano}>
-              {ano}
-            </option>
-          ))}
-        </Select>
+          <Pencil className="w-3.5 h-3.5" /> Editar Balanço
+        </Button>
       </div>
 
       <Card className="p-5">
@@ -78,15 +94,6 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
               );
             }
 
-            if (!temDados) {
-              return (
-                <div className="py-16 text-center text-slate-400">
-                  <p className="text-sm font-semibold">Sem dados para {anoSelecionado}</p>
-                  <p className="text-xs mt-1">Dados de balanço disponíveis apenas para {balanco.safra}.</p>
-                </div>
-              );
-            }
-
             return (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -99,14 +106,13 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                         <PolarGrid stroke="#e2e8f0" />
                         <PolarAngleAxis dataKey="dimensao" tick={{ fontSize: 11, fill: '#475569' }} />
                         <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                        <Radar
-                          dataKey="valor"
-                          stroke="#4a6700"
-                          fill="#a3e635"
-                          fillOpacity={0.45}
-                        />
+                        <Radar dataKey="valor" stroke="#4a6700" fill="#a3e635" fillOpacity={0.45} />
                       </RadarChart>
                     </ResponsiveContainer>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Ilustrativo — combina dimensões que ainda não são todas computáveis do balanço atual (ver nota
+                      abaixo).
+                    </p>
                   </div>
 
                   <div>
@@ -230,16 +236,33 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                   </h3>
                   <div className="py-10 text-center text-slate-400 bg-slate-50 rounded-2xl border border-slate-200/80">
                     <p className="text-xs">
-                      Não implementado nesta fase — a documentação de origem registra este grupo como
-                      &quot;parcialmente visível&quot;, sem nomes/valores de indicador confirmados.
+                      Não implementado — requer EBITDA/EBIT e receita, contas ainda não modeladas no balanço.
                     </p>
                   </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200">
+                  <p className="text-[11px] font-bold uppercase text-slate-500 mb-2">Indicadores indisponíveis</p>
+                  <ul className="text-[11px] text-slate-400 space-y-0.5">
+                    {indisponiveis.map((i) => (
+                      <li key={i.nome}>
+                        <span className="font-semibold text-slate-500">{i.nome}:</span> {i.motivo}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             );
           }}
         </Tabs>
       </Card>
+
+      <BalancoPatrimonialDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        onSave={onSaveBalanco}
+        balancoAtual={balanco}
+      />
     </div>
   );
 };

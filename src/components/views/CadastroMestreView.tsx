@@ -3,9 +3,9 @@
 import React, { useState } from 'react';
 import { Upload, Printer, RefreshCw, Plus, Edit2, Trash2 } from 'lucide-react';
 import { Socio } from '../../types';
-import { initialSocios } from '../../data/initialData';
 import { Card, Tabs, Button } from '../ui';
 import { SocioDrawer } from '../SocioDrawer';
+import { saveSocio, deleteSocio } from '../../server/socios';
 
 const TABS_SEM_SPEC = [
   { id: 'bens', label: 'Bens e Direitos' },
@@ -22,17 +22,19 @@ const EmConstrucao: React.FC<{ label: string }> = ({ label }) => (
   </div>
 );
 
-export const CadastroMestreView: React.FC = () => {
+interface CadastroMestreViewProps {
+  initialSocios?: Socio[];
+}
+
+export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({ initialSocios = [] }) => {
   const [socios, setSocios] = useState<Socio[]>(initialSocios);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingSocio, setEditingSocio] = useState<Socio | null>(null);
 
-  const handleSaveSocio = (data: Partial<Socio>) => {
-    if (data.id) {
-      setSocios((prev) => prev.map((s) => (s.id === data.id ? ({ ...s, ...data } as Socio) : s)));
-    } else {
-      const novo: Socio = {
-        id: `socio-${Date.now()}`,
+  const handleSaveSocio = async (data: Partial<Socio>) => {
+    try {
+      const saved = await saveSocio({
+        id: data.id,
         nome: data.nome || 'Novo Sócio',
         cpf: data.cpf || '',
         participacao: data.participacao || 0,
@@ -41,14 +43,20 @@ export const CadastroMestreView: React.FC = () => {
         email: data.email,
         nacionalidade: data.nacionalidade,
         dataNascimento: data.dataNascimento
-      };
-      setSocios((prev) => [novo, ...prev]);
+      });
+      setSocios((prev) => (data.id ? prev.map((s) => (s.id === saved.id ? saved : s)) : [saved, ...prev]));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar sócio.');
     }
   };
 
-  const handleDeleteSocio = (id: string) => {
-    if (window.confirm('Tem certeza que deseja remover este sócio?')) {
+  const handleDeleteSocio = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja remover este sócio?')) return;
+    try {
+      await deleteSocio(id);
       setSocios((prev) => prev.filter((s) => s.id !== id));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao remover sócio.');
     }
   };
 

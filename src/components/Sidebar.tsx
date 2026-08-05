@@ -2,19 +2,36 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { LogOut, X, Sprout, Image as ImageIcon } from 'lucide-react';
 import { navEntries } from '../lib/nav';
 import { useAppShell } from '../lib/app-shell-context';
+import { authClient } from '../lib/auth-client';
+import { PropriedadeSelector } from './PropriedadeSelector';
 
 interface SidebarProps {
   isOpenMobile: boolean;
   onCloseMobile: () => void;
+  user: { name: string; email: string };
+  propriedade: { id: string; nome: string } | null;
+  propriedades: { id: string; nome: string }[];
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ isOpenMobile, onCloseMobile }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  isOpenMobile,
+  onCloseMobile,
+  user,
+  propriedade,
+  propriedades
+}) => {
   const pathname = usePathname();
+  const router = useRouter();
   const { openImageModal } = useAppShell();
+
+  const handleLogout = async () => {
+    await authClient.signOut();
+    router.push('/login');
+  };
 
   return (
     <>
@@ -79,6 +96,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpenMobile, onCloseMobile })
           })}
         </div>
 
+        {/* Property Selector */}
+        <div className="border-t border-emerald-900/40">
+          <PropriedadeSelector propriedade={propriedade} propriedades={propriedades} />
+        </div>
+
         {/* Image / HTML Link Helper Shortcut Button */}
         <div className="px-3 py-2 border-t border-emerald-900/40">
           <button
@@ -94,20 +116,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpenMobile, onCloseMobile })
         <div className="p-3 border-t border-emerald-900/50 bg-[#081a0c] flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-full bg-[#a3e635] text-[#0b2310] font-bold text-xs flex items-center justify-center shrink-0 border border-[#a3e635]/30">
-              T
+              {user.name.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-white leading-tight truncate">thiago</p>
-              <p className="text-[11px] text-emerald-300/70 truncate">thiago@techhive.com.br</p>
+              <p className="text-xs font-semibold text-white leading-tight truncate">{user.name}</p>
+              <p className="text-[11px] text-emerald-300/70 truncate">{user.email}</p>
             </div>
           </div>
-          <Link
-            href="/login"
+          <button
+            onClick={handleLogout}
             title="Sair do Sistema"
             className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-emerald-900/40 rounded-lg transition"
           >
             <LogOut className="w-4 h-4" />
-          </Link>
+          </button>
         </div>
       </aside>
     </>

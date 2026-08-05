@@ -5,29 +5,29 @@ import { Plus } from 'lucide-react';
 import {
   ActiveTab,
   Supplier,
+  Socio,
   CulturaSafraAno,
   ContratoBancario,
   Aquisicao,
   ContratoArrendamento,
-  ContratoComercial
+  ContratoComercial,
+  LancamentoMensal,
+  BalancoPatrimonial,
+  EmpresaBalanco,
+  Cotacao
 } from '../types';
+import { saveSupplier, deleteSupplier } from '../server/suppliers';
+import { saveQuadroSafra, deleteQuadroSafra } from '../server/quadro-safra';
+import { saveContratoBancario, deleteContratoBancario } from '../server/contratos-bancarios';
+import { saveAquisicao, deleteAquisicao } from '../server/aquisicoes';
+import { saveArrendamento, deleteArrendamento } from '../server/arrendamentos';
+import { saveContratoComercial, deleteContratoComercial } from '../server/contratos-comerciais';
+import { saveBalanco } from '../server/balanco';
 import {
-  initialSuppliers,
-  initialCulturaSafras,
-  initialContratosBancarios,
-  initialBalanco,
-  initialIndicadores,
   initialSaudeFinanceira,
-  initialAquisicoes,
-  initialArrendamentos,
-  initialContratosComerciais,
   initialPosicaoComercializacao,
-  initialEmpresasBalanco,
   initialFluxoSafra,
   RECEITA_PROJETADA_SAFRA,
-  initialCotacaoDolar,
-  initialCotacoesCommodities,
-  initialLancamentosMensais,
   initialCalendarioAgricola
 } from '../data/initialData';
 import { Header } from './Header';
@@ -53,39 +53,64 @@ import { useAppShell } from '../lib/app-shell-context';
 
 interface TabViewProps {
   tab: ActiveTab;
+  initialSuppliers?: Supplier[];
+  initialSocios?: Socio[];
+  initialCulturaSafras?: CulturaSafraAno[];
+  initialLancamentosMensais?: LancamentoMensal[];
+  initialContratosBancarios?: ContratoBancario[];
+  initialAquisicoes?: Aquisicao[];
+  initialArrendamentos?: ContratoArrendamento[];
+  initialContratosComerciais?: ContratoComercial[];
+  initialBalanco?: BalancoPatrimonial | null;
+  initialEmpresasPJ?: EmpresaBalanco[];
+  initialCotacaoDolar?: Cotacao | null;
+  initialCotacoesCommodities?: Cotacao[];
 }
 
-export const TabView: React.FC<TabViewProps> = ({ tab }) => {
+export const TabView: React.FC<TabViewProps> = ({
+  tab,
+  initialSuppliers = [],
+  initialSocios = [],
+  initialCulturaSafras = [],
+  initialLancamentosMensais = [],
+  initialContratosBancarios = [],
+  initialAquisicoes = [],
+  initialArrendamentos = [],
+  initialContratosComerciais = [],
+  initialBalanco = null,
+  initialEmpresasPJ = [],
+  initialCotacaoDolar = null,
+  initialCotacoesCommodities = []
+}) => {
   const { openImageModal } = useAppShell();
 
-  // Fornecedores
+  // Fornecedores — persistido via src/server/suppliers.ts
   const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
 
-  // Quadro de Safra (usado também no Resumo)
+  // Quadro de Safra (usado também no Resumo) — persistido via src/server/quadro-safra.ts
   const [culturaSafras, setCulturaSafras] = useState<CulturaSafraAno[]>(initialCulturaSafras);
 
-  // Bancos (usado também no Resumo e Fluxo de Safra)
+  // Bancos (usado também no Resumo e Fluxo de Safra) — persistido via src/server/contratos-bancarios.ts
   const [contratosBancarios, setContratosBancarios] = useState<ContratoBancario[]>(initialContratosBancarios);
 
-  // Aquisição de Fazendas
+  // Aquisição de Fazendas — persistido via src/server/aquisicoes.ts
   const [aquisicoes, setAquisicoes] = useState<Aquisicao[]>(initialAquisicoes);
 
-  // Arrendamentos
+  // Arrendamentos — persistido via src/server/arrendamentos.ts
   const [arrendamentos, setArrendamentos] = useState<ContratoArrendamento[]>(initialArrendamentos);
 
-  // Comercialização
+  // Comercialização — persistido via src/server/contratos-comerciais.ts
   const [contratosComerciais, setContratosComerciais] = useState<ContratoComercial[]>(initialContratosComerciais);
 
-  const handleSaveSupplier = (supplierData: Partial<Supplier>) => {
-    if (supplierData.id) {
-      setSuppliers((prev) =>
-        prev.map((s) => (s.id === supplierData.id ? ({ ...s, ...supplierData } as Supplier) : s))
-      );
-    } else {
-      const newSupplier: Supplier = {
-        id: `supp-${Date.now()}`,
+  // Análise Financeira — persistido via src/server/balanco.ts (indicadores computados ao vivo)
+  const [balanco, setBalanco] = useState<BalancoPatrimonial | null>(initialBalanco);
+
+  const handleSaveSupplier = async (supplierData: Partial<Supplier>) => {
+    try {
+      const saved = await saveSupplier({
+        id: supplierData.id,
         nome: supplierData.nome || 'Novo Fornecedor',
         categoria: supplierData.categoria || 'FERTILIZANTES',
         cultura: supplierData.cultura || '—',
@@ -100,14 +125,22 @@ export const TabView: React.FC<TabViewProps> = ({ tab }) => {
         contatoNome: supplierData.contatoNome,
         contatoTelefone: supplierData.contatoTelefone,
         contatoEmail: supplierData.contatoEmail
-      };
-      setSuppliers((prev) => [newSupplier, ...prev]);
+      });
+      setSuppliers((prev) =>
+        supplierData.id ? prev.map((s) => (s.id === saved.id ? saved : s)) : [saved, ...prev]
+      );
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar fornecedor.');
     }
   };
 
-  const handleDeleteSupplier = (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este fornecedor?')) {
+  const handleDeleteSupplier = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este fornecedor?')) return;
+    try {
+      await deleteSupplier(id);
       setSuppliers((prev) => prev.filter((s) => s.id !== id));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao excluir fornecedor.');
     }
   };
 
@@ -121,14 +154,10 @@ export const TabView: React.FC<TabViewProps> = ({ tab }) => {
     setIsDrawerOpen(true);
   };
 
-  const handleSaveSafra = (data: Partial<CulturaSafraAno>) => {
-    if (data.id) {
-      setCulturaSafras((prev) =>
-        prev.map((s) => (s.id === data.id ? ({ ...s, ...data } as CulturaSafraAno) : s))
-      );
-    } else {
-      const nova: CulturaSafraAno = {
-        id: `safra-${Date.now()}`,
+  const handleSaveSafra = async (data: Partial<CulturaSafraAno>) => {
+    try {
+      const saved = await saveQuadroSafra({
+        id: data.id,
         cultura: data.cultura || '',
         anoSafra: data.anoSafra || '',
         hectares: data.hectares || 0,
@@ -137,26 +166,29 @@ export const TabView: React.FC<TabViewProps> = ({ tab }) => {
         rendimento: data.rendimento || 0,
         unidadeProducao: data.unidadeProducao || 'sc',
         precoMedio: data.precoMedio || 0,
-        despesa: data.despesa || 0
-      };
-      setCulturaSafras((prev) => [nova, ...prev]);
+        despesa: data.despesa || 0,
+        producaoFixadaPercent: data.producaoFixadaPercent
+      });
+      setCulturaSafras((prev) => (data.id ? prev.map((s) => (s.id === saved.id ? saved : s)) : [saved, ...prev]));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar safra.');
     }
   };
 
-  const handleDeleteSafra = (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este registro de safra?')) {
+  const handleDeleteSafra = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este registro de safra?')) return;
+    try {
+      await deleteQuadroSafra(id);
       setCulturaSafras((prev) => prev.filter((s) => s.id !== id));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao excluir safra.');
     }
   };
 
-  const handleSaveContrato = (data: Partial<ContratoBancario>) => {
-    if (data.id) {
-      setContratosBancarios((prev) =>
-        prev.map((c) => (c.id === data.id ? ({ ...c, ...data } as ContratoBancario) : c))
-      );
-    } else {
-      const novo: ContratoBancario = {
-        id: `contrato-${Date.now()}`,
+  const handleSaveContrato = async (data: Partial<ContratoBancario>) => {
+    try {
+      const saved = await saveContratoBancario({
+        id: data.id,
         banco: data.banco || '',
         tipoContrato: data.tipoContrato || 'CUSTEO',
         saldoInicial: data.saldoInicial || 0,
@@ -171,52 +203,61 @@ export const TabView: React.FC<TabViewProps> = ({ tab }) => {
         finalidade: data.finalidade || 'CUSTEIO',
         moeda: data.moeda || 'BRL',
         observacoes: data.observacoes
-      };
-      setContratosBancarios((prev) => [novo, ...prev]);
+      });
+      setContratosBancarios((prev) =>
+        data.id ? prev.map((c) => (c.id === saved.id ? saved : c)) : [saved, ...prev]
+      );
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar contrato.');
     }
   };
 
-  const handleDeleteContrato = (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este contrato?')) {
+  const handleDeleteContrato = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este contrato?')) return;
+    try {
+      await deleteContratoBancario(id);
       setContratosBancarios((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao excluir contrato.');
     }
   };
 
-  const handleSaveAquisicao = (data: Partial<Aquisicao>) => {
-    if (data.id) {
-      setAquisicoes((prev) => prev.map((a) => (a.id === data.id ? ({ ...a, ...data } as Aquisicao) : a)));
-    } else {
-      const nova: Aquisicao = {
-        id: `aquisicao-${Date.now()}`,
+  const handleSaveAquisicao = async (data: Partial<Aquisicao>) => {
+    try {
+      const saved = await saveAquisicao({
+        id: data.id,
         nomeFazenda: data.nomeFazenda || '',
         localizacao: data.localizacao || '',
         areaHectares: data.areaHectares || 0,
         valorTotal: data.valorTotal || 0,
         dataAquisicao: data.dataAquisicao || new Date().toISOString().split('T')[0],
+        dataOcupacao: data.dataOcupacao,
         culturaPrincipal: data.culturaPrincipal,
         safraInicio: data.safraInicio || '',
         safraFim: data.safraFim || '',
         valorTotalFluxo: data.valorTotalFluxo || 0,
         totalSacas: data.totalSacas || 0
-      };
-      setAquisicoes((prev) => [nova, ...prev]);
+      });
+      setAquisicoes((prev) => (data.id ? prev.map((a) => (a.id === saved.id ? saved : a)) : [saved, ...prev]));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar aquisição.');
     }
   };
 
-  const handleDeleteAquisicao = (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir esta aquisição?')) {
+  const handleDeleteAquisicao = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir esta aquisição?')) return;
+    try {
+      await deleteAquisicao(id);
       setAquisicoes((prev) => prev.filter((a) => a.id !== id));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao excluir aquisição.');
     }
   };
 
-  const handleSaveArrendamento = (data: Partial<ContratoArrendamento>) => {
-    if (data.id) {
-      setArrendamentos((prev) =>
-        prev.map((a) => (a.id === data.id ? ({ ...a, ...data } as ContratoArrendamento) : a))
-      );
-    } else {
-      const novo: ContratoArrendamento = {
-        id: `arrendamento-${Date.now()}`,
+  const handleSaveArrendamento = async (data: Partial<ContratoArrendamento>) => {
+    try {
+      const saved = await saveArrendamento({
+        id: data.id,
         nomePropriedade: data.nomePropriedade || '',
         localizacao: data.localizacao || '',
         proprietarioNome: data.proprietarioNome || '',
@@ -224,6 +265,7 @@ export const TabView: React.FC<TabViewProps> = ({ tab }) => {
         areaHectares: data.areaHectares || 0,
         culturaPrincipal: data.culturaPrincipal || '',
         custoAnualHectare: data.custoAnualHectare || 0,
+        sacasPorHectare: data.sacasPorHectare,
         dataInicio: data.dataInicio || new Date().toISOString().split('T')[0],
         dataFim: data.dataFim || '',
         periodicidade: data.periodicidade || 'Anual',
@@ -232,25 +274,27 @@ export const TabView: React.FC<TabViewProps> = ({ tab }) => {
         safraInicio: data.safraInicio || '',
         safraFim: data.safraFim || '',
         observacoes: data.observacoes
-      };
-      setArrendamentos((prev) => [novo, ...prev]);
+      });
+      setArrendamentos((prev) => (data.id ? prev.map((a) => (a.id === saved.id ? saved : a)) : [saved, ...prev]));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar arrendamento.');
     }
   };
 
-  const handleDeleteArrendamento = (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este contrato de arrendamento?')) {
+  const handleDeleteArrendamento = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este contrato de arrendamento?')) return;
+    try {
+      await deleteArrendamento(id);
       setArrendamentos((prev) => prev.filter((a) => a.id !== id));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao excluir arrendamento.');
     }
   };
 
-  const handleSaveContratoComercial = (data: Partial<ContratoComercial>) => {
-    if (data.id) {
-      setContratosComerciais((prev) =>
-        prev.map((c) => (c.id === data.id ? ({ ...c, ...data } as ContratoComercial) : c))
-      );
-    } else {
-      const novo: ContratoComercial = {
-        id: `comercial-${Date.now()}`,
+  const handleSaveContratoComercial = async (data: Partial<ContratoComercial>) => {
+    try {
+      const saved = await saveContratoComercial({
+        id: data.id,
         cultura: data.cultura || '',
         safra: data.safra || '',
         quantidadeSc: data.quantidadeSc || 0,
@@ -261,14 +305,31 @@ export const TabView: React.FC<TabViewProps> = ({ tab }) => {
         status: data.status || 'ATIVO',
         compradorNome: data.compradorNome,
         observacoes: data.observacoes
-      };
-      setContratosComerciais((prev) => [novo, ...prev]);
+      });
+      setContratosComerciais((prev) =>
+        data.id ? prev.map((c) => (c.id === saved.id ? saved : c)) : [saved, ...prev]
+      );
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar contrato comercial.');
     }
   };
 
-  const handleDeleteContratoComercial = (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este contrato comercial?')) {
+  const handleDeleteContratoComercial = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este contrato comercial?')) return;
+    try {
+      await deleteContratoComercial(id);
       setContratosComerciais((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao excluir contrato comercial.');
+    }
+  };
+
+  const handleSaveBalanco = async (data: BalancoPatrimonial) => {
+    try {
+      const saved = await saveBalanco(data);
+      setBalanco(saved);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar balanço.');
     }
   };
 
@@ -311,7 +372,7 @@ export const TabView: React.FC<TabViewProps> = ({ tab }) => {
       {tab === 'resumo' && (
         <ResumoView suppliers={suppliers} culturaSafras={culturaSafras} contratosBancarios={contratosBancarios} />
       )}
-      {tab === 'cadastro_mestre' && <CadastroMestreView />}
+      {tab === 'cadastro_mestre' && <CadastroMestreView initialSocios={initialSocios} />}
       {tab === 'quadro_safra' && (
         <QuadroSafraView culturaSafras={culturaSafras} onSave={handleSaveSafra} onDelete={handleDeleteSafra} />
       )}
@@ -340,7 +401,7 @@ export const TabView: React.FC<TabViewProps> = ({ tab }) => {
           onDelete={handleDeleteContratoComercial}
         />
       )}
-      {tab === 'balanco_pj' && <BalancoPjView empresas={initialEmpresasBalanco} />}
+      {tab === 'balanco_pj' && <BalancoPjView empresas={initialEmpresasPJ} />}
       {tab === 'fluxo_safra' && (
         <FluxoSafraView
           itens={initialFluxoSafra}
@@ -351,9 +412,9 @@ export const TabView: React.FC<TabViewProps> = ({ tab }) => {
       {tab === 'cotacoes' && <CotacoesView dolar={initialCotacaoDolar} commodities={initialCotacoesCommodities} />}
       {tab === 'analise_financeira' && (
         <AnaliseFinanceiraView
-          balanco={initialBalanco}
-          indicadores={initialIndicadores}
+          balanco={balanco}
           saudeFinanceira={initialSaudeFinanceira}
+          onSaveBalanco={handleSaveBalanco}
         />
       )}
       {tab === 'fluxo_mensal' && (

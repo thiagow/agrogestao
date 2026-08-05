@@ -1,6 +1,9 @@
-// Schema scaffolded para estabelecer o padrão Prisma + Postgres do projeto.
-// Ainda não está conectado ao app (que segue usando src/data/initialData.ts nesta etapa).
-// Rodar `npm run db:migrate` só depois de configurar DATABASE_URL com uma connection string real.
+// Fase 1 do backend — ver docs/PLANO_BACKEND_FASE1.md.
+// Identidade (User/Session/Account/Verification) segue o formato exigido pelo
+// adapter Prisma do Better Auth. Tenancy e cadastros base são modelagem nossa.
+//
+// Identificadores em ASCII (Prisma não aceita acento em nomes de enum);
+// os rótulos originais ficam preservados via @map, que é o valor gravado no banco.
 
 generator client {
   provider = "prisma-client-js"
@@ -11,9 +14,273 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Identificadores em ASCII (Prisma não aceita acento em nomes de enum);
-// os rótulos originais (MAQUINÁRIOS, COMBUSTÍVEL, SERVIÇOS) ficam preservados
-// via @map, que é o valor de fato gravado no banco.
+// ============================================================
+// Identidade (Better Auth)
+// ============================================================
+
+model User {
+  id                String   @id @default(cuid())
+  name              String
+  email             String
+  emailVerified     Boolean  @default(false)
+  image             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // plataforma
+  role              String?  // "superadmin" quando aplicável (plugin admin do Better Auth)
+  banned            Boolean  @default(false)
+  banReason         String?
+  banExpires        DateTime?
+  mustChangePassword Boolean @default(true)
+  ativo             Boolean  @default(true)
+
+  sessions          Session[]
+  accounts          Account[]
+  memberships       Membership[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id             String   @id @default(cuid())
+  expiresAt      DateTime
+  token          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
+  impersonatedBy String?
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+
+  @@map("verification")
+}
+
+// ============================================================
+// Tenancy
+// ============================================================
+
+enum ContaStatus {
+  ATIVA
+  SUSPENSA
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model Conta {
+  id           String       @id @default(cuid())
+  nome         String
+  razaoSocial  String?
+  cnpj         String?      @unique
+  status       ContaStatus  @default(ATIVA)
+  ativo        Boolean      @default(true)
+
+  memberships  Membership[]
+  propriedades Propriedade[]
+  culturas     Cultura[]
+  safras       Safra[]
+  socios       Socio[]
+  empresasPJ   EmpresaPJ[]
+  balancos     BalancoPatrimonial[]
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  createdById  String?
+
+  @@map("contas")
+}
+
+model Membership {
+  id        String         @id @default(cuid())
+  userId    String
+  contaId   String
+  role      MembershipRole @default(MEMBER)
+  ativo     Boolean        @default(true)
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conta     Conta          @relation(fields: [contaId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([userId, contaId])
+  @@index([contaId])
+  @@map("memberships")
+}
+
+model Propriedade {
+  id                String   @id @default(cuid())
+  contaId           String
+  nome              String
+  cidade            String?
+  estado            String?  // UF, 2 chars
+  areaTotalHectares Float?
+  ativo             Boolean  @default(true)
+
+  conta             Conta    @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  suppliers         Supplier[]
+  quadroSafras      QuadroSafra[]
+  contratosBancarios ContratoBancario[]
+  aquisicoes        Aquisicao[]
+  arrendamentos     ContratoArrendamento[]
+  contratosComerciais ContratoComercial[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  createdById       String?
+  updatedById       String?
+
+  @@index([contaId])
+  @@index([contaId, ativo])
+  @@map("propriedades")
+}
+
+// ============================================================
+// Cadastros base
+// ============================================================
+
+model Cultura {
+  id          String   @id @default(cuid())
+  contaId     String?  // null = catálogo global seedado; preenchido = cultura própria da conta
+  nome        String
+  ativo       Boolean  @default(true)
+
+  conta       Conta?   @relation(fields: [contaId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+
+  @@unique([contaId, nome])
+  @@map("culturas")
+}
+
+model Safra {
+  id          String    @id @default(cuid())
+  contaId     String
+  anoSafra    String    // "2026/2027"
+  dataInicio  DateTime?
+  dataFim     DateTime?
+  atual       Boolean   @default(false)
+  ativo       Boolean   @default(true)
+
+  conta       Conta     @relation(fields: [contaId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String?
+
+  @@unique([contaId, anoSafra])
+  @@index([contaId, ativo])
+  @@map("safras")
+}
+
+// Registro de planejamento por cultura × ano-safra (Quadro de Safra + Resumo).
+// `cultura`/`anoSafra` seguem string livre — mesmo padrão adotado em Supplier,
+// consistente com src/types.ts; normalização via FK para Cultura/Safra fica
+// para uma limpeza futura, fora do escopo desta fase.
+model QuadroSafra {
+  id                    String   @id @default(cuid())
+  propriedadeId         String
+  cultura               String
+  anoSafra              String   // "2026/2027"
+  hectares              Float
+  haPropria             Float
+  haArrendada           Float
+  rendimento            Decimal  @db.Decimal(12, 4) // unidade/ha
+  unidadeProducao       String   // "sc", "kg", "@", "ton", "m³"
+  precoMedio            Decimal  @db.Decimal(18, 2)
+  despesa               Decimal  @db.Decimal(18, 2)
+  producaoFixadaPercent Decimal? @db.Decimal(5, 2)
+  ativo                 Boolean  @default(true)
+
+  propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@unique([propriedadeId, cultura, anoSafra])
+  @@index([propriedadeId, ativo])
+  @@map("quadro_safra")
+}
+
+enum EstadoCivil {
+  SOLTEIRO   @map("Solteiro")
+  CASADO     @map("Casado")
+  VIUVO      @map("Viúvo")
+  DIVORCIADO @map("Divorciado")
+  SEPARADO   @map("Separado")
+}
+
+model Socio {
+  id             String       @id @default(cuid())
+  contaId        String       // participação societária é do grupo econômico, não da fazenda
+  nome           String
+  cpf            String
+  participacao   Decimal      @db.Decimal(5, 2) // 0-100
+  estadoCivil    EstadoCivil?
+  telefone       String?
+  email          String?
+  nacionalidade  String?
+  dataNascimento DateTime?
+  ativo          Boolean      @default(true)
+
+  conta          Conta        @relation(fields: [contaId], references: [id], onDelete: Cascade)
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  createdById    String?
+  updatedById    String?
+
+  @@unique([contaId, cpf])
+  @@index([contaId, ativo])
+  @@map("socios")
+}
+
+// ============================================================
+// Fornecedores
+// ============================================================
+
 enum Category {
   FERTILIZANTES
   DEFENSIVOS
@@ -36,20 +303,356 @@ enum SupplierStatus {
 }
 
 model Supplier {
-  id            String         @id @default(cuid())
-  nome          String
-  categoria     Category
-  cultura       String?
-  safra         String?
-  dividaTotal   Float
-  moeda         Currency
-  vencimento    DateTime
-  observacoes   String?
-  status        SupplierStatus @default(PENDENTE)
-  imageUrl      String?
+  id             String         @id @default(cuid())
+  propriedadeId  String
+  nome           String
+  categoria      Category
+  cultura        String?
+  safra          String?
+  dividaTotal    Decimal        @db.Decimal(18, 2)
+  moeda          Currency
+  vencimento     DateTime
+  observacoes    String?
+  status         SupplierStatus @default(PENDENTE)
+  imageUrl       String?
   comprovanteUrl String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  cnpjCpf        String?
+  contatoNome    String?
+  contatoTelefone String?
+  contatoEmail   String?
+  ativo          Boolean        @default(true)
 
+  propriedade    Propriedade    @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  compras        CompraFornecedor[]
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  createdById    String?
+  updatedById    String?
+
+  @@index([propriedadeId, ativo])
   @@map("suppliers")
+}
+
+model CompraFornecedor {
+  id                String   @id @default(cuid())
+  supplierId        String
+  data              DateTime
+  valor             Decimal  @db.Decimal(18, 2)
+  descricao         String
+  culturaReferencia String?
+
+  supplier          Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  createdAt         DateTime @default(now())
+  createdById       String?
+
+  @@index([supplierId])
+  @@map("compras_fornecedor")
+}
+
+// ============================================================
+// Bancos e Financiamentos
+// ============================================================
+
+enum TipoContratoBancario {
+  CUSTEO
+  CPR
+  FINANCIAMENTO
+  CREDIARIO
+}
+
+enum TipoTaxaBancaria {
+  CDI
+  PRIME
+  PRE @map("PRÉ")
+  FLUTUANTE
+}
+
+enum SistemaAmortizacao {
+  SAC
+  PRICE
+  BULLET
+}
+
+enum PeriodicidadePagamento {
+  MENSAL     @map("Mensal")
+  TRIMESTRAL @map("Trimestral")
+  SEMESTRAL  @map("Semestral")
+  ANUAL      @map("Anual")
+}
+
+enum FinalidadeContrato {
+  CUSTEIO
+  INVESTIMENTO
+  CAPITAL_GIRO
+}
+
+model ContratoBancario {
+  id                 String                 @id @default(cuid())
+  propriedadeId      String
+  banco              String
+  tipoContrato       TipoContratoBancario
+  saldoInicial       Decimal                @db.Decimal(18, 2)
+  saldoAtual         Decimal                @db.Decimal(18, 2)
+  taxaJuros          Decimal                @db.Decimal(8, 4) // % a.a.
+  tipoTaxa           TipoTaxaBancaria
+  taxaAdicional      Decimal?               @db.Decimal(8, 4) // % a.a., só quando tipoTaxa = CDI
+  dataContratacao    DateTime
+  dataVencimento     DateTime
+  sistemaAmortizacao SistemaAmortizacao
+  periodicidade      PeriodicidadePagamento
+  finalidade         FinalidadeContrato
+  moeda              Currency
+  observacoes        String?
+  ativo              Boolean                @default(true)
+
+  propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  parcelas    Parcela[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([propriedadeId, ativo])
+  @@map("contratos_bancarios")
+}
+
+// Cronograma auto-gerado (src/lib/amortizacao.ts) a cada criação/edição do
+// contrato — regra da engenharia reversa do AgroFlow. Sem UI de baixa de
+// parcela ainda (sem spec), então é recriado do zero a cada save.
+model Parcela {
+  id             String   @id @default(cuid())
+  contratoId     String
+  numero         Int
+  dataPagamento  DateTime
+  valorPrincipal Decimal  @db.Decimal(18, 2)
+  valorJuros     Decimal  @db.Decimal(18, 2)
+  valorTotal     Decimal  @db.Decimal(18, 2)
+  saldoDevedor   Decimal  @db.Decimal(18, 2) // saldo após o pagamento desta parcela
+  pago           Boolean  @default(false)
+
+  contrato ContratoBancario @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  @@unique([contratoId, numero])
+  @@index([contratoId])
+  @@map("parcelas")
+}
+
+// ============================================================
+// Aquisição de Fazendas
+// ============================================================
+
+// `valorTotalFluxo` é um total resumo (sem detalhamento em parcelas na UI/
+// spec atual) — nada de ParcelaAquisicao inventado sem fonte.
+model Aquisicao {
+  id                String    @id @default(cuid())
+  propriedadeId     String
+  nomeFazenda       String
+  localizacao       String
+  areaHectares      Float
+  valorTotal        Decimal   @db.Decimal(18, 2)
+  dataAquisicao     DateTime
+  dataOcupacao      DateTime?
+  culturaPrincipal  String?
+  safraInicio       String // "2026/2027"
+  safraFim          String
+  valorTotalFluxo   Decimal   @db.Decimal(18, 2)
+  totalSacas        Float
+  ativo             Boolean   @default(true)
+
+  propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([propriedadeId, ativo])
+  @@map("aquisicoes")
+}
+
+// ============================================================
+// Arrendamentos
+// ============================================================
+
+enum PeriodicidadeArrendamento {
+  ANUAL     @map("Anual")
+  MENSAL    @map("Mensal")
+  POR_SAFRA @map("Por Safra")
+}
+
+enum StatusArrendamento {
+  ATIVO
+  ENCERRADO
+}
+
+model ContratoArrendamento {
+  id                   String                    @id @default(cuid())
+  propriedadeId        String
+  nomePropriedade      String
+  localizacao          String
+  proprietarioNome     String
+  proprietarioCpfCnpj  String
+  areaHectares         Float
+  culturaPrincipal     String
+  custoAnualHectare    Decimal                   @db.Decimal(18, 2)
+  sacasPorHectare      Decimal?                  @db.Decimal(12, 4)
+  dataInicio           DateTime
+  dataFim              DateTime
+  periodicidade        PeriodicidadeArrendamento
+  renovavel            Boolean                   @default(true)
+  status               StatusArrendamento        @default(ATIVO)
+  safraInicio          String
+  safraFim             String
+  observacoes          String?
+  ativo                Boolean                   @default(true)
+
+  propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([propriedadeId, ativo])
+  @@map("contratos_arrendamento")
+}
+
+// ============================================================
+// Comercialização (Futuros/Hedge)
+// ============================================================
+
+enum TipoContratoComercial {
+  FUTURO
+  VENDA_A_TERMO
+  HEDGE_CALL
+  HEDGE_PUT
+}
+
+enum StatusContratoComercial {
+  ATIVO
+  LIQUIDADO
+  CANCELADO
+}
+
+model ContratoComercial {
+  id             String                   @id @default(cuid())
+  propriedadeId  String
+  cultura        String
+  safra          String
+  quantidadeSc   Float
+  precoFixado    Decimal                  @db.Decimal(18, 2)
+  tipoContrato   TipoContratoComercial
+  dataContrato   DateTime
+  dataVencimento DateTime
+  status         StatusContratoComercial  @default(ATIVO)
+  compradorNome  String?
+  observacoes    String?
+  ativo          Boolean                  @default(true)
+
+  propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([propriedadeId, ativo])
+  @@map("contratos_comerciais")
+}
+
+// ============================================================
+// Balanço PJ (por empresa) — só persistência/leitura nesta fase,
+// sem UI de cadastro (decisão explícita: sem Drawer ainda).
+// ============================================================
+
+model EmpresaPJ {
+  id                    String  @id @default(cuid())
+  contaId               String
+  empresa               String
+  safra                 String // "2026/2027"
+  ativoCirculante       Decimal @db.Decimal(18, 2)
+  ativoNaoCirculante    Decimal @db.Decimal(18, 2)
+  passivoCirculante     Decimal @db.Decimal(18, 2)
+  passivoNaoCirculante  Decimal @db.Decimal(18, 2)
+  capitalReservas       Decimal @db.Decimal(18, 2)
+  receitaBruta          Decimal @db.Decimal(18, 2)
+  custos                Decimal @db.Decimal(18, 2)
+  despesasOperacionais  Decimal @db.Decimal(18, 2)
+  ativo                 Boolean @default(true)
+
+  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+
+  @@index([contaId, ativo])
+  @@map("empresas_pj")
+}
+
+// ============================================================
+// Análise Financeira — Balanço consolidado do grupo (Conta)
+// ============================================================
+
+// Indicadores são SEMPRE computados ao vivo a partir destes 6 campos
+// (src/lib/indicadores.ts) — nunca persistidos como número solto. Indicadores
+// que exigiriam contas mais finas (caixa, estoques, EBITDA...) não existentes
+// aqui ficam explicitamente "dados insuficientes" na UI, nunca inventados.
+model BalancoPatrimonial {
+  id                   String  @id @default(cuid())
+  contaId              String
+  safra                String // "2026/2027"
+  ativoCirculante      Decimal @db.Decimal(18, 2)
+  ativoNaoCirculante   Decimal @db.Decimal(18, 2)
+  passivoCirculante    Decimal @db.Decimal(18, 2)
+  passivoNaoCirculante Decimal @db.Decimal(18, 2)
+  capitalReservas      Decimal @db.Decimal(18, 2)
+  resultadoSafra       Decimal @db.Decimal(18, 2)
+  ativo                Boolean @default(true)
+
+  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@unique([contaId, safra])
+  @@index([contaId, ativo])
+  @@map("balancos_patrimoniais")
+}
+
+// ============================================================
+// Cotações de Mercado — dado global, sem tenant (mesmo preço pra todo mundo).
+// Ingestão real: AwesomeAPI (câmbio) + Yahoo Finance (futuros de commodities),
+// ambas sem chave — ver src/lib/market-data.ts.
+// ============================================================
+
+enum Bolsa {
+  CBOT
+  CME
+  ICE
+  B3
+  PTAX
+}
+
+model Cotacao {
+  id                 String   @id @default(cuid())
+  commodity          String   @unique
+  bolsa              Bolsa
+  ticker             String
+  precoUsd           Decimal? @db.Decimal(18, 4)
+  precoBrl           Decimal  @db.Decimal(18, 4)
+  unidade             String
+  variacaoPercentual Decimal  @db.Decimal(8, 4)
+  maxima             Decimal  @db.Decimal(18, 4)
+  minima             Decimal  @db.Decimal(18, 4)
+  volume             BigInt   @default(0)
+  precoDefinidoSafra Decimal? @db.Decimal(18, 4) // preço que o usuário "trava" como referência da safra
+  atualizadoEm       DateTime @default(now())
+
+  @@map("cotacoes")
 }

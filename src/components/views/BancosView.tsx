@@ -1,11 +1,96 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, Landmark } from 'lucide-react';
 import { ContratoBancario } from '../../types';
 import { formatCurrency, formatDateBR, isCurtoPrazo } from '../../data/initialData';
-import { Card, Tabs, Button, Badge, KpiCard } from '../ui';
+import { Card, Tabs, Button, Badge, KpiCard, Select } from '../ui';
 import { ContratoBancarioDrawer } from '../ContratoBancarioDrawer';
+import { listParcelas } from '../../server/contratos-bancarios';
+
+interface ParcelaRow {
+  id: string;
+  numero: number;
+  dataPagamento: string;
+  valorPrincipal: number;
+  valorJuros: number;
+  valorTotal: number;
+  saldoDevedor: number;
+  pago: boolean;
+}
+
+const CronogramaTab: React.FC<{ contratos: ContratoBancario[] }> = ({ contratos }) => {
+  const [contratoId, setContratoId] = useState(contratos[0]?.id ?? '');
+  const [parcelas, setParcelas] = useState<ParcelaRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!contratoId) {
+      setParcelas([]);
+      return;
+    }
+    setLoading(true);
+    listParcelas(contratoId)
+      .then(setParcelas)
+      .finally(() => setLoading(false));
+  }, [contratoId]);
+
+  if (contratos.length === 0) {
+    return (
+      <div className="py-16 text-center text-slate-400">
+        <p className="text-sm font-semibold">Cronograma</p>
+        <p className="text-xs mt-1">Cadastre um contrato para ver o cronograma de amortização.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="max-w-xs">
+        <Select label="Contrato" value={contratoId} onChange={(e) => setContratoId(e.target.value)}>
+          {contratos.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.banco} — {c.sistemaAmortizacao} ({formatCurrency(c.saldoAtual)})
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      {loading ? (
+        <p className="text-xs text-slate-400 py-8 text-center">Carregando…</p>
+      ) : parcelas.length === 0 ? (
+        <p className="text-xs text-slate-400 py-8 text-center">Nenhuma parcela gerada.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] uppercase tracking-wider text-slate-600 font-bold">
+                <th className="py-2.5 px-4">#</th>
+                <th className="py-2.5 px-4">Vencimento</th>
+                <th className="py-2.5 px-4 text-right">Principal</th>
+                <th className="py-2.5 px-4 text-right">Juros</th>
+                <th className="py-2.5 px-4 text-right">Total</th>
+                <th className="py-2.5 px-4 text-right">Saldo Devedor</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+              {parcelas.map((p) => (
+                <tr key={p.id} className="hover:bg-slate-50/60">
+                  <td className="py-2.5 px-4 font-semibold text-slate-800">{p.numero}</td>
+                  <td className="py-2.5 px-4 text-slate-600">{formatDateBR(p.dataPagamento)}</td>
+                  <td className="py-2.5 px-4 text-right text-slate-700">{formatCurrency(p.valorPrincipal)}</td>
+                  <td className="py-2.5 px-4 text-right text-slate-700">{formatCurrency(p.valorJuros)}</td>
+                  <td className="py-2.5 px-4 text-right font-bold text-slate-900">{formatCurrency(p.valorTotal)}</td>
+                  <td className="py-2.5 px-4 text-right text-slate-600">{formatCurrency(p.saldoDevedor)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface BancosViewProps {
   contratos: ContratoBancario[];
@@ -97,12 +182,15 @@ export const BancosView: React.FC<BancosViewProps> = ({ contratos, onSave, onDel
           defaultTabId="contratos"
         >
           {(activeTabId) => {
+            if (activeTabId === 'cronograma') {
+              return <CronogramaTab contratos={contratos} />;
+            }
+
             if (activeTabId !== 'contratos') {
               return (
                 <div className="py-16 text-center text-slate-400">
                   <p className="text-sm font-semibold">
                     {activeTabId === 'credor' && 'Por Credor'}
-                    {activeTabId === 'cronograma' && 'Cronograma'}
                     {activeTabId === 'fluxo' && 'Fluxo Detalhado'}
                   </p>
                   <p className="text-xs mt-1">Em construção — aguardando especificação detalhada desta aba.</p>
