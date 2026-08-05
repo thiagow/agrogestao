@@ -63,28 +63,36 @@ export const bemDireitoSchema = z.object({
 });
 
 export const garantiaSchema = z.object({
+  tipoAtivo: z.string().trim().min(1, 'Informe o tipo de ativo'),
+  tipoGarantia: z.string().trim().min(1, 'Informe o tipo de garantia'),
   descricao: z.string().trim().min(2, 'Informe a descrição'),
-  tipo: z.enum(['Imóvel', 'Aval', 'Penhor', 'Alienação Fiduciária', 'Outros']),
+  bancoVinculado: z.string().trim().optional().or(z.literal('')),
+  numeroOperacao: z.string().trim().optional().or(z.literal('')),
   valor: z.coerce.number().positive('Valor deve ser maior que zero'),
-  contratoBancarioId: z.string().trim().optional().or(z.literal('')),
+  moeda: z.enum(['BRL', 'USD']).default('BRL'),
   observacoes: z.string().trim().optional().or(z.literal(''))
 });
 
 export const capexSchema = z.object({
   descricao: z.string().trim().min(2, 'Informe a descrição'),
-  categoria: z.enum(['Maquinário', 'Benfeitoria', 'Tecnologia', 'Infraestrutura', 'Outros']),
-  valor: z.coerce.number().positive('Valor deve ser maior que zero'),
-  dataInvestimento: z.string().min(1, 'Informe a data do investimento'),
-  safra: z.string().trim().optional().or(z.literal('')),
+  tipo: z.string().trim().min(1, 'Informe o tipo'),
+  ano: z.coerce.number().int('Ano inválido').min(2000).max(2100),
+  valorPlanejado: z.coerce.number().nonnegative('Valor não pode ser negativo'),
+  valorExecutado: z.coerce.number().nonnegative('Valor não pode ser negativo').default(0),
+  percentualFinanciamento: z.coerce.number().min(0).max(100).optional(),
+  status: z.string().trim().min(1).default('Planejado'),
   observacoes: z.string().trim().optional().or(z.literal(''))
 });
 
-export const empresaGrupoSchema = z.object({
-  nome: z.string().trim().min(2, 'Informe o nome da empresa'),
-  cnpj: z.string().trim().optional().or(z.literal('')),
-  tipoRelacao: z.enum(['Controladora', 'Controlada', 'Coligada', 'Outras']),
-  participacaoPercentual: z.coerce.number().min(0).max(100).optional(),
-  observacoes: z.string().trim().optional().or(z.literal(''))
+export const perfilGrupoSchema = z.object({
+  nome: z.string().trim().optional().or(z.literal('')),
+  email: z.string().trim().optional().or(z.literal('')),
+  telefone: z.string().trim().optional().or(z.literal('')),
+  atividadePrincipal: z.string().trim().optional().or(z.literal('')),
+  fundacao: z.string().trim().optional().or(z.literal('')),
+  sede: z.string().trim().optional().or(z.literal('')),
+  consultorResponsavel: z.string().trim().optional().or(z.literal('')),
+  historico: z.string().trim().optional().or(z.literal(''))
 });
 
 export const compraFornecedorSchema = z.object({
@@ -208,4 +216,4 @@ export type SupplierInput = z.infer<typeof supplierSchema>;
 export type BemDireitoInput = z.infer<typeof bemDireitoSchema>;
 export type GarantiaInput = z.infer<typeof garantiaSchema>;
 export type CapexInput = z.infer<typeof capexSchema>;
-export type EmpresaGrupoInput = z.infer<typeof empresaGrupoSchema>;
+export type PerfilGrupoInput = z.infer<typeof perfilGrupoSchema>;

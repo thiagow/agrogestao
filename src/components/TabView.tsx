@@ -9,7 +9,7 @@ import {
   BemDireito,
   Garantia,
   Capex,
-  EmpresaGrupo,
+  PerfilGrupoEconomico,
   CulturaSafraAno,
   ContratoBancario,
   Aquisicao,
@@ -62,7 +62,7 @@ interface TabViewProps {
   initialBensDireitos?: BemDireito[];
   initialGarantias?: Garantia[];
   initialCapex?: Capex[];
-  initialEmpresasGrupo?: EmpresaGrupo[];
+  initialPerfilGrupo?: PerfilGrupoEconomico | null;
   initialCulturaSafras?: CulturaSafraAno[];
   initialLancamentosMensais?: LancamentoMensal[];
   initialContratosBancarios?: ContratoBancario[];
@@ -82,7 +82,7 @@ export const TabView: React.FC<TabViewProps> = ({
   initialBensDireitos = [],
   initialGarantias = [],
   initialCapex = [],
-  initialEmpresasGrupo = [],
+  initialPerfilGrupo = null,
   initialCulturaSafras = [],
   initialLancamentosMensais = [],
   initialContratosBancarios = [],
@@ -390,8 +390,7 @@ export const TabView: React.FC<TabViewProps> = ({
           initialBensDireitos={initialBensDireitos}
           initialGarantias={initialGarantias}
           initialCapex={initialCapex}
-          initialEmpresasGrupo={initialEmpresasGrupo}
-          contratosBancarios={contratosBancarios}
+          initialPerfilGrupo={initialPerfilGrupo}
         />
       )}
       {tab === 'quadro_safra' && (

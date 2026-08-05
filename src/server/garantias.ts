@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requireContext } from '@/lib/session';
 import { garantiaSchema } from '@/lib/validation';
-import { GARANTIA_TIPO_TO_DB, GARANTIA_TIPO_FROM_DB } from '@/lib/enum-maps';
 import type { Garantia } from '@/types';
 
 export async function listGarantias(): Promise<Garantia[]> {
@@ -18,10 +17,13 @@ export async function listGarantias(): Promise<Garantia[]> {
 
 interface SaveGarantiaInput {
   id?: string;
+  tipoAtivo: string;
+  tipoGarantia: string;
   descricao: string;
-  tipo: string;
+  bancoVinculado?: string;
+  numeroOperacao?: string;
   valor: number;
-  contratoBancarioId?: string;
+  moeda?: string;
   observacoes?: string;
 }
 
@@ -29,20 +31,14 @@ export async function saveGarantia(input: SaveGarantiaInput): Promise<Garantia> 
   const ctx = await requireContext();
   const parsed = garantiaSchema.parse(input);
 
-  // contratoBancarioId, quando informado, precisa pertencer a uma propriedade
-  // desta conta — não confiar em id vindo do client sem checar tenancy.
-  if (parsed.contratoBancarioId) {
-    const contrato = await db.contratoBancario.findFirst({
-      where: { id: parsed.contratoBancarioId, propriedade: { contaId: ctx.conta.id } }
-    });
-    if (!contrato) throw new Error('Contrato bancário inválido.');
-  }
-
   const data = {
+    tipoAtivo: parsed.tipoAtivo,
+    tipoGarantia: parsed.tipoGarantia,
     descricao: parsed.descricao,
-    tipo: GARANTIA_TIPO_TO_DB[parsed.tipo],
+    bancoVinculado: parsed.bancoVinculado || null,
+    numeroOperacao: parsed.numeroOperacao || null,
     valor: parsed.valor,
-    contratoBancarioId: parsed.contratoBancarioId || null,
+    moeda: parsed.moeda,
     observacoes: parsed.observacoes || null
   };
 
@@ -65,18 +61,24 @@ export async function deleteGarantia(id: string) {
 
 function toGarantiaDTO(row: {
   id: string;
+  tipoAtivo: string;
+  tipoGarantia: string;
   descricao: string;
-  tipo: string;
+  bancoVinculado: string | null;
+  numeroOperacao: string | null;
   valor: unknown;
-  contratoBancarioId: string | null;
+  moeda: string;
   observacoes: string | null;
 }): Garantia {
   return {
     id: row.id,
+    tipoAtivo: row.tipoAtivo,
+    tipoGarantia: row.tipoGarantia,
     descricao: row.descricao,
-    tipo: GARANTIA_TIPO_FROM_DB[row.tipo as keyof typeof GARANTIA_TIPO_FROM_DB],
+    bancoVinculado: row.bancoVinculado ?? undefined,
+    numeroOperacao: row.numeroOperacao ?? undefined,
     valor: Number(row.valor),
-    contratoBancarioId: row.contratoBancarioId ?? undefined,
+    moeda: row.moeda as Garantia['moeda'],
     observacoes: row.observacoes ?? undefined
   };
 }

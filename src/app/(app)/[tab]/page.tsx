@@ -6,7 +6,7 @@ import { listSocios } from '@/server/socios';
 import { listBensDireitos } from '@/server/bens-direitos';
 import { listGarantias } from '@/server/garantias';
 import { listCapex } from '@/server/capex';
-import { listEmpresasGrupo } from '@/server/empresas-grupo';
+import { getPerfilGrupo } from '@/server/perfil-grupo';
 import { listQuadroSafra } from '@/server/quadro-safra';
 import { listLancamentosMensais } from '@/server/lancamentos';
 import { listContratosBancarios } from '@/server/contratos-bancarios';
@@ -36,7 +36,7 @@ export default async function TabPage({ params }: TabPageProps) {
     initialBensDireitos,
     initialGarantias,
     initialCapex,
-    initialEmpresasGrupo,
+    initialPerfilGrupo,
     initialCulturaSafras,
     initialContratosBancarios,
     initialAquisicoes,
@@ -48,7 +48,7 @@ export default async function TabPage({ params }: TabPageProps) {
     listBensDireitos(),
     listGarantias(),
     listCapex(),
-    listEmpresasGrupo(),
+    getPerfilGrupo(),
     listQuadroSafra(),
     listContratosBancarios(),
     listAquisicoes(),
@@ -70,7 +70,7 @@ export default async function TabPage({ params }: TabPageProps) {
       initialBensDireitos={initialBensDireitos}
       initialGarantias={initialGarantias}
       initialCapex={initialCapex}
-      initialEmpresasGrupo={initialEmpresasGrupo}
+      initialPerfilGrupo={initialPerfilGrupo}
       initialCulturaSafras={initialCulturaSafras}
       initialLancamentosMensais={initialLancamentosMensais}
       initialContratosBancarios={initialContratosBancarios}

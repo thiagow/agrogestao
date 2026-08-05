@@ -1,37 +1,28 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Upload, Printer, RefreshCw, Plus, Edit2, Trash2 } from 'lucide-react';
-import { Socio, BemDireito, Garantia, Capex, EmpresaGrupo, ContratoBancario } from '../../types';
-import { Card, Tabs, Button, Badge } from '../ui';
+import { Socio, BemDireito, Garantia, Capex, PerfilGrupoEconomico } from '../../types';
+import { Card, Tabs, Button, Badge, KpiCard, Textarea } from '../ui';
 import { SocioDrawer } from '../SocioDrawer';
 import { BemDireitoDrawer } from '../BemDireitoDrawer';
 import { GarantiaDrawer } from '../GarantiaDrawer';
-import { CapexDrawer } from '../CapexDrawer';
-import { EmpresaGrupoDrawer } from '../EmpresaGrupoDrawer';
+import { CapexForm } from '../CapexForm';
+import { PerfilGrupoDrawer } from '../PerfilGrupoDrawer';
 import { saveSocio, deleteSocio } from '../../server/socios';
 import { saveBemDireito, deleteBemDireito } from '../../server/bens-direitos';
 import { saveGarantia, deleteGarantia } from '../../server/garantias';
 import { saveCapex, deleteCapex } from '../../server/capex';
-import { saveEmpresaGrupo, deleteEmpresaGrupo } from '../../server/empresas-grupo';
+import { savePerfilGrupo } from '../../server/perfil-grupo';
 import { formatCurrency, formatDateBR } from '../../lib/format';
-
-const TABS_SEM_SPEC = [{ id: 'historico', label: 'Histórico do Grupo' }];
-
-const EmConstrucao: React.FC<{ label: string }> = ({ label }) => (
-  <div className="py-16 text-center text-slate-400">
-    <p className="text-sm font-semibold">{label}</p>
-    <p className="text-xs mt-1">Em construção — aguardando especificação detalhada desta aba.</p>
-  </div>
-);
+import { calcularPatrimonioGrupo } from '../../lib/patrimonio';
 
 interface CadastroMestreViewProps {
   initialSocios?: Socio[];
   initialBensDireitos?: BemDireito[];
   initialGarantias?: Garantia[];
   initialCapex?: Capex[];
-  initialEmpresasGrupo?: EmpresaGrupo[];
-  contratosBancarios?: ContratoBancario[];
+  initialPerfilGrupo?: PerfilGrupoEconomico | null;
 }
 
 export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
@@ -39,8 +30,7 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
   initialBensDireitos = [],
   initialGarantias = [],
   initialCapex = [],
-  initialEmpresasGrupo = [],
-  contratosBancarios = []
+  initialPerfilGrupo = null
 }) => {
   const [socios, setSocios] = useState<Socio[]>(initialSocios);
   const [isSocioDrawerOpen, setIsSocioDrawerOpen] = useState(false);
@@ -55,12 +45,16 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
   const [editingGarantia, setEditingGarantia] = useState<Garantia | null>(null);
 
   const [capexList, setCapexList] = useState<Capex[]>(initialCapex);
-  const [isCapexDrawerOpen, setIsCapexDrawerOpen] = useState(false);
+  const [isCapexFormOpen, setIsCapexFormOpen] = useState(false);
   const [editingCapex, setEditingCapex] = useState<Capex | null>(null);
+  const [anoSelecionado, setAnoSelecionado] = useState(() => {
+    const anos = initialCapex.map((c) => c.ano);
+    return anos.length ? Math.max(...anos) : new Date().getFullYear();
+  });
 
-  const [empresasGrupo, setEmpresasGrupo] = useState<EmpresaGrupo[]>(initialEmpresasGrupo);
-  const [isEmpresaDrawerOpen, setIsEmpresaDrawerOpen] = useState(false);
-  const [editingEmpresa, setEditingEmpresa] = useState<EmpresaGrupo | null>(null);
+  const [perfilGrupo, setPerfilGrupo] = useState<PerfilGrupoEconomico | null>(initialPerfilGrupo);
+  const [isPerfilDrawerOpen, setIsPerfilDrawerOpen] = useState(false);
+  const [historicoDraft, setHistoricoDraft] = useState(initialPerfilGrupo?.historico ?? '');
 
   // ---- Sócios ----
 
@@ -135,10 +129,13 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
     try {
       const saved = await saveGarantia({
         id: data.id,
+        tipoAtivo: data.tipoAtivo || '',
+        tipoGarantia: data.tipoGarantia || '',
         descricao: data.descricao || '',
-        tipo: data.tipo || 'Outros',
+        bancoVinculado: data.bancoVinculado,
+        numeroOperacao: data.numeroOperacao,
         valor: data.valor || 0,
-        contratoBancarioId: data.contratoBancarioId,
+        moeda: data.moeda || 'BRL',
         observacoes: data.observacoes
       });
       setGarantias((prev) => (data.id ? prev.map((g) => (g.id === saved.id ? saved : g)) : [saved, ...prev]));
@@ -159,18 +156,43 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
 
   // ---- CAPEX ----
 
+  const anosDisponiveis = useMemo(() => {
+    const anos = new Set(capexList.map((c) => c.ano));
+    anos.add(anoSelecionado);
+    return Array.from(anos).sort((a, b) => b - a);
+  }, [capexList, anoSelecionado]);
+
+  const capexDoAno = useMemo(
+    () => capexList.filter((c) => c.ano === anoSelecionado),
+    [capexList, anoSelecionado]
+  );
+
+  const capexKpis = useMemo(() => {
+    const totalPlanejado = capexDoAno.reduce((sum, c) => sum + c.valorPlanejado, 0);
+    const totalExecutado = capexDoAno.reduce((sum, c) => sum + c.valorExecutado, 0);
+    const financiamento = capexDoAno.reduce(
+      (sum, c) => sum + c.valorPlanejado * ((c.percentualFinanciamento ?? 0) / 100),
+      0
+    );
+    return { totalPlanejado, totalExecutado, financiamento, capitalProprio: totalPlanejado - financiamento };
+  }, [capexDoAno]);
+
   const handleSaveCapex = async (data: Partial<Capex>) => {
     try {
       const saved = await saveCapex({
         id: data.id,
         descricao: data.descricao || '',
-        categoria: data.categoria || 'Outros',
-        valor: data.valor || 0,
-        dataInvestimento: data.dataInvestimento || '',
-        safra: data.safra,
+        tipo: data.tipo || '',
+        ano: data.ano || anoSelecionado,
+        valorPlanejado: data.valorPlanejado || 0,
+        valorExecutado: data.valorExecutado || 0,
+        percentualFinanciamento: data.percentualFinanciamento,
+        status: data.status || 'Planejado',
         observacoes: data.observacoes
       });
       setCapexList((prev) => (data.id ? prev.map((c) => (c.id === saved.id ? saved : c)) : [saved, ...prev]));
+      setIsCapexFormOpen(false);
+      setEditingCapex(null);
     } catch (err) {
       window.alert(err instanceof Error ? err.message : 'Erro ao salvar investimento.');
     }
@@ -188,29 +210,23 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
 
   // ---- Grupo Econômico ----
 
-  const handleSaveEmpresa = async (data: Partial<EmpresaGrupo>) => {
+  const patrimonioGrupo = useMemo(() => calcularPatrimonioGrupo(bensDireitos, socios), [bensDireitos, socios]);
+
+  const handleSavePerfil = async (data: Partial<PerfilGrupoEconomico>) => {
     try {
-      const saved = await saveEmpresaGrupo({
-        id: data.id,
-        nome: data.nome || '',
-        cnpj: data.cnpj,
-        tipoRelacao: data.tipoRelacao || 'Outras',
-        participacaoPercentual: data.participacaoPercentual,
-        observacoes: data.observacoes
-      });
-      setEmpresasGrupo((prev) => (data.id ? prev.map((e) => (e.id === saved.id ? saved : e)) : [saved, ...prev]));
+      const saved = await savePerfilGrupo(data);
+      setPerfilGrupo(saved);
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Erro ao salvar empresa.');
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar perfil do grupo.');
     }
   };
 
-  const handleDeleteEmpresa = async (id: string) => {
-    if (!window.confirm('Tem certeza que deseja remover esta empresa?')) return;
+  const handleSalvarHistorico = async () => {
     try {
-      await deleteEmpresaGrupo(id);
-      setEmpresasGrupo((prev) => prev.filter((e) => e.id !== id));
+      const saved = await savePerfilGrupo({ historico: historicoDraft });
+      setPerfilGrupo(saved);
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Erro ao remover empresa.');
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar histórico.');
     }
   };
 
@@ -238,8 +254,8 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
             { id: 'bens', label: 'Bens e Direitos', badge: bensDireitos.length },
             { id: 'garantias', label: 'Garantias', badge: garantias.length },
             { id: 'capex', label: 'CAPEX', badge: capexList.length },
-            { id: 'grupo_economico', label: 'Grupo Econômico', badge: empresasGrupo.length },
-            ...TABS_SEM_SPEC
+            { id: 'grupo_economico', label: 'Grupo Econômico' },
+            { id: 'historico', label: 'Histórico do Grupo' }
           ]}
           defaultTabId="socios"
         >
@@ -415,49 +431,52 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                       <thead>
                         <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] uppercase tracking-wider text-slate-600 font-bold">
                           <th className="py-3 px-4">Descrição</th>
-                          <th className="py-3 px-4">Tipo</th>
-                          <th className="py-3 px-4">Contrato Vinculado</th>
+                          <th className="py-3 px-4">Tipo de Ativo</th>
+                          <th className="py-3 px-4">Tipo de Garantia</th>
+                          <th className="py-3 px-4">Banco Vinculado</th>
+                          <th className="py-3 px-4">Nº Operação</th>
                           <th className="py-3 px-4 text-right">Valor</th>
                           <th className="py-3 px-4 text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                        {garantias.map((garantia) => {
-                          const contrato = contratosBancarios.find((c) => c.id === garantia.contratoBancarioId);
-                          return (
-                            <tr key={garantia.id} className="hover:bg-slate-50/60 transition-colors">
-                              <td className="py-3 px-4 font-bold text-slate-900">{garantia.descricao}</td>
-                              <td className="py-3 px-4">
-                                <Badge tone="amber">{garantia.tipo}</Badge>
-                              </td>
-                              <td className="py-3 px-4 text-slate-600">{contrato?.banco ?? '—'}</td>
-                              <td className="py-3 px-4 text-right font-semibold text-slate-800">
-                                {formatCurrency(garantia.valor)}
-                              </td>
-                              <td className="py-3 px-4 text-right whitespace-nowrap">
-                                <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    onClick={() => {
-                                      setEditingGarantia(garantia);
-                                      setIsGarantiaDrawerOpen(true);
-                                    }}
-                                    title="Editar garantia"
-                                    className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition"
-                                  >
-                                    <Edit2 className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteGarantia(garantia.id)}
-                                    title="Remover garantia"
-                                    className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                        {garantias.map((garantia) => (
+                          <tr key={garantia.id} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="py-3 px-4 font-bold text-slate-900">{garantia.descricao}</td>
+                            <td className="py-3 px-4">
+                              <Badge tone="slate">{garantia.tipoAtivo}</Badge>
+                            </td>
+                            <td className="py-3 px-4">
+                              <Badge tone="amber">{garantia.tipoGarantia}</Badge>
+                            </td>
+                            <td className="py-3 px-4 text-slate-600">{garantia.bancoVinculado ?? '—'}</td>
+                            <td className="py-3 px-4 text-slate-600">{garantia.numeroOperacao ?? '—'}</td>
+                            <td className="py-3 px-4 text-right font-semibold text-slate-800">
+                              {formatCurrency(garantia.valor, garantia.moeda)}
+                            </td>
+                            <td className="py-3 px-4 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => {
+                                    setEditingGarantia(garantia);
+                                    setIsGarantiaDrawerOpen(true);
+                                  }}
+                                  title="Editar garantia"
+                                  className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteGarantia(garantia.id)}
+                                  title="Remover garantia"
+                                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
@@ -468,50 +487,96 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
             if (activeTabId === 'capex') {
               return (
                 <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-bold text-slate-900">CAPEX — Investimentos Capitalizados</h3>
-                    <Button
-                      variant="primary"
-                      onClick={() => {
-                        setEditingCapex(null);
-                        setIsCapexDrawerOpen(true);
-                      }}
-                      className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Adicionar
-                    </Button>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <KpiCard title="Total Planejado" value={formatCurrency(capexKpis.totalPlanejado)} />
+                    <KpiCard
+                      title="Total Executado"
+                      value={formatCurrency(capexKpis.totalExecutado)}
+                      valueClassName="text-emerald-700"
+                    />
+                    <KpiCard
+                      title="Financiamento"
+                      value={formatCurrency(capexKpis.financiamento)}
+                      valueClassName="text-amber-600"
+                    />
+                    <KpiCard
+                      title="Capital Próprio"
+                      value={formatCurrency(capexKpis.capitalProprio)}
+                      valueClassName="text-blue-700"
+                    />
                   </div>
+
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-slate-900">CAPEX — Investimentos e Manutenções</h3>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={anoSelecionado}
+                        onChange={(e) => setAnoSelecionado(Number(e.target.value))}
+                        className="px-3 py-2 bg-slate-50 border border-slate-200 text-slate-900 font-medium text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600/30 focus:border-emerald-600"
+                      >
+                        {anosDisponiveis.map((a) => (
+                          <option key={a} value={a}>
+                            {a}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        variant="primary"
+                        onClick={() => {
+                          setEditingCapex(null);
+                          setIsCapexFormOpen(true);
+                        }}
+                        className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Novo Item
+                      </Button>
+                    </div>
+                  </div>
+
+                  {isCapexFormOpen && (
+                    <CapexForm
+                      editingCapex={editingCapex}
+                      anoPadrao={anoSelecionado}
+                      onSave={handleSaveCapex}
+                      onCancel={() => {
+                        setIsCapexFormOpen(false);
+                        setEditingCapex(null);
+                      }}
+                    />
+                  )}
 
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] uppercase tracking-wider text-slate-600 font-bold">
                           <th className="py-3 px-4">Descrição</th>
-                          <th className="py-3 px-4">Categoria</th>
-                          <th className="py-3 px-4">Data</th>
-                          <th className="py-3 px-4">Safra</th>
-                          <th className="py-3 px-4 text-right">Valor</th>
+                          <th className="py-3 px-4">Tipo</th>
+                          <th className="py-3 px-4 text-right">Planejado</th>
+                          <th className="py-3 px-4 text-right">Executado</th>
+                          <th className="py-3 px-4">Status</th>
                           <th className="py-3 px-4 text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                        {capexList.map((capex) => (
+                        {capexDoAno.map((capex) => (
                           <tr key={capex.id} className="hover:bg-slate-50/60 transition-colors">
                             <td className="py-3 px-4 font-bold text-slate-900">{capex.descricao}</td>
-                            <td className="py-3 px-4">
-                              <Badge tone="blue">{capex.categoria}</Badge>
-                            </td>
-                            <td className="py-3 px-4 text-slate-600">{formatDateBR(capex.dataInvestimento)}</td>
-                            <td className="py-3 px-4 text-slate-600">{capex.safra ?? '—'}</td>
+                            <td className="py-3 px-4 text-slate-600">{capex.tipo}</td>
                             <td className="py-3 px-4 text-right font-semibold text-slate-800">
-                              {formatCurrency(capex.valor)}
+                              {formatCurrency(capex.valorPlanejado)}
+                            </td>
+                            <td className="py-3 px-4 text-right text-emerald-700">
+                              {formatCurrency(capex.valorExecutado)}
+                            </td>
+                            <td className="py-3 px-4">
+                              <Badge tone="amber">{capex.status}</Badge>
                             </td>
                             <td className="py-3 px-4 text-right whitespace-nowrap">
                               <div className="flex items-center justify-end gap-2">
                                 <button
                                   onClick={() => {
                                     setEditingCapex(capex);
-                                    setIsCapexDrawerOpen(true);
+                                    setIsCapexFormOpen(true);
                                   }}
                                   title="Editar investimento"
                                   className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition"
@@ -530,6 +595,18 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                           </tr>
                         ))}
                       </tbody>
+                      <tfoot>
+                        <tr className="border-t border-slate-200 font-bold text-slate-900 text-xs">
+                          <td className="py-3 px-4">Total {anoSelecionado}</td>
+                          <td className="py-3 px-4" />
+                          <td className="py-3 px-4 text-right">{formatCurrency(capexKpis.totalPlanejado)}</td>
+                          <td className="py-3 px-4 text-right text-emerald-700">
+                            {formatCurrency(capexKpis.totalExecutado)}
+                          </td>
+                          <td className="py-3 px-4" />
+                          <td className="py-3 px-4" />
+                        </tr>
+                      </tfoot>
                     </table>
                   </div>
                 </div>
@@ -538,75 +615,127 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
 
             if (activeTabId === 'grupo_economico') {
               return (
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-bold text-slate-900">Grupo Econômico</h3>
-                    <Button
-                      variant="primary"
-                      onClick={() => {
-                        setEditingEmpresa(null);
-                        setIsEmpresaDrawerOpen(true);
-                      }}
-                      className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Adicionar
-                    </Button>
-                  </div>
+                <div className="space-y-5">
+                  <Card className="p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-bold text-slate-900">Grupo Econômico</h3>
+                      <Button
+                        variant="secondary"
+                        onClick={() => setIsPerfilDrawerOpen(true)}
+                        className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" /> Editar
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                      <div>
+                        <p className="text-slate-500 mb-1">Nome do Grupo</p>
+                        <p className="font-bold text-slate-900">{perfilGrupo?.nome ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 mb-1">E-mail</p>
+                        <p className="font-semibold text-slate-800">{perfilGrupo?.email ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 mb-1">Telefone</p>
+                        <p className="font-semibold text-slate-800">{perfilGrupo?.telefone ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 mb-1">Atividade Principal</p>
+                        <p className="font-semibold text-slate-800">{perfilGrupo?.atividadePrincipal ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 mb-1">Fundação</p>
+                        <p className="font-semibold text-slate-800">
+                          {perfilGrupo?.fundacao ? formatDateBR(perfilGrupo.fundacao) : '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 mb-1">Sede</p>
+                        <p className="font-semibold text-slate-800">{perfilGrupo?.sede ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 mb-1">Consultor Responsável</p>
+                        <p className="font-semibold text-slate-800">{perfilGrupo?.consultorResponsavel ?? '—'}</p>
+                      </div>
+                    </div>
+                  </Card>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] uppercase tracking-wider text-slate-600 font-bold">
-                          <th className="py-3 px-4">Nome</th>
-                          <th className="py-3 px-4">CNPJ</th>
-                          <th className="py-3 px-4">Relação</th>
-                          <th className="py-3 px-4 text-right">Participação</th>
-                          <th className="py-3 px-4 text-right">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                        {empresasGrupo.map((empresa) => (
-                          <tr key={empresa.id} className="hover:bg-slate-50/60 transition-colors">
-                            <td className="py-3 px-4 font-bold text-slate-900">{empresa.nome}</td>
-                            <td className="py-3 px-4 font-mono text-slate-600">{empresa.cnpj ?? '—'}</td>
-                            <td className="py-3 px-4">
-                              <Badge tone="emerald">{empresa.tipoRelacao}</Badge>
-                            </td>
-                            <td className="py-3 px-4 text-right font-semibold text-slate-800">
-                              {empresa.participacaoPercentual != null ? `${empresa.participacaoPercentual}%` : '—'}
-                            </td>
-                            <td className="py-3 px-4 text-right whitespace-nowrap">
-                              <div className="flex items-center justify-end gap-2">
-                                <button
-                                  onClick={() => {
-                                    setEditingEmpresa(empresa);
-                                    setIsEmpresaDrawerOpen(true);
-                                  }}
-                                  title="Editar empresa"
-                                  className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition"
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteEmpresa(empresa.id)}
-                                  title="Remover empresa"
-                                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <Card className="p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <h3 className="text-sm font-bold text-slate-900">Painel Consolidado do Grupo</h3>
+                      <Badge tone="emerald">Patrimônio × Participação</Badge>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+                      <KpiCard
+                        title="Patrimônio Total Bruto"
+                        value={formatCurrency(patrimonioGrupo.patrimonioTotalBruto)}
+                        subtitle="Soma de todos os sócios"
+                        valueClassName="text-emerald-700"
+                      />
+                      <KpiCard
+                        title="Patrimônio Ponderado (% Part.)"
+                        value={formatCurrency(patrimonioGrupo.patrimonioPonderado)}
+                        subtitle="Proporcional à participação"
+                        valueClassName="text-blue-700"
+                      />
+                      <KpiCard
+                        title="Garantia Ponderada Total"
+                        value={formatCurrency(patrimonioGrupo.garantiaPonderadaTotal)}
+                        subtitle="Bens elegíveis × participação"
+                        valueClassName="text-purple-700"
+                      />
+                    </div>
+
+                    <p className="text-xs font-bold text-slate-900 mb-2">Patrimônio por Sócio</p>
+                    <div className="space-y-1.5">
+                      {patrimonioGrupo.porSocio.map((s) => (
+                        <div
+                          key={s.socioId ?? 'grupo'}
+                          className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg text-xs"
+                        >
+                          <span className="text-slate-700">{s.nome}</span>
+                          <span className="font-semibold text-slate-800">
+                            {formatCurrency(s.patrimonioPonderado)}
+                          </span>
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-between px-3 py-2 bg-emerald-50 rounded-lg text-xs font-bold">
+                        <span className="text-emerald-900">Total Consolidado</span>
+                        <span className="text-emerald-900">{formatCurrency(patrimonioGrupo.patrimonioPonderado)}</span>
+                      </div>
+                    </div>
+                  </Card>
                 </div>
               );
             }
 
-            const tab = TABS_SEM_SPEC.find((t) => t.id === activeTabId);
-            return <EmConstrucao label={tab?.label ?? ''} />;
+            // Histórico do Grupo
+            return (
+              <Card className="p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-sm font-bold text-slate-900">Histórico do Grupo</h3>
+                </div>
+                <p className="text-xs text-slate-500 mb-4">
+                  Descreva a história, trajetória e contexto do grupo econômico. Este texto é utilizado na
+                  Apresentação do Grupo (Slide 2) e no Parecer Executivo.
+                </p>
+                <Textarea
+                  rows={16}
+                  value={historicoDraft}
+                  onChange={(e) => setHistoricoDraft(e.target.value)}
+                />
+                <div className="flex justify-end mt-4">
+                  <Button
+                    variant="primary"
+                    onClick={handleSalvarHistorico}
+                    className="w-auto flex items-center gap-1.5 px-4 py-2 text-xs"
+                  >
+                    Salvar Histórico
+                  </Button>
+                </div>
+              </Card>
+            );
           }}
         </Tabs>
       </Card>
@@ -632,21 +761,13 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
         onClose={() => setIsGarantiaDrawerOpen(false)}
         onSave={handleSaveGarantia}
         editingGarantia={editingGarantia}
-        contratosBancarios={contratosBancarios}
       />
 
-      <CapexDrawer
-        isOpen={isCapexDrawerOpen}
-        onClose={() => setIsCapexDrawerOpen(false)}
-        onSave={handleSaveCapex}
-        editingCapex={editingCapex}
-      />
-
-      <EmpresaGrupoDrawer
-        isOpen={isEmpresaDrawerOpen}
-        onClose={() => setIsEmpresaDrawerOpen(false)}
-        onSave={handleSaveEmpresa}
-        editingEmpresa={editingEmpresa}
+      <PerfilGrupoDrawer
+        isOpen={isPerfilDrawerOpen}
+        onClose={() => setIsPerfilDrawerOpen(false)}
+        onSave={handleSavePerfil}
+        perfil={perfilGrupo}
       />
     </div>
   );

@@ -117,13 +117,13 @@ model Conta {
   propriedades  Propriedade[]
   culturas      Cultura[]
   safras        Safra[]
-  socios        Socio[]
-  bensDireitos  BemDireito[]
-  garantias     Garantia[]
-  capex         Capex[]
-  empresasGrupo EmpresaGrupo[]
-  empresasPJ    EmpresaPJ[]
-  balancos      BalancoPatrimonial[]
+  socios               Socio[]
+  bensDireitos         BemDireito[]
+  garantias            Garantia[]
+  capex                Capex[]
+  perfilGrupoEconomico PerfilGrupoEconomico?
+  empresasPJ           EmpresaPJ[]
+  balancos             BalancoPatrimonial[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -348,26 +348,29 @@ model BemDireito {
   @@map("bens_direitos")
 }
 
-enum GarantiaTipo {
-  IMOVEL               @map("Imóvel")
-  AVAL                 @map("Aval")
-  PENHOR               @map("Penhor")
-  ALIENACAO_FIDUCIARIA @map("Alienação Fiduciária")
-  OUTROS               @map("Outros")
-}
-
+// Garantias/CAPEX/Grupo Econômico (Garantia, Capex, PerfilGrupoEconomico) tiveram seus
+// formulários reais fotografados pelo usuário em 05/08/2026 — mesmo critério de Bens e
+// Direitos: réplica confirmada, não mais "design próprio". tipoAtivo/tipoGarantia
+// (Garantia) e tipo/status (Capex) ficam como texto livre em vez de enum fechado: os
+// prints mostram os selects fechados, só alguns valores são confirmados ("Máquina /
+// Equipamento", "Reforma / Modernização", "Planejado") — a lista completa de opções
+// ainda não foi levantada pelo usuário (ver docs/PLANO_BACKEND_FASE1.md, Fase 6). Manter
+// como texto livre evita pagar o custo de uma segunda migration quando a lista real
+// chegar — só troca o array de opções do <Select> no componente.
 model Garantia {
-  id                 String       @id @default(cuid())
-  contaId            String
-  descricao          String
-  tipo               GarantiaTipo
-  valor              Decimal      @db.Decimal(18, 2)
-  contratoBancarioId String?
-  observacoes        String?
-  ativo              Boolean      @default(true)
+  id             String   @id @default(cuid())
+  contaId        String
+  tipoAtivo      String
+  tipoGarantia   String
+  descricao      String // "Descrição do Ativo"
+  bancoVinculado String?
+  numeroOperacao String?
+  valor          Decimal  @db.Decimal(18, 2)
+  moeda          Currency @default(BRL) // reaproveita o enum já usado em ContratoBancario.moeda
+  observacoes    String?
+  ativo          Boolean  @default(true)
 
-  conta            Conta             @relation(fields: [contaId], references: [id], onDelete: Cascade)
-  contratoBancario ContratoBancario? @relation(fields: [contratoBancarioId], references: [id], onDelete: SetNull)
+  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -378,24 +381,18 @@ model Garantia {
   @@map("garantias")
 }
 
-enum CapexCategoria {
-  MAQUINARIO     @map("Maquinário")
-  BENFEITORIA    @map("Benfeitoria")
-  TECNOLOGIA     @map("Tecnologia")
-  INFRAESTRUTURA @map("Infraestrutura")
-  OUTROS         @map("Outros")
-}
-
 model Capex {
-  id               String         @id @default(cuid())
-  contaId          String
-  descricao        String
-  categoria        CapexCategoria
-  valor            Decimal        @db.Decimal(18, 2)
-  dataInvestimento DateTime
-  safra            String? // "2026/2027", mesmo padrão livre de EmpresaPJ.safra
-  observacoes      String?
-  ativo            Boolean        @default(true)
+  id                      String   @id @default(cuid())
+  contaId                 String
+  descricao               String
+  tipo                    String
+  ano                     Int
+  valorPlanejado          Decimal  @db.Decimal(18, 2)
+  valorExecutado          Decimal  @default(0) @db.Decimal(18, 2)
+  percentualFinanciamento Decimal? @db.Decimal(5, 2) // 0-100
+  status                  String   @default("Planejado")
+  observacoes             String?
+  ativo                   Boolean  @default(true)
 
   conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
 
@@ -405,37 +402,37 @@ model Capex {
   updatedById String?
 
   @@index([contaId, ativo])
+  @@index([contaId, ano])
   @@map("capex")
 }
 
-enum TipoRelacaoEmpresa {
-  CONTROLADORA @map("Controladora")
-  CONTROLADA   @map("Controlada")
-  COLIGADA     @map("Coligada")
-  OUTRAS       @map("Outras")
-}
-
-// Registro das empresas do grupo econômico — distinto de EmpresaPJ (que já
-// existe e é especificamente balanço/DRE por empresa em "Balanço PJ").
-model EmpresaGrupo {
-  id                     String             @id @default(cuid())
-  contaId                String
-  nome                   String
-  cnpj                   String?
-  tipoRelacao            TipoRelacaoEmpresa
-  participacaoPercentual Decimal?           @db.Decimal(5, 2) // 0-100
-  observacoes            String?
-  ativo                  Boolean            @default(true)
+// Perfil do grupo econômico (aba "Grupo Econômico") + histórico narrativo (aba
+// "Histórico do Grupo") — 1:1 com Conta. Substitui o antigo EmpresaGrupo (lista de
+// empresas Controladora/Controlada/Coligada), que não existe na tela real — removido.
+// Fica em tabela própria em vez de campos direto em Conta porque nome/razaoSocial/cnpj
+// de Conta são geridos só pelo Admin Master (src/server/contas.ts); este perfil é
+// editável pelo próprio usuário da conta. "Histórico do Grupo" resolve a pendência que
+// existia (audit log automático vs. timeline manual): não é nenhum dos dois, é um único
+// campo de texto livre, usado na Apresentação do Grupo (Slide 2) e no Parecer Executivo.
+model PerfilGrupoEconomico {
+  id                   String    @id @default(cuid())
+  contaId              String    @unique
+  nome                 String?
+  email                String?
+  telefone             String?
+  atividadePrincipal   String?
+  fundacao             DateTime?
+  sede                 String?
+  consultorResponsavel String?
+  historico            String?
 
   conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  createdById String?
   updatedById String?
 
-  @@index([contaId, ativo])
-  @@map("empresas_grupo")
+  @@map("perfil_grupo_economico")
 }
 
 // ============================================================
@@ -570,7 +567,6 @@ model ContratoBancario {
 
   propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
   parcelas    Parcela[]
-  garantias   Garantia[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

@@ -4,14 +4,13 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requireContext } from '@/lib/session';
 import { capexSchema } from '@/lib/validation';
-import { CAPEX_CATEGORIA_TO_DB, CAPEX_CATEGORIA_FROM_DB } from '@/lib/enum-maps';
 import type { Capex } from '@/types';
 
 export async function listCapex(): Promise<Capex[]> {
   const ctx = await requireContext();
   const rows = await db.capex.findMany({
     where: { contaId: ctx.conta.id, ativo: true },
-    orderBy: { dataInvestimento: 'desc' }
+    orderBy: [{ ano: 'desc' }, { createdAt: 'desc' }]
   });
   return rows.map(toCapexDTO);
 }
@@ -19,10 +18,12 @@ export async function listCapex(): Promise<Capex[]> {
 interface SaveCapexInput {
   id?: string;
   descricao: string;
-  categoria: string;
-  valor: number;
-  dataInvestimento: string;
-  safra?: string;
+  tipo: string;
+  ano: number;
+  valorPlanejado: number;
+  valorExecutado?: number;
+  percentualFinanciamento?: number;
+  status?: string;
   observacoes?: string;
 }
 
@@ -32,10 +33,12 @@ export async function saveCapex(input: SaveCapexInput): Promise<Capex> {
 
   const data = {
     descricao: parsed.descricao,
-    categoria: CAPEX_CATEGORIA_TO_DB[parsed.categoria],
-    valor: parsed.valor,
-    dataInvestimento: new Date(parsed.dataInvestimento),
-    safra: parsed.safra || null,
+    tipo: parsed.tipo,
+    ano: parsed.ano,
+    valorPlanejado: parsed.valorPlanejado,
+    valorExecutado: parsed.valorExecutado,
+    percentualFinanciamento: parsed.percentualFinanciamento ?? null,
+    status: parsed.status,
     observacoes: parsed.observacoes || null
   };
 
@@ -59,19 +62,23 @@ export async function deleteCapex(id: string) {
 function toCapexDTO(row: {
   id: string;
   descricao: string;
-  categoria: string;
-  valor: unknown;
-  dataInvestimento: Date;
-  safra: string | null;
+  tipo: string;
+  ano: number;
+  valorPlanejado: unknown;
+  valorExecutado: unknown;
+  percentualFinanciamento: unknown;
+  status: string;
   observacoes: string | null;
 }): Capex {
   return {
     id: row.id,
     descricao: row.descricao,
-    categoria: CAPEX_CATEGORIA_FROM_DB[row.categoria as keyof typeof CAPEX_CATEGORIA_FROM_DB],
-    valor: Number(row.valor),
-    dataInvestimento: row.dataInvestimento.toISOString().slice(0, 10),
-    safra: row.safra ?? undefined,
+    tipo: row.tipo,
+    ano: row.ano,
+    valorPlanejado: Number(row.valorPlanejado),
+    valorExecutado: Number(row.valorExecutado),
+    percentualFinanciamento: row.percentualFinanciamento != null ? Number(row.percentualFinanciamento) : undefined,
+    status: row.status,
     observacoes: row.observacoes ?? undefined
   };
 }

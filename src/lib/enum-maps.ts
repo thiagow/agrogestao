@@ -11,10 +11,7 @@ import type {
   PeriodicidadePagamento,
   PeriodicidadeArrendamento,
   GrupoIrpfBem,
-  LiquidezBem,
-  GarantiaTipo,
-  CapexCategoria,
-  TipoRelacaoEmpresa
+  LiquidezBem
 } from '@/types';
 import {
   Category as PrismaCategory,
@@ -23,10 +20,7 @@ import {
   PeriodicidadePagamento as PrismaPeriodicidadePagamento,
   PeriodicidadeArrendamento as PrismaPeriodicidadeArrendamento,
   GrupoIrpfBem as PrismaGrupoIrpfBem,
-  LiquidezBem as PrismaLiquidezBem,
-  GarantiaTipo as PrismaGarantiaTipo,
-  CapexCategoria as PrismaCapexCategoria,
-  TipoRelacaoEmpresa as PrismaTipoRelacaoEmpresa
+  LiquidezBem as PrismaLiquidezBem
 } from '@prisma/client';
 
 export const CATEGORY_TO_DB: Record<Category, PrismaCategory> = {
@@ -139,48 +133,8 @@ export const LIQUIDEZ_BEM_FROM_DB: Record<PrismaLiquidezBem, LiquidezBem> = {
   BAIXA: 'Baixa'
 };
 
-export const GARANTIA_TIPO_TO_DB: Record<GarantiaTipo, PrismaGarantiaTipo> = {
-  Imóvel: PrismaGarantiaTipo.IMOVEL,
-  Aval: PrismaGarantiaTipo.AVAL,
-  Penhor: PrismaGarantiaTipo.PENHOR,
-  'Alienação Fiduciária': PrismaGarantiaTipo.ALIENACAO_FIDUCIARIA,
-  Outros: PrismaGarantiaTipo.OUTROS
-};
-
-export const GARANTIA_TIPO_FROM_DB: Record<PrismaGarantiaTipo, GarantiaTipo> = {
-  IMOVEL: 'Imóvel',
-  AVAL: 'Aval',
-  PENHOR: 'Penhor',
-  ALIENACAO_FIDUCIARIA: 'Alienação Fiduciária',
-  OUTROS: 'Outros'
-};
-
-export const CAPEX_CATEGORIA_TO_DB: Record<CapexCategoria, PrismaCapexCategoria> = {
-  Maquinário: PrismaCapexCategoria.MAQUINARIO,
-  Benfeitoria: PrismaCapexCategoria.BENFEITORIA,
-  Tecnologia: PrismaCapexCategoria.TECNOLOGIA,
-  Infraestrutura: PrismaCapexCategoria.INFRAESTRUTURA,
-  Outros: PrismaCapexCategoria.OUTROS
-};
-
-export const CAPEX_CATEGORIA_FROM_DB: Record<PrismaCapexCategoria, CapexCategoria> = {
-  MAQUINARIO: 'Maquinário',
-  BENFEITORIA: 'Benfeitoria',
-  TECNOLOGIA: 'Tecnologia',
-  INFRAESTRUTURA: 'Infraestrutura',
-  OUTROS: 'Outros'
-};
-
-export const TIPO_RELACAO_EMPRESA_TO_DB: Record<TipoRelacaoEmpresa, PrismaTipoRelacaoEmpresa> = {
-  Controladora: PrismaTipoRelacaoEmpresa.CONTROLADORA,
-  Controlada: PrismaTipoRelacaoEmpresa.CONTROLADA,
-  Coligada: PrismaTipoRelacaoEmpresa.COLIGADA,
-  Outras: PrismaTipoRelacaoEmpresa.OUTRAS
-};
-
-export const TIPO_RELACAO_EMPRESA_FROM_DB: Record<PrismaTipoRelacaoEmpresa, TipoRelacaoEmpresa> = {
-  CONTROLADORA: 'Controladora',
-  CONTROLADA: 'Controlada',
-  COLIGADA: 'Coligada',
-  OUTRAS: 'Outras'
-};
+// Garantia.tipoAtivo/tipoGarantia, Capex.tipo/status e PerfilGrupoEconomico não têm mapa
+// aqui: são `String` livre no Prisma (não enum), e Garantia.moeda reaproveita o enum
+// `Currency` (BRL/USD) já usado por ContratoBancario.moeda — ASCII puro, sem tradução de
+// rótulo necessária. Ver comentário em schema.prisma sobre por que esses campos ficaram
+// como texto livre.

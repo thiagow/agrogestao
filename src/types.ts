@@ -107,38 +107,39 @@ export interface BemDireito {
   observacoes?: string;
 }
 
-export type GarantiaTipo = 'Imóvel' | 'Aval' | 'Penhor' | 'Alienação Fiduciária' | 'Outros';
-
 export interface Garantia {
   id: string;
-  descricao: string;
-  tipo: GarantiaTipo;
+  tipoAtivo: string; // texto livre — lista de opções ainda não confirmada, ver schema.prisma
+  tipoGarantia: string; // idem
+  descricao: string; // "Descrição do Ativo"
+  bancoVinculado?: string;
+  numeroOperacao?: string;
   valor: number;
-  contratoBancarioId?: string;
+  moeda: Currency;
   observacoes?: string;
 }
-
-export type CapexCategoria = 'Maquinário' | 'Benfeitoria' | 'Tecnologia' | 'Infraestrutura' | 'Outros';
 
 export interface Capex {
   id: string;
   descricao: string;
-  categoria: CapexCategoria;
-  valor: number;
-  dataInvestimento: string; // YYYY-MM-DD
-  safra?: string; // "2026/2027"
+  tipo: string; // texto livre — idem Garantia.tipoAtivo
+  ano: number;
+  valorPlanejado: number;
+  valorExecutado: number;
+  percentualFinanciamento?: number; // 0-100
+  status: string; // texto livre — default "Planejado"
   observacoes?: string;
 }
 
-export type TipoRelacaoEmpresa = 'Controladora' | 'Controlada' | 'Coligada' | 'Outras';
-
-export interface EmpresaGrupo {
-  id: string;
-  nome: string;
-  cnpj?: string;
-  tipoRelacao: TipoRelacaoEmpresa;
-  participacaoPercentual?: number; // 0-100
-  observacoes?: string;
+export interface PerfilGrupoEconomico {
+  nome?: string;
+  email?: string;
+  telefone?: string;
+  atividadePrincipal?: string;
+  fundacao?: string; // YYYY-MM-DD
+  sede?: string;
+  consultorResponsavel?: string;
+  historico?: string;
 }
 
 // ---- Quadro de Safra / Resumo: Cultura x Ano-Safra ----
