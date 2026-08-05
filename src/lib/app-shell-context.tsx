@@ -1,11 +1,10 @@
 'use client';
 
-import React, { createContext, useContext } from 'react';
-import { Supplier } from '../types';
+import { createContext, useContext } from 'react';
 
 interface AppShellContextValue {
   openMobileSidebar: () => void;
-  openImageModal: (supplier?: Supplier) => void;
+  openImageModal: () => void;
 }
 
 export const AppShellContext = createContext<AppShellContextValue | null>(null);

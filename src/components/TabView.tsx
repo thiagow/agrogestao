@@ -51,7 +51,6 @@ import { FluxoSafraView } from './views/FluxoSafraView';
 import { FluxoMensalView } from './views/FluxoMensalView';
 import { ApresentacaoGrupoView } from './views/ApresentacaoGrupoView';
 import { GenericView } from './views/GenericView';
-import { useAppShell } from '../lib/app-shell-context';
 
 interface TabViewProps {
   tab: ActiveTab;
@@ -96,8 +95,6 @@ export const TabView: React.FC<TabViewProps> = ({
   initialCotacaoDolar = null,
   initialCotacoesCommodities = []
 }) => {
-  const { openImageModal } = useAppShell();
-
   // Fornecedores — persistido via src/server/suppliers.ts
   const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -133,8 +130,7 @@ export const TabView: React.FC<TabViewProps> = ({
         moeda: supplierData.moeda || 'BRL',
         vencimento: supplierData.vencimento || new Date().toISOString().split('T')[0],
         status: supplierData.status || 'PENDENTE',
-        observacoes: supplierData.observacoes || '',
-        imageUrl: supplierData.imageUrl || ''
+        observacoes: supplierData.observacoes || ''
       });
       setSuppliers((prev) =>
         supplierData.id ? prev.map((s) => (s.id === saved.id ? saved : s)) : [saved, ...prev]
@@ -368,7 +364,6 @@ export const TabView: React.FC<TabViewProps> = ({
             suppliers={suppliers}
             onEditSupplier={handleOpenEditSupplier}
             onDeleteSupplier={handleDeleteSupplier}
-            onOpenImageModalForSupplier={(s) => openImageModal(s)}
           />
           <SupplierDrawer
             isOpen={isDrawerOpen}

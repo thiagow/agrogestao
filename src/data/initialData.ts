@@ -28,7 +28,6 @@ export const initialSuppliers: Supplier[] = [
     vencimento: '2026-10-11',
     status: 'PENDENTE',
     observacoes: 'Fornecimento NPK 04-14-08 para a safra 26/27. Pagamento em parcela única.',
-    imageUrl: 'https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=600&q=80',
     comprovanteUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80',
     compras: [
       { id: 'compra-1-1', data: '2026-03-12', valor: 2100000, descricao: 'NPK 04-14-08 — 1ª remessa', culturaReferencia: 'Soja' },
@@ -46,7 +45,6 @@ export const initialSuppliers: Supplier[] = [
     vencimento: '2027-01-04',
     status: 'PENDENTE',
     observacoes: 'Lote de fungicidas sistêmicos e inseticidas. Barter atrelado à soja.',
-    imageUrl: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=600&q=80',
     compras: [
       { id: 'compra-2-1', data: '2026-02-20', valor: 15200000, descricao: 'Fungicidas e inseticidas — barter soja', culturaReferencia: 'Soja' }
     ]
@@ -62,7 +60,6 @@ export const initialSuppliers: Supplier[] = [
     vencimento: '2026-12-13',
     status: 'PENDENTE',
     observacoes: 'Sementes tratadas com biotecnologia de alta produtividade.',
-    imageUrl: 'https://images.unsplash.com/photo-1530507629858-e4977d30e9e0?auto=format&fit=crop&w=600&q=80',
     compras: [
       { id: 'compra-3-1', data: '2026-01-15', valor: 21000000, descricao: 'Sementes tratadas — safra 26/27', culturaReferencia: 'Soja' }
     ]

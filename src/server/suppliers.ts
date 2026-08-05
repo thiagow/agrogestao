@@ -30,7 +30,6 @@ interface SaveSupplierInput {
   moeda: Supplier['moeda'];
   vencimento: string;
   observacoes?: string;
-  imageUrl?: string;
   comprovanteUrl?: string;
   status?: Supplier['status'];
 }
@@ -50,7 +49,6 @@ export async function saveSupplier(input: SaveSupplierInput): Promise<Supplier> 
     moeda: parsed.moeda,
     vencimento: new Date(parsed.vencimento),
     observacoes: parsed.observacoes || null,
-    imageUrl: parsed.imageUrl || null,
     comprovanteUrl: parsed.comprovanteUrl || null,
     status: parsed.status ?? 'PENDENTE'
   };
@@ -95,7 +93,6 @@ type SupplierRow = {
   vencimento: Date;
   observacoes: string | null;
   status: string;
-  imageUrl: string | null;
   comprovanteUrl: string | null;
   compras: { id: string; data: Date; valor: unknown; descricao: string; culturaReferencia: string | null }[];
 };
@@ -112,7 +109,6 @@ function toSupplierDTO(row: SupplierRow): Supplier {
     vencimento: row.vencimento.toISOString().slice(0, 10),
     observacoes: row.observacoes ?? undefined,
     status: row.status as Supplier['status'],
-    imageUrl: row.imageUrl ?? undefined,
     comprovanteUrl: row.comprovanteUrl ?? undefined,
     compras: row.compras.map((c) => ({
       id: c.id,

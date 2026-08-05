@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Edit2, Trash2, Search, Filter, Image as ImageIcon, ExternalLink, Paperclip } from 'lucide-react';
+import { Edit2, Trash2, Search, Filter, ExternalLink, Paperclip } from 'lucide-react';
 import { Supplier } from '../types';
 import { formatCurrency, formatDateBR, isCurtoPrazo } from '../data/initialData';
 import { Card, Badge } from './ui';
@@ -8,14 +8,12 @@ interface SupplierTableProps {
   suppliers: Supplier[];
   onEditSupplier: (supplier: Supplier) => void;
   onDeleteSupplier: (id: string) => void;
-  onOpenImageModalForSupplier: (supplier: Supplier) => void;
 }
 
 export const SupplierTable: React.FC<SupplierTableProps> = ({
   suppliers,
   onEditSupplier,
-  onDeleteSupplier,
-  onOpenImageModalForSupplier
+  onDeleteSupplier
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
@@ -122,14 +120,13 @@ export const SupplierTable: React.FC<SupplierTableProps> = ({
               <th className="py-3 px-4">Vencimento</th>
               <th className="py-3 px-4 text-center">CP/LP</th>
               <th className="py-3 px-4 text-center">Status</th>
-              <th className="py-3 px-4 text-center">Anexo / Imagem</th>
               <th className="py-3 px-4 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
             {filteredSuppliers.length === 0 ? (
               <tr>
-                <td colSpan={11} className="py-12 text-center text-slate-400">
+                <td colSpan={10} className="py-12 text-center text-slate-400">
                   Nenhum fornecedor encontrado para os filtros selecionados.
                 </td>
               </tr>
@@ -143,18 +140,7 @@ export const SupplierTable: React.FC<SupplierTableProps> = ({
                     className="hover:bg-slate-50/60 transition-colors"
                   >
                     {/* Fornecedor */}
-                    <td className="py-3.5 px-4 font-bold text-slate-900">
-                      <div className="flex items-center gap-2">
-                        {supplier.imageUrl ? (
-                          <img
-                            src={supplier.imageUrl}
-                            alt={supplier.nome}
-                            className="w-6 h-6 rounded-full object-cover border border-slate-200 shrink-0"
-                          />
-                        ) : null}
-                        <span>{supplier.nome}</span>
-                      </div>
-                    </td>
+                    <td className="py-3.5 px-4 font-bold text-slate-900">{supplier.nome}</td>
 
                     {/* Categoria */}
                     <td className="py-3.5 px-4 font-semibold text-slate-600 uppercase text-[11px]">
@@ -206,18 +192,6 @@ export const SupplierTable: React.FC<SupplierTableProps> = ({
                       </Badge>
                     </td>
 
-                    {/* Direct Image Link Button */}
-                    <td className="py-3.5 px-4 text-center">
-                      <button
-                        onClick={() => onOpenImageModalForSupplier(supplier)}
-                        title="Ver / Copiar Link Direto da Imagem (HTML)"
-                        className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition"
-                      >
-                        <ImageIcon className="w-3.5 h-3.5" />
-                        <span>Link HTML</span>
-                      </button>
-                    </td>
-
                     {/* Actions */}
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-2">
@@ -252,7 +226,7 @@ export const SupplierTable: React.FC<SupplierTableProps> = ({
               <td className="py-3.5 px-4 font-black text-rose-800 text-sm">
                 {formatCurrency(totalDebt)}
               </td>
-              <td colSpan={6} className="py-3.5 px-4 text-left font-bold text-slate-700">
+              <td colSpan={5} className="py-3.5 px-4 text-left font-bold text-slate-700">
                 <span className="text-amber-800 mr-4">CP: {formatCurrency(totalCP)}</span>
                 <span className="text-blue-800">LP: {formatCurrency(totalLP)}</span>
               </td>

@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import { Copy, Check, Image as ImageIcon, Code, ExternalLink, FileCode } from 'lucide-react';
-import { Supplier } from '../types';
 import { Modal, Button } from './ui';
 
 interface DirectImageLinksModalProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedSupplier?: Supplier | null;
 }
 
 const presetImages = [
@@ -37,16 +35,10 @@ const presetImages = [
   }
 ];
 
-export const DirectImageLinksModal: React.FC<DirectImageLinksModalProps> = ({
-  isOpen,
-  onClose,
-  selectedSupplier
-}) => {
-  const [customUrl, setCustomUrl] = useState(selectedSupplier?.imageUrl || presetImages[0].url);
+export const DirectImageLinksModal: React.FC<DirectImageLinksModalProps> = ({ isOpen, onClose }) => {
+  const [customUrl, setCustomUrl] = useState(presetImages[0].url);
   const [copiedType, setCopiedType] = useState<string | null>(null);
-  const [altText, setAltText] = useState(
-    selectedSupplier ? `Fornecedor ${selectedSupplier.nome}` : 'Imagem AgroGestão'
-  );
+  const [altText, setAltText] = useState('Imagem AgroGestão');
 
   const directUrl = customUrl.trim() || presetImages[0].url;
 

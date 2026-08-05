@@ -110,7 +110,6 @@ export const supplierSchema = z.object({
   moeda: z.enum(['BRL', 'USD']),
   vencimento: z.string().min(1, 'Informe o vencimento'),
   observacoes: z.string().trim().optional().or(z.literal('')),
-  imageUrl: z.string().trim().optional().or(z.literal('')),
   comprovanteUrl: z.string().trim().optional().or(z.literal('')),
   status: z.enum(['PENDENTE', 'PAGO', 'VENCIDO']).optional(),
   compras: z.array(compraFornecedorSchema).optional()

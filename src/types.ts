@@ -32,7 +32,6 @@ export interface Supplier {
   vencimento: string; // YYYY-MM-DD
   observacoes?: string;
   status: Status;
-  imageUrl?: string;
   comprovanteUrl?: string;
   compras?: CompraFornecedor[];
 }

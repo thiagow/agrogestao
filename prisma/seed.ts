@@ -106,7 +106,6 @@ async function seedDemo() {
         vencimento: new Date(s.vencimento),
         observacoes: s.observacoes,
         status: s.status,
-        imageUrl: s.imageUrl,
         comprovanteUrl: s.comprovanteUrl,
         compras: s.compras
           ? { create: s.compras.map((c) => ({ data: new Date(c.data), valor: c.valor, descricao: c.descricao, culturaReferencia: c.culturaReferencia })) }

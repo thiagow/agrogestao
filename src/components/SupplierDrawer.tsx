@@ -25,7 +25,6 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
   const [dividaTotal, setDividaTotal] = useState('');
   const [moeda, setMoeda] = useState<Currency>('BRL');
   const [vencimento, setVencimento] = useState('2026-10-11');
-  const [imageUrl, setImageUrl] = useState('');
   const [observacoes, setObservacoes] = useState('');
 
   useEffect(() => {
@@ -38,7 +37,6 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
       setDividaTotal(editingSupplier.dividaTotal.toString());
       setMoeda(editingSupplier.moeda);
       setVencimento(editingSupplier.vencimento);
-      setImageUrl(editingSupplier.imageUrl || '');
       setObservacoes(editingSupplier.observacoes || '');
     } else {
       setNome('');
@@ -49,7 +47,6 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
       setDividaTotal('1000000');
       setMoeda('BRL');
       setVencimento('2026-12-31');
-      setImageUrl('');
       setObservacoes('');
     }
   }, [editingSupplier, isOpen]);
@@ -68,7 +65,6 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
       dividaTotal: parseFloat(dividaTotal) || 0,
       moeda,
       vencimento,
-      imageUrl: imageUrl.trim(),
       observacoes: observacoes.trim()
     });
 
@@ -153,15 +149,6 @@ export const SupplierDrawer: React.FC<SupplierDrawerProps> = ({
           required
           value={vencimento}
           onChange={(e) => setVencimento(e.target.value)}
-        />
-
-        <Input
-          label="URL da Imagem / Logo (Link Direto HTML)"
-          type="url"
-          placeholder="https://exemplo.com/imagem.png"
-          value={imageUrl}
-          onChange={(e) => setImageUrl(e.target.value)}
-          hint="Link direto da imagem para incorporar no HTML do relatório."
         />
 
         <Textarea

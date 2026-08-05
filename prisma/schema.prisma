@@ -464,7 +464,9 @@ enum SupplierStatus {
 // Formulário "Cadastrar Fornecedor" fotografado pelo usuário em 05/08/2026 — réplica
 // confirmada; substitui os campos cnpj_cpf/contato_nome/contato_telefone/contato_email da
 // doc de engenharia reversa ("Entidade: FORNECEDOR (estimado)", nunca confirmados por
-// print), removidos por não existirem na tela real.
+// print), removidos por não existirem na tela real. `imageUrl` também removido (não
+// existe no print) — o "Gerador de Links de Imagem HTML" continua existindo na Sidebar,
+// mas como utilitário standalone, sem vínculo com Fornecedor.
 model Supplier {
   id              String         @id @default(cuid())
   propriedadeId   String
@@ -477,7 +479,6 @@ model Supplier {
   vencimento      DateTime
   observacoes     String?
   status          SupplierStatus @default(PENDENTE)
-  imageUrl        String?
   comprovanteUrl  String?
   ativo           Boolean        @default(true)
 
