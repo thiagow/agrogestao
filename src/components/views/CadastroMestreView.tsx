@@ -23,6 +23,11 @@ interface CadastroMestreViewProps {
   initialGarantias?: Garantia[];
   initialCapex?: Capex[];
   initialPerfilGrupo?: PerfilGrupoEconomico | null;
+  // Nome/Razão Social/CNPJ do grupo vêm de Conta — cadastrados pelo Admin Master na
+  // criação da conta (src/server/contas.ts), nunca duplicados em PerfilGrupoEconomico.
+  contaNome?: string;
+  contaRazaoSocial?: string;
+  contaCnpj?: string;
 }
 
 export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
@@ -30,7 +35,10 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
   initialBensDireitos = [],
   initialGarantias = [],
   initialCapex = [],
-  initialPerfilGrupo = null
+  initialPerfilGrupo = null,
+  contaNome,
+  contaRazaoSocial,
+  contaCnpj
 }) => {
   const [socios, setSocios] = useState<Socio[]>(initialSocios);
   const [isSocioDrawerOpen, setIsSocioDrawerOpen] = useState(false);
@@ -651,7 +659,16 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                       <div>
                         <p className="text-slate-500 mb-1">Nome do Grupo</p>
-                        <p className="font-bold text-slate-900">{perfilGrupo?.nome ?? '—'}</p>
+                        <p className="font-bold text-slate-900">{contaNome ?? '—'}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Cadastrado pelo Admin Master</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 mb-1">Razão Social</p>
+                        <p className="font-semibold text-slate-800">{contaRazaoSocial ?? '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-slate-500 mb-1">CNPJ</p>
+                        <p className="font-semibold text-slate-800 font-mono">{contaCnpj ?? '—'}</p>
                       </div>
                       <div>
                         <p className="text-slate-500 mb-1">E-mail</p>

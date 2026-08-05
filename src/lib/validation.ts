@@ -85,7 +85,6 @@ export const capexSchema = z.object({
 });
 
 export const perfilGrupoSchema = z.object({
-  nome: z.string().trim().optional().or(z.literal('')),
   email: z.string().trim().optional().or(z.literal('')),
   telefone: z.string().trim().optional().or(z.literal('')),
   atividadePrincipal: z.string().trim().optional().or(z.literal('')),

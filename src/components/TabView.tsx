@@ -63,6 +63,9 @@ interface TabViewProps {
   initialGarantias?: Garantia[];
   initialCapex?: Capex[];
   initialPerfilGrupo?: PerfilGrupoEconomico | null;
+  contaNome?: string;
+  contaRazaoSocial?: string;
+  contaCnpj?: string;
   initialCulturaSafras?: CulturaSafraAno[];
   initialLancamentosMensais?: LancamentoMensal[];
   initialContratosBancarios?: ContratoBancario[];
@@ -83,6 +86,9 @@ export const TabView: React.FC<TabViewProps> = ({
   initialGarantias = [],
   initialCapex = [],
   initialPerfilGrupo = null,
+  contaNome,
+  contaRazaoSocial,
+  contaCnpj,
   initialCulturaSafras = [],
   initialLancamentosMensais = [],
   initialContratosBancarios = [],
@@ -391,6 +397,9 @@ export const TabView: React.FC<TabViewProps> = ({
           initialGarantias={initialGarantias}
           initialCapex={initialCapex}
           initialPerfilGrupo={initialPerfilGrupo}
+          contaNome={contaNome}
+          contaRazaoSocial={contaRazaoSocial}
+          contaCnpj={contaCnpj}
         />
       )}
       {tab === 'quadro_safra' && (

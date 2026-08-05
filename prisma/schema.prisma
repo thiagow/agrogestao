@@ -409,15 +409,17 @@ model Capex {
 // Perfil do grupo econômico (aba "Grupo Econômico") + histórico narrativo (aba
 // "Histórico do Grupo") — 1:1 com Conta. Substitui o antigo EmpresaGrupo (lista de
 // empresas Controladora/Controlada/Coligada), que não existe na tela real — removido.
-// Fica em tabela própria em vez de campos direto em Conta porque nome/razaoSocial/cnpj
-// de Conta são geridos só pelo Admin Master (src/server/contas.ts); este perfil é
-// editável pelo próprio usuário da conta. "Histórico do Grupo" resolve a pendência que
-// existia (audit log automático vs. timeline manual): não é nenhum dos dois, é um único
-// campo de texto livre, usado na Apresentação do Grupo (Slide 2) e no Parecer Executivo.
+// Não tem nome/razaoSocial/cnpj: esses já são cadastrados pelo Admin Master na criação
+// da conta (Conta.nome/razaoSocial/cnpj, src/server/contas.ts) — a aba "Grupo Econômico"
+// lê e exibe esses campos direto de Conta (via requireContext(), read-only aqui) em vez
+// de duplicá-los numa segunda tabela que nasceria vazia. Este model guarda só os campos
+// extras que o próprio usuário da conta preenche por cima disso (contato, atividade,
+// fundação, sede, consultor). "Histórico do Grupo" resolve a pendência que existia (audit
+// log automático vs. timeline manual): não é nenhum dos dois, é um único campo de texto
+// livre, usado na Apresentação do Grupo (Slide 2) e no Parecer Executivo.
 model PerfilGrupoEconomico {
   id                   String    @id @default(cuid())
   contaId              String    @unique
-  nome                 String?
   email                String?
   telefone             String?
   atividadePrincipal   String?

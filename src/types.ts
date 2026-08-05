@@ -132,7 +132,6 @@ export interface Capex {
 }
 
 export interface PerfilGrupoEconomico {
-  nome?: string;
   email?: string;
   telefone?: string;
   atividadePrincipal?: string;

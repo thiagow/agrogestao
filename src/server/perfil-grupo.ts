@@ -12,15 +12,15 @@ export async function getPerfilGrupo(): Promise<PerfilGrupoEconomico | null> {
   return row ? toPerfilGrupoDTO(row) : null;
 }
 
-// Upsert parcial — usado tanto pelo Drawer de edição do perfil (nome/email/telefone/...)
+// Upsert parcial — usado tanto pelo Drawer de edição do perfil (email/telefone/...)
 // quanto pelo botão "Salvar Histórico" (só o campo historico), por isso todo campo é
-// opcional e um `undefined` não sobrescreve o que já está salvo.
+// opcional e um `undefined` não sobrescreve o que já está salvo. Nome/razaoSocial/cnpj do
+// grupo não entram aqui — são de Conta, geridos só pelo Admin Master (src/server/contas.ts).
 export async function savePerfilGrupo(input: Partial<PerfilGrupoEconomico>): Promise<PerfilGrupoEconomico> {
   const ctx = await requireContext();
   const parsed = perfilGrupoSchema.parse(input);
 
   const data = {
-    ...(parsed.nome !== undefined && { nome: parsed.nome || null }),
     ...(parsed.email !== undefined && { email: parsed.email || null }),
     ...(parsed.telefone !== undefined && { telefone: parsed.telefone || null }),
     ...(parsed.atividadePrincipal !== undefined && { atividadePrincipal: parsed.atividadePrincipal || null }),
@@ -44,7 +44,6 @@ export async function savePerfilGrupo(input: Partial<PerfilGrupoEconomico>): Pro
 }
 
 function toPerfilGrupoDTO(row: {
-  nome: string | null;
   email: string | null;
   telefone: string | null;
   atividadePrincipal: string | null;
@@ -54,7 +53,6 @@ function toPerfilGrupoDTO(row: {
   historico: string | null;
 }): PerfilGrupoEconomico {
   return {
-    nome: row.nome ?? undefined,
     email: row.email ?? undefined,
     telefone: row.telefone ?? undefined,
     atividadePrincipal: row.atividadePrincipal ?? undefined,

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { isActiveTab } from '@/lib/nav';
+import { requireContext } from '@/lib/session';
 import { TabView } from '@/components/TabView';
 import { listSuppliers } from '@/server/suppliers';
 import { listSocios } from '@/server/socios';
@@ -27,6 +28,10 @@ export default async function TabPage({ params }: TabPageProps) {
   if (!isActiveTab(tab)) {
     notFound();
   }
+
+  // Nome/Razão Social/CNPJ do grupo são cadastrados pelo Admin Master na criação da
+  // conta (src/server/contas.ts) — a aba "Grupo Econômico" só lê, nunca duplica.
+  const ctx = await requireContext();
 
   // Buscados sempre (não só na aba correspondente) porque Resumo também
   // depende deles — mesmo padrão que o TabView já usava com mocks.
@@ -71,6 +76,9 @@ export default async function TabPage({ params }: TabPageProps) {
       initialGarantias={initialGarantias}
       initialCapex={initialCapex}
       initialPerfilGrupo={initialPerfilGrupo}
+      contaNome={ctx.conta.nome}
+      contaRazaoSocial={ctx.conta.razaoSocial ?? undefined}
+      contaCnpj={ctx.conta.cnpj ?? undefined}
       initialCulturaSafras={initialCulturaSafras}
       initialLancamentosMensais={initialLancamentosMensais}
       initialContratosBancarios={initialContratosBancarios}

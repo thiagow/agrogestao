@@ -12,7 +12,6 @@ interface PerfilGrupoDrawerProps {
 }
 
 export const PerfilGrupoDrawer: React.FC<PerfilGrupoDrawerProps> = ({ isOpen, onClose, onSave, perfil }) => {
-  const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [telefone, setTelefone] = useState('');
   const [atividadePrincipal, setAtividadePrincipal] = useState('');
@@ -21,7 +20,6 @@ export const PerfilGrupoDrawer: React.FC<PerfilGrupoDrawerProps> = ({ isOpen, on
   const [consultorResponsavel, setConsultorResponsavel] = useState('');
 
   useEffect(() => {
-    setNome(perfil?.nome ?? '');
     setEmail(perfil?.email ?? '');
     setTelefone(perfil?.telefone ?? '');
     setAtividadePrincipal(perfil?.atividadePrincipal ?? '');
@@ -34,7 +32,6 @@ export const PerfilGrupoDrawer: React.FC<PerfilGrupoDrawerProps> = ({ isOpen, on
     e.preventDefault();
 
     onSave({
-      nome: nome.trim() || undefined,
       email: email.trim() || undefined,
       telefone: telefone.trim() || undefined,
       atividadePrincipal: atividadePrincipal.trim() || undefined,
@@ -49,13 +46,10 @@ export const PerfilGrupoDrawer: React.FC<PerfilGrupoDrawerProps> = ({ isOpen, on
   return (
     <Drawer isOpen={isOpen} onClose={onClose} title="Editar Grupo Econômico" subtitle="Perfil do grupo econômico">
       <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-        <Input
-          label="Nome do Grupo"
-          type="text"
-          placeholder="Ex: Grupo Pereira"
-          value={nome}
-          onChange={(e) => setNome(e.target.value)}
-        />
+        <p className="text-[11px] text-slate-500 -mt-1">
+          Nome, Razão Social e CNPJ do grupo são cadastrados pelo Admin Master na criação da conta e não são
+          editáveis aqui.
+        </p>
 
         <div className="grid grid-cols-2 gap-3">
           <Input label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
