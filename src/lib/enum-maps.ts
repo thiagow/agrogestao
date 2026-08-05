@@ -4,13 +4,27 @@
 // fala com o identificador ASCII, nunca com o rótulo. Este arquivo traduz
 // nos dois sentidos, no boundary de servidor.
 
-import type { Category, EstadoCivil, TipoTaxaBancaria, PeriodicidadePagamento, PeriodicidadeArrendamento } from '@/types';
+import type {
+  Category,
+  EstadoCivil,
+  TipoTaxaBancaria,
+  PeriodicidadePagamento,
+  PeriodicidadeArrendamento,
+  BemTipo,
+  GarantiaTipo,
+  CapexCategoria,
+  TipoRelacaoEmpresa
+} from '@/types';
 import {
   Category as PrismaCategory,
   EstadoCivil as PrismaEstadoCivil,
   TipoTaxaBancaria as PrismaTipoTaxaBancaria,
   PeriodicidadePagamento as PrismaPeriodicidadePagamento,
-  PeriodicidadeArrendamento as PrismaPeriodicidadeArrendamento
+  PeriodicidadeArrendamento as PrismaPeriodicidadeArrendamento,
+  BemTipo as PrismaBemTipo,
+  GarantiaTipo as PrismaGarantiaTipo,
+  CapexCategoria as PrismaCapexCategoria,
+  TipoRelacaoEmpresa as PrismaTipoRelacaoEmpresa
 } from '@prisma/client';
 
 export const CATEGORY_TO_DB: Record<Category, PrismaCategory> = {
@@ -87,4 +101,64 @@ export const PERIODICIDADE_ARRENDAMENTO_FROM_DB: Record<PrismaPeriodicidadeArren
   ANUAL: 'Anual',
   MENSAL: 'Mensal',
   POR_SAFRA: 'Por Safra'
+};
+
+export const BEM_TIPO_TO_DB: Record<BemTipo, PrismaBemTipo> = {
+  Imóvel: PrismaBemTipo.IMOVEL,
+  Veículo: PrismaBemTipo.VEICULO,
+  Equipamento: PrismaBemTipo.EQUIPAMENTO,
+  Outros: PrismaBemTipo.OUTROS
+};
+
+export const BEM_TIPO_FROM_DB: Record<PrismaBemTipo, BemTipo> = {
+  IMOVEL: 'Imóvel',
+  VEICULO: 'Veículo',
+  EQUIPAMENTO: 'Equipamento',
+  OUTROS: 'Outros'
+};
+
+export const GARANTIA_TIPO_TO_DB: Record<GarantiaTipo, PrismaGarantiaTipo> = {
+  Imóvel: PrismaGarantiaTipo.IMOVEL,
+  Aval: PrismaGarantiaTipo.AVAL,
+  Penhor: PrismaGarantiaTipo.PENHOR,
+  'Alienação Fiduciária': PrismaGarantiaTipo.ALIENACAO_FIDUCIARIA,
+  Outros: PrismaGarantiaTipo.OUTROS
+};
+
+export const GARANTIA_TIPO_FROM_DB: Record<PrismaGarantiaTipo, GarantiaTipo> = {
+  IMOVEL: 'Imóvel',
+  AVAL: 'Aval',
+  PENHOR: 'Penhor',
+  ALIENACAO_FIDUCIARIA: 'Alienação Fiduciária',
+  OUTROS: 'Outros'
+};
+
+export const CAPEX_CATEGORIA_TO_DB: Record<CapexCategoria, PrismaCapexCategoria> = {
+  Maquinário: PrismaCapexCategoria.MAQUINARIO,
+  Benfeitoria: PrismaCapexCategoria.BENFEITORIA,
+  Tecnologia: PrismaCapexCategoria.TECNOLOGIA,
+  Infraestrutura: PrismaCapexCategoria.INFRAESTRUTURA,
+  Outros: PrismaCapexCategoria.OUTROS
+};
+
+export const CAPEX_CATEGORIA_FROM_DB: Record<PrismaCapexCategoria, CapexCategoria> = {
+  MAQUINARIO: 'Maquinário',
+  BENFEITORIA: 'Benfeitoria',
+  TECNOLOGIA: 'Tecnologia',
+  INFRAESTRUTURA: 'Infraestrutura',
+  OUTROS: 'Outros'
+};
+
+export const TIPO_RELACAO_EMPRESA_TO_DB: Record<TipoRelacaoEmpresa, PrismaTipoRelacaoEmpresa> = {
+  Controladora: PrismaTipoRelacaoEmpresa.CONTROLADORA,
+  Controlada: PrismaTipoRelacaoEmpresa.CONTROLADA,
+  Coligada: PrismaTipoRelacaoEmpresa.COLIGADA,
+  Outras: PrismaTipoRelacaoEmpresa.OUTRAS
+};
+
+export const TIPO_RELACAO_EMPRESA_FROM_DB: Record<PrismaTipoRelacaoEmpresa, TipoRelacaoEmpresa> = {
+  CONTROLADORA: 'Controladora',
+  CONTROLADA: 'Controlada',
+  COLIGADA: 'Coligada',
+  OUTRAS: 'Outras'
 };

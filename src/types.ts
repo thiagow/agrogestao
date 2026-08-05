@@ -73,6 +73,56 @@ export interface Socio {
   dataNascimento?: string; // YYYY-MM-DD
 }
 
+// ---- Cadastro Mestre: Bens e Direitos, Garantias, CAPEX, Grupo Econômico ----
+// Design próprio (fonte AgroFlow não especifica campos para essas abas, exceto
+// Bens e Direitos, que tem "campos estimados" replicados abaixo).
+
+export type BemTipo = 'Imóvel' | 'Veículo' | 'Equipamento' | 'Outros';
+
+export interface BemDireito {
+  id: string;
+  descricao: string;
+  tipo: BemTipo;
+  valorContabil: number;
+  dataAquisicao: string; // YYYY-MM-DD
+  depreciacaoAcumulada: number;
+  observacoes?: string;
+}
+
+export type GarantiaTipo = 'Imóvel' | 'Aval' | 'Penhor' | 'Alienação Fiduciária' | 'Outros';
+
+export interface Garantia {
+  id: string;
+  descricao: string;
+  tipo: GarantiaTipo;
+  valor: number;
+  contratoBancarioId?: string;
+  observacoes?: string;
+}
+
+export type CapexCategoria = 'Maquinário' | 'Benfeitoria' | 'Tecnologia' | 'Infraestrutura' | 'Outros';
+
+export interface Capex {
+  id: string;
+  descricao: string;
+  categoria: CapexCategoria;
+  valor: number;
+  dataInvestimento: string; // YYYY-MM-DD
+  safra?: string; // "2026/2027"
+  observacoes?: string;
+}
+
+export type TipoRelacaoEmpresa = 'Controladora' | 'Controlada' | 'Coligada' | 'Outras';
+
+export interface EmpresaGrupo {
+  id: string;
+  nome: string;
+  cnpj?: string;
+  tipoRelacao: TipoRelacaoEmpresa;
+  participacaoPercentual?: number; // 0-100
+  observacoes?: string;
+}
+
 // ---- Quadro de Safra / Resumo: Cultura x Ano-Safra ----
 
 export interface CulturaSafraAno {

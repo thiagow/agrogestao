@@ -3,6 +3,10 @@ import { isActiveTab } from '@/lib/nav';
 import { TabView } from '@/components/TabView';
 import { listSuppliers } from '@/server/suppliers';
 import { listSocios } from '@/server/socios';
+import { listBensDireitos } from '@/server/bens-direitos';
+import { listGarantias } from '@/server/garantias';
+import { listCapex } from '@/server/capex';
+import { listEmpresasGrupo } from '@/server/empresas-grupo';
 import { listQuadroSafra } from '@/server/quadro-safra';
 import { listLancamentosMensais } from '@/server/lancamentos';
 import { listContratosBancarios } from '@/server/contratos-bancarios';
@@ -29,6 +33,10 @@ export default async function TabPage({ params }: TabPageProps) {
   const [
     initialSuppliers,
     initialSocios,
+    initialBensDireitos,
+    initialGarantias,
+    initialCapex,
+    initialEmpresasGrupo,
     initialCulturaSafras,
     initialContratosBancarios,
     initialAquisicoes,
@@ -37,6 +45,10 @@ export default async function TabPage({ params }: TabPageProps) {
   ] = await Promise.all([
     listSuppliers(),
     listSocios(),
+    listBensDireitos(),
+    listGarantias(),
+    listCapex(),
+    listEmpresasGrupo(),
     listQuadroSafra(),
     listContratosBancarios(),
     listAquisicoes(),
@@ -55,6 +67,10 @@ export default async function TabPage({ params }: TabPageProps) {
       tab={tab}
       initialSuppliers={initialSuppliers}
       initialSocios={initialSocios}
+      initialBensDireitos={initialBensDireitos}
+      initialGarantias={initialGarantias}
+      initialCapex={initialCapex}
+      initialEmpresasGrupo={initialEmpresasGrupo}
       initialCulturaSafras={initialCulturaSafras}
       initialLancamentosMensais={initialLancamentosMensais}
       initialContratosBancarios={initialContratosBancarios}

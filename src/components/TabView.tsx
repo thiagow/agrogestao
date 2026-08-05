@@ -6,6 +6,10 @@ import {
   ActiveTab,
   Supplier,
   Socio,
+  BemDireito,
+  Garantia,
+  Capex,
+  EmpresaGrupo,
   CulturaSafraAno,
   ContratoBancario,
   Aquisicao,
@@ -55,6 +59,10 @@ interface TabViewProps {
   tab: ActiveTab;
   initialSuppliers?: Supplier[];
   initialSocios?: Socio[];
+  initialBensDireitos?: BemDireito[];
+  initialGarantias?: Garantia[];
+  initialCapex?: Capex[];
+  initialEmpresasGrupo?: EmpresaGrupo[];
   initialCulturaSafras?: CulturaSafraAno[];
   initialLancamentosMensais?: LancamentoMensal[];
   initialContratosBancarios?: ContratoBancario[];
@@ -71,6 +79,10 @@ export const TabView: React.FC<TabViewProps> = ({
   tab,
   initialSuppliers = [],
   initialSocios = [],
+  initialBensDireitos = [],
+  initialGarantias = [],
+  initialCapex = [],
+  initialEmpresasGrupo = [],
   initialCulturaSafras = [],
   initialLancamentosMensais = [],
   initialContratosBancarios = [],
@@ -372,7 +384,16 @@ export const TabView: React.FC<TabViewProps> = ({
       {tab === 'resumo' && (
         <ResumoView suppliers={suppliers} culturaSafras={culturaSafras} contratosBancarios={contratosBancarios} />
       )}
-      {tab === 'cadastro_mestre' && <CadastroMestreView initialSocios={initialSocios} />}
+      {tab === 'cadastro_mestre' && (
+        <CadastroMestreView
+          initialSocios={initialSocios}
+          initialBensDireitos={initialBensDireitos}
+          initialGarantias={initialGarantias}
+          initialCapex={initialCapex}
+          initialEmpresasGrupo={initialEmpresasGrupo}
+          contratosBancarios={contratosBancarios}
+        />
+      )}
       {tab === 'quadro_safra' && (
         <QuadroSafraView culturaSafras={culturaSafras} onSave={handleSaveSafra} onDelete={handleDeleteSafra} />
       )}
