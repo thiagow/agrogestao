@@ -120,6 +120,7 @@ model Conta {
   socios               Socio[]
   bensDireitos         BemDireito[]
   garantias            Garantia[]
+  dividasPf            DividaPf[]
   capex                Capex[]
   perfilGrupoEconomico PerfilGrupoEconomico?
   balancos             BalancoPatrimonial[]
@@ -186,7 +187,8 @@ model Cultura {
   nome    String
   ativo   Boolean @default(true)
 
-  conta Conta? @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  conta              Conta?             @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  contratosBancarios ContratoBancario[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -205,7 +207,8 @@ model Safra {
   atual      Boolean   @default(false)
   ativo      Boolean   @default(true)
 
-  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  conta              Conta              @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  contratosBancarios ContratoBancario[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -380,6 +383,38 @@ model Garantia {
   @@map("garantias")
 }
 
+// Dívidas pessoais dos sócios (financiamento, cartão, empréstimo pessoal, crédito
+// rural PF) — sub-aba "Dívidas PF", pareada com Bens e Direitos na mesma tela do
+// AgroFlow (print fotografado pelo usuário em 06/08/2026). Explicitamente NÃO
+// capturada no Balanço PJ (módulo distinto, já removido — ver nota em Supplier/
+// histórico do CLAUDE.md). Sem vínculo a Socio específico: o print não tem campo de
+// sócio, mesmo critério de BemDireito sem socioId ("Grupo"). tipoDivida fica como
+// texto livre (não enum) — mesmo raciocínio de Garantia.tipoAtivo/tipoGarantia logo
+// abaixo: a lista de opções do select (Financiamento/Cartão/Empréstimo Pessoal/
+// Crédito Rural PF/Outros) foi inferida do texto da tela, não confirmada como enum
+// fechado do AgroFlow original.
+model DividaPf {
+  id              String    @id @default(cuid())
+  contaId         String
+  tipoDivida      String
+  credor          String?
+  saldoDevedor    Decimal   @db.Decimal(18, 2)
+  parcelaMensal   Decimal?  @db.Decimal(18, 2)
+  vencimentoFinal DateTime?
+  observacoes     String?
+  ativo           Boolean   @default(true)
+
+  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([contaId, ativo])
+  @@map("dividas_pf")
+}
+
 model Capex {
   id                      String   @id @default(cuid())
   contaId                 String
@@ -417,15 +452,19 @@ model Capex {
 // log automático vs. timeline manual): não é nenhum dos dois, é um único campo de texto
 // livre, usado na Apresentação do Grupo (Slide 2) e no Parecer Executivo.
 model PerfilGrupoEconomico {
-  id                   String    @id @default(cuid())
-  contaId              String    @unique
-  email                String?
-  telefone             String?
-  atividadePrincipal   String?
-  fundacao             DateTime?
-  sede                 String?
-  consultorResponsavel String?
-  historico            String?
+  id                           String    @id @default(cuid())
+  contaId                      String    @unique
+  email                        String?
+  telefone                     String?
+  atividadePrincipal           String?
+  fundacao                     DateTime?
+  sede                         String?
+  consultorResponsavel         String?
+  historico                    String?
+  sucessao                     String?
+  modusOperandiAgricultura     String?
+  modusOperandiPecuaria        String?
+  empresasColigadas            String?
 
   conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
 
@@ -515,24 +554,37 @@ model CompraFornecedor {
 // Bancos e Financiamentos
 // ============================================================
 
-enum TipoContratoBancario {
-  CUSTEO
+// Tipo de Operação absorve o antigo TipoContratoBancario + FinalidadeContrato — o
+// print real do formulário "Cadastrar Contrato Bancário" (fotografado pelo usuário em
+// 07/08/2026) só tem um select "Tipo de Operação", sem campo "Finalidade" separado.
+// finalidade foi removido do model (tabela estava vazia em produção, sem risco).
+enum TipoOperacaoBancaria {
+  CUSTEIO_AGRICOLA
+  CUSTEIO_PECUARIO
+  INVESTIMENTO
+  CAPITAL_DE_GIRO
   CPR
-  FINANCIAMENTO
-  CREDIARIO
+  BARTER
+  PRONAF
+  PRONAMP
+  FCO
+  FNO
+  FINAME
+  OUTROS
 }
 
 enum TipoTaxaBancaria {
-  CDI
-  PRIME
-  PRE       @map("PRÉ")
-  FLUTUANTE
+  PRE_FIXADO  @map("PRÉ_FIXADO")
+  CDI_SPREAD
+  IPCA_SPREAD
+  DOLAR_JUROS @map("DÓLAR_JUROS")
 }
 
 enum SistemaAmortizacao {
   SAC
   PRICE
-  BULLET
+  BULLET // pagamento único no vencimento (principal + todos os juros acumulados)
+  JUROS_PERIODICOS // juros pagos a cada período, principal integral só na última parcela
 }
 
 enum PeriodicidadePagamento {
@@ -542,33 +594,52 @@ enum PeriodicidadePagamento {
   ANUAL      @map("Anual")
 }
 
-enum FinalidadeContrato {
-  CUSTEIO
-  INVESTIMENTO
-  CAPITAL_GIRO
+// Convenção de contagem de dias para converter a taxa anual em taxa do período —
+// "252 dias úteis" é aproximado a partir dos dias corridos do período (sem calendário
+// de feriados real), documentado em src/lib/amortizacao.ts.
+enum BaseCalculoJuros {
+  DIAS_UTEIS_252    @map("252_DIAS_UTEIS")
+  DIAS_CORRIDOS_360 @map("360_DIAS_CORRIDOS")
+  DIAS_CORRIDOS_365 @map("365_DIAS_CORRIDOS")
+}
+
+enum TipoCapitalizacao {
+  SIMPLES
+  COMPOSTA
 }
 
 model ContratoBancario {
   id                 String                 @id @default(cuid())
   propriedadeId      String
   banco              String
-  tipoContrato       TipoContratoBancario
-  saldoInicial       Decimal                @db.Decimal(18, 2)
+  nomeTomador        String?
+  numeroContrato     String?
+  tipoOperacao       TipoOperacaoBancaria
+  safraVinculadaId   String?
+  culturaVinculadaId String?
+  saldoInicial       Decimal                @db.Decimal(18, 2) // "Valor Contratado" no print
   saldoAtual         Decimal                @db.Decimal(18, 2)
   taxaJuros          Decimal                @db.Decimal(8, 4) // % a.a.
   tipoTaxa           TipoTaxaBancaria
-  taxaAdicional      Decimal?               @db.Decimal(8, 4) // % a.a., só quando tipoTaxa = CDI
-  dataContratacao    DateTime
-  dataVencimento     DateTime
+  taxaAdicional      Decimal?               @db.Decimal(8, 4) // % a.a. (spread) — irrelevante quando tipoTaxa = PRE_FIXADO
+  baseCalculo        BaseCalculoJuros       @default(DIAS_CORRIDOS_360)
+  capitalizacao      TipoCapitalizacao      @default(COMPOSTA)
   sistemaAmortizacao SistemaAmortizacao
   periodicidade      PeriodicidadePagamento
-  finalidade         FinalidadeContrato
+  possuiCarencia     Boolean                @default(false)
+  dataContratacao    DateTime
+  inicioPagamento    DateTime?
+  dataVencimento     DateTime
+  tipoGarantia       String?
+  valorGarantia      Decimal?               @db.Decimal(18, 2)
   moeda              Currency
   observacoes        String?
   ativo              Boolean                @default(true)
 
-  propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
-  parcelas    Parcela[]
+  propriedade      Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  safraVinculada   Safra?      @relation(fields: [safraVinculadaId], references: [id], onDelete: SetNull)
+  culturaVinculada Cultura?    @relation(fields: [culturaVinculadaId], references: [id], onDelete: SetNull)
+  parcelas         Parcela[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -576,6 +647,8 @@ model ContratoBancario {
   updatedById String?
 
   @@index([propriedadeId, ativo])
+  @@index([safraVinculadaId])
+  @@index([culturaVinculadaId])
   @@map("contratos_bancarios")
 }
 

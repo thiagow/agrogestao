@@ -113,6 +113,16 @@ export interface Garantia {
   observacoes?: string;
 }
 
+export interface DividaPf {
+  id: string;
+  tipoDivida: string; // texto livre — ver nota em schema.prisma
+  credor?: string;
+  saldoDevedor: number;
+  parcelaMensal?: number;
+  vencimentoFinal?: string; // YYYY-MM-DD
+  observacoes?: string;
+}
+
 export interface Capex {
   id: string;
   descricao: string;
@@ -133,6 +143,10 @@ export interface PerfilGrupoEconomico {
   sede?: string;
   consultorResponsavel?: string;
   historico?: string;
+  sucessao?: string;
+  modusOperandiAgricultura?: string;
+  modusOperandiPecuaria?: string;
+  empresasColigadas?: string;
 }
 
 // ---- Quadro de Safra / Resumo: Cultura x Ano-Safra ----
@@ -152,27 +166,57 @@ export interface CulturaSafraAno {
 }
 
 // ---- Bancos e Financiamentos: Contrato Bancário ----
+// Réplica confirmada do formulário "Cadastrar Contrato Bancário" (print fotografado
+// pelo usuário em 07/08/2026). Absorve o antigo "Tipo de Contrato" + "Finalidade" num
+// único "Tipo de Operação".
 
-export type TipoContratoBancario = 'CUSTEO' | 'CPR' | 'FINANCIAMENTO' | 'CREDIARIO';
-export type TipoTaxaBancaria = 'CDI' | 'PRIME' | 'PRÉ' | 'FLUTUANTE';
-export type SistemaAmortizacao = 'SAC' | 'PRICE' | 'BULLET';
+export type TipoOperacaoBancaria =
+  | 'CUSTEIO AGRICOLA'
+  | 'CUSTEIO PECUARIO'
+  | 'INVESTIMENTO'
+  | 'CAPITAL DE GIRO'
+  | 'CPR'
+  | 'BARTER'
+  | 'PRONAF'
+  | 'PRONAMP'
+  | 'FCO'
+  | 'FNO'
+  | 'FINAME'
+  | 'OUTROS';
+
+export type TipoTaxaBancaria = 'Pré-fixado (% a.a.)' | 'CDI + spread' | 'IPCA + spread' | 'Dólar + juros';
+
+export type SistemaAmortizacao = 'SAC' | 'PRICE' | 'BULLET' | 'JUROS_PERIODICOS';
+
 export type PeriodicidadePagamento = 'Mensal' | 'Trimestral' | 'Semestral' | 'Anual';
-export type FinalidadeContrato = 'CUSTEIO' | 'INVESTIMENTO' | 'CAPITAL_GIRO';
+
+export type BaseCalculoJuros = '252 dias úteis' | '360 dias corridos' | '365 dias corridos';
+
+export type TipoCapitalizacao = 'Composta' | 'Simples';
 
 export interface ContratoBancario {
   id: string;
   banco: string;
-  tipoContrato: TipoContratoBancario;
-  saldoInicial: number;
+  nomeTomador?: string;
+  numeroContrato?: string;
+  tipoOperacao: TipoOperacaoBancaria;
+  safraVinculadaId?: string;
+  culturaVinculadaId?: string;
+  saldoInicial: number; // "Valor Contratado" no print
   saldoAtual: number;
   taxaJuros: number; // % a.a.
   tipoTaxa: TipoTaxaBancaria;
-  taxaAdicional?: number; // % a.a., só relevante quando tipoTaxa === 'CDI'
-  dataContratacao: string; // YYYY-MM-DD
-  dataVencimento: string; // YYYY-MM-DD
+  taxaAdicional?: number; // % a.a. (spread) — irrelevante quando tipoTaxa === 'Pré-fixado (% a.a.)'
+  baseCalculo: BaseCalculoJuros;
+  capitalizacao: TipoCapitalizacao;
   sistemaAmortizacao: SistemaAmortizacao;
   periodicidade: PeriodicidadePagamento;
-  finalidade: FinalidadeContrato;
+  possuiCarencia: boolean;
+  dataContratacao: string; // YYYY-MM-DD
+  inicioPagamento?: string; // YYYY-MM-DD
+  dataVencimento: string; // YYYY-MM-DD
+  tipoGarantia?: string;
+  valorGarantia?: number;
   moeda: Currency;
   observacoes?: string;
 }

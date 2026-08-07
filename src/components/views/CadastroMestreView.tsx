@@ -1,17 +1,20 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Upload, Printer, RefreshCw, Plus, Edit2, Trash2 } from 'lucide-react';
-import { Socio, BemDireito, Garantia, Capex, PerfilGrupoEconomico } from '../../types';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { Socio, BemDireito, Garantia, Capex, PerfilGrupoEconomico, DividaPf } from '../../types';
 import { Card, Tabs, Button, Badge, KpiCard, Textarea } from '../ui';
 import { SocioDrawer } from '../SocioDrawer';
 import { BemDireitoDrawer } from '../BemDireitoDrawer';
 import { GarantiaDrawer } from '../GarantiaDrawer';
+import { DividaPfDrawer } from '../DividaPfDrawer';
 import { CapexForm } from '../CapexForm';
 import { PerfilGrupoDrawer } from '../PerfilGrupoDrawer';
 import { saveSocio, deleteSocio } from '../../server/socios';
 import { saveBemDireito, deleteBemDireito } from '../../server/bens-direitos';
 import { saveGarantia, deleteGarantia } from '../../server/garantias';
+import { saveDividaPf, deleteDividaPf } from '../../server/dividas-pf';
 import { saveCapex, deleteCapex } from '../../server/capex';
 import { savePerfilGrupo } from '../../server/perfil-grupo';
 import { formatCurrency, formatDateBR } from '../../lib/format';
@@ -21,6 +24,7 @@ interface CadastroMestreViewProps {
   initialSocios?: Socio[];
   initialBensDireitos?: BemDireito[];
   initialGarantias?: Garantia[];
+  initialDividasPf?: DividaPf[];
   initialCapex?: Capex[];
   initialPerfilGrupo?: PerfilGrupoEconomico | null;
   // Nome/Razão Social/CNPJ do grupo vêm de Conta — cadastrados pelo Admin Master na
@@ -34,6 +38,7 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
   initialSocios = [],
   initialBensDireitos = [],
   initialGarantias = [],
+  initialDividasPf = [],
   initialCapex = [],
   initialPerfilGrupo = null,
   contaNome,
@@ -52,6 +57,11 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
   const [isGarantiaDrawerOpen, setIsGarantiaDrawerOpen] = useState(false);
   const [editingGarantia, setEditingGarantia] = useState<Garantia | null>(null);
 
+  const [dividasPf, setDividasPf] = useState<DividaPf[]>(initialDividasPf);
+  const [isDividaDrawerOpen, setIsDividaDrawerOpen] = useState(false);
+  const [editingDivida, setEditingDivida] = useState<DividaPf | null>(null);
+  const [subAbaBens, setSubAbaBens] = useState<'bens' | 'dividas'>('bens');
+
   const [capexList, setCapexList] = useState<Capex[]>(initialCapex);
   const [isCapexFormOpen, setIsCapexFormOpen] = useState(false);
   const [editingCapex, setEditingCapex] = useState<Capex | null>(null);
@@ -63,6 +73,10 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
   const [perfilGrupo, setPerfilGrupo] = useState<PerfilGrupoEconomico | null>(initialPerfilGrupo);
   const [isPerfilDrawerOpen, setIsPerfilDrawerOpen] = useState(false);
   const [historicoDraft, setHistoricoDraft] = useState(initialPerfilGrupo?.historico ?? '');
+  const [sucessaoDraft, setSucesaoDraft] = useState(initialPerfilGrupo?.sucessao ?? '');
+  const [modusOperandiAgriculturaDraft, setModusOperandiAgriculturaDraft] = useState(initialPerfilGrupo?.modusOperandiAgricultura ?? '');
+  const [modusOperandiPecuariaDraft, setModusOperandiPecuariaDraft] = useState(initialPerfilGrupo?.modusOperandiPecuaria ?? '');
+  const [empresasColigadasDraft, setEmpresasColigadasDraft] = useState(initialPerfilGrupo?.empresasColigadas ?? '');
 
   // ---- Sócios ----
 
@@ -96,6 +110,42 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
   };
 
   // ---- Bens e Direitos ----
+
+  // Calcular dados para gráficos e resumo por categoria
+  const bemsOrdenados = useMemo(() => {
+    const grupos: Record<string, BemDireito[]> = {};
+    bensDireitos.forEach((bem) => {
+      const grupo = bem.grupoIrpf || 'Outros Bens e Direitos';
+      if (!grupos[grupo]) grupos[grupo] = [];
+      grupos[grupo].push(bem);
+    });
+    return grupos;
+  }, [bensDireitos]);
+
+  const resumoPorCategoria = useMemo(() => {
+    return Object.entries(bemsOrdenados).map(([categoria, bens]) => {
+      const valorTotal = bens.reduce((sum, bem) => sum + (bem.valorMercadoEstimado || bem.valorDeclaradoIrpf || 0), 0);
+      return {
+        categoria,
+        itens: bens.length,
+        valor: valorTotal
+      };
+    }).filter(item => item.valor > 0).sort((a, b) => b.valor - a.valor);
+  }, [bemsOrdenados]);
+
+  const totalPatrimonioCategoria = useMemo(
+    () => resumoPorCategoria.reduce((sum, item) => sum + item.valor, 0),
+    [resumoPorCategoria]
+  );
+
+  const dadosPizza = useMemo(() => {
+    const cores = ['#a3e635', '#84cc16', '#65a30d', '#4b5320', '#22c55e', '#10b981', '#14b8a6', '#06b6d4'];
+    return resumoPorCategoria.map((item, idx) => ({
+      name: item.categoria,
+      value: parseFloat((item.valor / totalPatrimonioCategoria * 100).toFixed(1)),
+      fill: cores[idx % cores.length]
+    }));
+  }, [resumoPorCategoria, totalPatrimonioCategoria]);
 
   const handleSaveBem = async (data: Partial<BemDireito>) => {
     try {
@@ -170,6 +220,35 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
     return { totalGarantias: garantias.length, valorTotal, moedaPredominante };
   }, [garantias]);
 
+  // ---- Dívidas PF ----
+
+  const handleSaveDivida = async (data: Partial<DividaPf>) => {
+    try {
+      const saved = await saveDividaPf({
+        id: data.id,
+        tipoDivida: data.tipoDivida || 'Financiamento',
+        credor: data.credor,
+        saldoDevedor: data.saldoDevedor || 0,
+        parcelaMensal: data.parcelaMensal,
+        vencimentoFinal: data.vencimentoFinal,
+        observacoes: data.observacoes
+      });
+      setDividasPf((prev) => (data.id ? prev.map((d) => (d.id === saved.id ? saved : d)) : [saved, ...prev]));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar dívida.');
+    }
+  };
+
+  const handleDeleteDivida = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja remover esta dívida?')) return;
+    try {
+      await deleteDividaPf(id);
+      setDividasPf((prev) => prev.filter((d) => d.id !== id));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao remover dívida.');
+    }
+  };
+
   // ---- CAPEX ----
 
   const anosDisponiveis = useMemo(() => {
@@ -239,29 +318,21 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
 
   const handleSalvarHistorico = async () => {
     try {
-      const saved = await savePerfilGrupo({ historico: historicoDraft });
+      const saved = await savePerfilGrupo({
+        historico: historicoDraft,
+        sucessao: sucessaoDraft,
+        modusOperandiAgricultura: modusOperandiAgriculturaDraft,
+        modusOperandiPecuaria: modusOperandiPecuariaDraft,
+        empresasColigadas: empresasColigadasDraft
+      });
       setPerfilGrupo(saved);
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Erro ao salvar histórico.');
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar narrativas.');
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-end gap-2.5">
-        <Button variant="secondary" className="w-auto flex items-center gap-2 px-3.5 py-2 text-xs">
-          <Printer className="w-3.5 h-3.5" /> Imprimir Cadastro
-        </Button>
-        <Button variant="secondary" className="w-auto flex items-center gap-2 px-3.5 py-2 text-xs">
-          <RefreshCw className="w-3.5 h-3.5" /> Sincronizar Ativos
-        </Button>
-        <Button variant="secondary" className="w-auto flex items-center gap-2 px-3.5 py-2 text-xs">
-          <RefreshCw className="w-3.5 h-3.5" /> Sincronizar Dívidas
-        </Button>
-        <Button variant="primary" className="w-auto flex items-center gap-2 px-3.5 py-2 text-xs">
-          <Upload className="w-3.5 h-3.5" /> Importar Cadastro
-        </Button>
-      </div>
 
       <Card className="p-5">
         <Tabs
@@ -343,84 +414,307 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
 
             if (activeTabId === 'bens') {
               return (
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-bold text-slate-900">Bens e Direitos</h3>
-                    <Button
-                      variant="primary"
-                      onClick={() => {
-                        setEditingBem(null);
-                        setIsBemDrawerOpen(true);
-                      }}
-                      className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
+                <div className="space-y-6">
+                  {/* Gráficos e Resumo — sempre visíveis, independem da sub-aba selecionada */}
+                  {bensDireitos.length > 0 && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Gráfico de Pizza */}
+                      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5">
+                        <h4 className="text-sm font-bold text-slate-900 mb-4">Composição do Patrimônio</h4>
+                        {dadosPizza.length > 0 ? (
+                          <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                              <Pie
+                                data={dadosPizza}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                label={({ name, value }) => `${name}: ${value}%`}
+                                outerRadius={100}
+                                fill="#8884d8"
+                                dataKey="value"
+                              >
+                                {dadosPizza.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(value) => `${value}%`} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="h-[300px] flex items-center justify-center text-slate-400">
+                            Sem dados
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Resumo por Categoria */}
+                      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5">
+                        <h4 className="text-sm font-bold text-slate-900 mb-4">Resumo por Categoria</h4>
+                        <div className="space-y-2 max-h-[320px] overflow-y-auto">
+                          {resumoPorCategoria.map((item) => (
+                            <div key={item.categoria} className="flex items-center justify-between py-2 px-3 bg-slate-50/50 rounded-lg border border-slate-100">
+                              <div>
+                                <div className="text-xs font-semibold text-slate-900">{item.categoria}</div>
+                                <div className="text-[11px] text-slate-600">{item.itens} {item.itens === 1 ? 'item' : 'itens'}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-xs font-bold text-emerald-700">{formatCurrency(item.valor)}</div>
+                                <div className="text-[11px] text-slate-500">
+                                  {((item.valor / totalPatrimonioCategoria) * 100).toFixed(1)}%
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          <div className="border-t border-slate-200 mt-3 pt-3 flex items-center justify-between font-bold">
+                            <div className="text-xs text-slate-900">Total Patrimônio</div>
+                            <div className="text-sm text-emerald-700">{formatCurrency(totalPatrimonioCategoria)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sub-navegação: Bens e Direitos / Dívidas PF */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSubAbaBens('bens')}
+                      className={`px-3.5 py-2 rounded-lg border text-xs font-bold transition ${
+                        subAbaBens === 'bens'
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                      }`}
                     >
-                      <Plus className="w-3.5 h-3.5" /> Adicionar
-                    </Button>
+                      Bens e Direitos ({bensDireitos.length})
+                    </button>
+                    <button
+                      onClick={() => setSubAbaBens('dividas')}
+                      className={`px-3.5 py-2 rounded-lg border text-xs font-bold transition ${
+                        subAbaBens === 'dividas'
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      Dívidas PF ({dividasPf.length})
+                    </button>
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] uppercase tracking-wider text-slate-600 font-bold">
-                          <th className="py-3 px-4">Descrição</th>
-                          <th className="py-3 px-4">Sócio Titular</th>
-                          <th className="py-3 px-4">Grupo IRPF</th>
-                          <th className="py-3 px-4">Código / Tipo</th>
-                          <th className="py-3 px-4">Liquidez</th>
-                          <th className="py-3 px-4 text-right">Valor Declarado IRPF</th>
-                          <th className="py-3 px-4 text-right">Valor de Mercado</th>
-                          <th className="py-3 px-4 text-right">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                        {bensDireitos.map((bem) => (
-                          <tr key={bem.id} className="hover:bg-slate-50/60 transition-colors">
-                            <td className="py-3 px-4 font-bold text-slate-900">
-                              {bem.descricao}
-                              {bem.elegivelGarantia && (
-                                <span className="block mt-1">
-                                  <Badge tone="emerald">Elegível como garantia</Badge>
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-slate-600">{bem.socioNome ?? 'Grupo'}</td>
-                            <td className="py-3 px-4">
-                              <Badge tone="slate">{bem.grupoIrpf}</Badge>
-                            </td>
-                            <td className="py-3 px-4 text-slate-600">{bem.codigoTipo}</td>
-                            <td className="py-3 px-4 text-slate-600">{bem.liquidez}</td>
-                            <td className="py-3 px-4 text-right font-semibold text-slate-800">
-                              {bem.valorDeclaradoIrpf != null ? formatCurrency(bem.valorDeclaradoIrpf) : '—'}
-                            </td>
-                            <td className="py-3 px-4 text-right font-bold text-emerald-700">
-                              {bem.valorMercadoEstimado != null ? formatCurrency(bem.valorMercadoEstimado) : '—'}
-                            </td>
-                            <td className="py-3 px-4 text-right whitespace-nowrap">
-                              <div className="flex items-center justify-end gap-2">
-                                <button
-                                  onClick={() => {
-                                    setEditingBem(bem);
-                                    setIsBemDrawerOpen(true);
-                                  }}
-                                  title="Editar bem"
-                                  className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition"
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteBem(bem.id)}
-                                  title="Remover bem"
-                                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                  {subAbaBens === 'dividas' ? (
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-bold text-slate-900">Dívidas PF</h3>
+                        <Button
+                          variant="primary"
+                          onClick={() => {
+                            setEditingDivida(null);
+                            setIsDividaDrawerOpen(true);
+                          }}
+                          className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Nova Dívida
+                        </Button>
+                      </div>
+
+                      <p className="text-xs text-slate-500 mb-4">
+                        Dívidas pessoais dos sócios (não capturadas no Balanço PJ)
+                      </p>
+
+                      {dividasPf.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-slate-500 border border-dashed border-slate-200 rounded-2xl">
+                          <p className="text-sm font-semibold text-slate-700">Nenhuma dívida PF cadastrada</p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Financiamentos, cartões, empréstimos pessoais e crédito rural PF
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] uppercase tracking-wider text-slate-600 font-bold">
+                                <th className="py-3 px-4">Tipo</th>
+                                <th className="py-3 px-4">Credor</th>
+                                <th className="py-3 px-4 text-right">Saldo Devedor</th>
+                                <th className="py-3 px-4 text-right">Parcela Mensal</th>
+                                <th className="py-3 px-4">Vencimento Final</th>
+                                <th className="py-3 px-4 text-right">Ações</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                              {dividasPf.map((divida) => (
+                                <tr key={divida.id} className="hover:bg-slate-50/60 transition-colors">
+                                  <td className="py-3 px-4">
+                                    <Badge tone="amber">{divida.tipoDivida}</Badge>
+                                  </td>
+                                  <td className="py-3 px-4 font-bold text-slate-900">{divida.credor ?? '—'}</td>
+                                  <td className="py-3 px-4 text-right font-semibold text-slate-800">
+                                    {formatCurrency(divida.saldoDevedor)}
+                                  </td>
+                                  <td className="py-3 px-4 text-right text-slate-600">
+                                    {divida.parcelaMensal != null ? formatCurrency(divida.parcelaMensal) : '—'}
+                                  </td>
+                                  <td className="py-3 px-4 text-slate-600">
+                                    {divida.vencimentoFinal ? formatDateBR(divida.vencimentoFinal) : '—'}
+                                  </td>
+                                  <td className="py-3 px-4 text-right whitespace-nowrap">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        onClick={() => {
+                                          setEditingDivida(divida);
+                                          setIsDividaDrawerOpen(true);
+                                        }}
+                                        title="Editar dívida"
+                                        className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition"
+                                      >
+                                        <Edit2 className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteDivida(divida.id)}
+                                        title="Remover dívida"
+                                        className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {/* Listagem de Bens Agrupada */}
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-sm font-bold text-slate-900">Bens e Direitos</h3>
+                          <Button
+                            variant="primary"
+                            onClick={() => {
+                              setEditingBem(null);
+                              setIsBemDrawerOpen(true);
+                            }}
+                            className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Adicionar
+                          </Button>
+                        </div>
+
+                        <div className="space-y-4">
+                          {Object.entries(bemsOrdenados).map(([grupo, bens]) => {
+                            const subtotalGrupo = bens.reduce((sum, bem) => sum + (bem.valorMercadoEstimado || bem.valorDeclaradoIrpf || 0), 0);
+                            if (subtotalGrupo === 0) return null;
+
+                            return (
+                              <div key={grupo} className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+                                {/* Header do Grupo */}
+                                <div className="bg-slate-50/80 border-b border-slate-200 px-5 py-3 flex items-center justify-between">
+                                  <div>
+                                    <h4 className="text-sm font-bold text-slate-900">{grupo}</h4>
+                                    <p className="text-xs text-slate-600 mt-0.5">{bens.length} {bens.length === 1 ? 'bem' : 'bens'}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-sm font-bold text-emerald-700">{formatCurrency(subtotalGrupo)}</p>
+                                  </div>
+                                </div>
+
+                                {/* Tabela do Grupo */}
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-left border-collapse">
+                                    <thead>
+                                      <tr className="bg-white border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 font-bold">
+                                        <th className="py-2.5 px-4">Descrição</th>
+                                        <th className="py-2.5 px-4">Sócio Titular</th>
+                                        <th className="py-2.5 px-4">Código / Tipo</th>
+                                        <th className="py-2.5 px-4">Liquidez</th>
+                                        <th className="py-2.5 px-4 text-right">Valor Declarado IRPF</th>
+                                        <th className="py-2.5 px-4 text-right">Valor de Mercado</th>
+                                        <th className="py-2.5 px-4 text-right">Ações</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                                      {bens.map((bem) => (
+                                        <tr key={bem.id} className="hover:bg-slate-50/60 transition-colors">
+                                          <td className="py-3 px-4 font-bold text-slate-900">
+                                            {bem.descricao}
+                                            {bem.elegivelGarantia && (
+                                              <span className="block mt-1">
+                                                <Badge tone="emerald">Elegível como garantia</Badge>
+                                              </span>
+                                            )}
+                                          </td>
+                                          <td className="py-3 px-4 text-slate-600">{bem.socioNome ?? 'Grupo'}</td>
+                                          <td className="py-3 px-4 text-slate-600">{bem.codigoTipo}</td>
+                                          <td className="py-3 px-4 text-slate-600">{bem.liquidez}</td>
+                                          <td className="py-3 px-4 text-right font-semibold text-slate-800">
+                                            {bem.valorDeclaradoIrpf != null ? formatCurrency(bem.valorDeclaradoIrpf) : '—'}
+                                          </td>
+                                          <td className="py-3 px-4 text-right font-bold text-emerald-700">
+                                            {bem.valorMercadoEstimado != null ? formatCurrency(bem.valorMercadoEstimado) : '—'}
+                                          </td>
+                                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                                            <div className="flex items-center justify-end gap-2">
+                                              <button
+                                                onClick={() => {
+                                                  setEditingBem(bem);
+                                                  setIsBemDrawerOpen(true);
+                                                }}
+                                                title="Editar bem"
+                                                className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition"
+                                              >
+                                                <Edit2 className="w-4 h-4" />
+                                              </button>
+                                              <button
+                                                onClick={() => handleDeleteBem(bem.id)}
+                                                title="Remover bem"
+                                                className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
+                                              >
+                                                <Trash2 className="w-4 h-4" />
+                                              </button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
                               </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                            );
+                          })}
+
+                          {/* Total Geral */}
+                          {bensDireitos.length > 0 && (
+                            <div className="bg-emerald-50/50 rounded-2xl border border-emerald-200 shadow-xs p-5">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-bold text-emerald-900">Total de Bens e Direitos</h4>
+                                <div className="text-right">
+                                  <p className="text-lg font-bold text-emerald-700">{formatCurrency(totalPatrimonioCategoria)}</p>
+                                  <p className="text-xs text-emerald-600 mt-1">{bensDireitos.length} {bensDireitos.length === 1 ? 'bem' : 'bens'}</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {bensDireitos.length === 0 && (
+                        <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+                          <p className="text-sm mb-4">Nenhum bem cadastrado</p>
+                          <Button
+                            variant="primary"
+                            onClick={() => {
+                              setEditingBem(null);
+                              setIsBemDrawerOpen(true);
+                            }}
+                            className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Adicionar Bem
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               );
             }
@@ -748,28 +1042,82 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
               );
             }
 
-            // Histórico do Grupo
+            // Histórico do Grupo — 5 seções narrativas
             return (
               <Card className="p-5">
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-sm font-bold text-slate-900">Histórico do Grupo</h3>
+                <div className="space-y-6">
+                  {/* 1. Histórico */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="text-sm font-bold text-slate-900">Histórico</h4>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-3">
+                      Descreva a história, trajetória e contexto do grupo econômico. Este texto é utilizado na
+                      Apresentação do Grupo (Slide 2) e no Parecer Executivo.
+                    </p>
+                    <Textarea
+                      rows={12}
+                      value={historicoDraft}
+                      onChange={(e) => setHistoricoDraft(e.target.value)}
+                    />
+                  </div>
+
+                  {/* 2. Gestão — Sucessão */}
+                  <div className="border-t border-slate-200 pt-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="text-sm font-bold text-slate-900">Gestão — Sucessão</h4>
+                    </div>
+                    <Textarea
+                      rows={8}
+                      value={sucessaoDraft}
+                      onChange={(e) => setSucesaoDraft(e.target.value)}
+                    />
+                  </div>
+
+                  {/* 3. Modus Operandi — Sistema de Produção (Agricultura) */}
+                  <div className="border-t border-slate-200 pt-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="text-sm font-bold text-slate-900">Modus Operandi — Sistema de Produção (Agricultura)</h4>
+                    </div>
+                    <Textarea
+                      rows={8}
+                      value={modusOperandiAgriculturaDraft}
+                      onChange={(e) => setModusOperandiAgriculturaDraft(e.target.value)}
+                    />
+                  </div>
+
+                  {/* 4. Modus Operandi — Sistema de Produção (Pecuária) */}
+                  <div className="border-t border-slate-200 pt-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="text-sm font-bold text-slate-900">Modus Operandi — Sistema de Produção (Pecuária)</h4>
+                    </div>
+                    <Textarea
+                      rows={8}
+                      value={modusOperandiPecuariaDraft}
+                      onChange={(e) => setModusOperandiPecuariaDraft(e.target.value)}
+                    />
+                  </div>
+
+                  {/* 5. Outras Atividades — Empresas Coligadas */}
+                  <div className="border-t border-slate-200 pt-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="text-sm font-bold text-slate-900">Outras Atividades — Empresas Coligadas</h4>
+                    </div>
+                    <Textarea
+                      rows={8}
+                      value={empresasColigadasDraft}
+                      onChange={(e) => setEmpresasColigadasDraft(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <p className="text-xs text-slate-500 mb-4">
-                  Descreva a história, trajetória e contexto do grupo econômico. Este texto é utilizado na
-                  Apresentação do Grupo (Slide 2) e no Parecer Executivo.
-                </p>
-                <Textarea
-                  rows={16}
-                  value={historicoDraft}
-                  onChange={(e) => setHistoricoDraft(e.target.value)}
-                />
-                <div className="flex justify-end mt-4">
+
+                <div className="flex justify-end mt-6 pt-4 border-t border-slate-200">
                   <Button
                     variant="primary"
                     onClick={handleSalvarHistorico}
                     className="w-auto flex items-center gap-1.5 px-4 py-2 text-xs"
                   >
-                    Salvar Histórico
+                    Salvar
                   </Button>
                 </div>
               </Card>
@@ -799,6 +1147,13 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
         onClose={() => setIsGarantiaDrawerOpen(false)}
         onSave={handleSaveGarantia}
         editingGarantia={editingGarantia}
+      />
+
+      <DividaPfDrawer
+        isOpen={isDividaDrawerOpen}
+        onClose={() => setIsDividaDrawerOpen(false)}
+        onSave={handleSaveDivida}
+        editingDivida={editingDivida}
       />
 
       <PerfilGrupoDrawer

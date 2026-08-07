@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Menu, Image as ImageIcon } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { ActiveTab } from '../types';
 import { navEntriesById } from '../lib/nav';
 import { useAppShell } from '../lib/app-shell-context';
@@ -12,7 +12,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ tab, actions }) => {
-  const { openMobileSidebar, openImageModal } = useAppShell();
+  const { openMobileSidebar } = useAppShell();
   const entry = navEntriesById.get(tab);
   const Icon = entry?.icon ?? Menu;
 
@@ -43,17 +43,6 @@ export const Header: React.FC<HeaderProps> = ({ tab, actions }) => {
 
       {/* Action Buttons */}
       <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
-        {/* HTML Image Links Generator Trigger */}
-        <button
-          onClick={() => openImageModal()}
-          className="flex items-center gap-2 px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs md:text-sm font-medium shadow-xs transition hover:border-slate-400"
-          title="Gerar e copiar links diretos de imagens para HTML"
-        >
-          <ImageIcon className="w-4 h-4 text-emerald-600" />
-          <span className="hidden sm:inline">Links de Imagens HTML</span>
-          <span className="sm:hidden">Links HTML</span>
-        </button>
-
         {actions}
       </div>
     </header>

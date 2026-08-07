@@ -30,6 +30,10 @@ export async function savePerfilGrupo(input: Partial<PerfilGrupoEconomico>): Pro
       consultorResponsavel: parsed.consultorResponsavel || null
     }),
     ...(parsed.historico !== undefined && { historico: parsed.historico || null }),
+    ...(parsed.sucessao !== undefined && { sucessao: parsed.sucessao || null }),
+    ...(parsed.modusOperandiAgricultura !== undefined && { modusOperandiAgricultura: parsed.modusOperandiAgricultura || null }),
+    ...(parsed.modusOperandiPecuaria !== undefined && { modusOperandiPecuaria: parsed.modusOperandiPecuaria || null }),
+    ...(parsed.empresasColigadas !== undefined && { empresasColigadas: parsed.empresasColigadas || null }),
     updatedById: ctx.user.id
   };
 
@@ -51,6 +55,10 @@ function toPerfilGrupoDTO(row: {
   sede: string | null;
   consultorResponsavel: string | null;
   historico: string | null;
+  sucessao: string | null;
+  modusOperandiAgricultura: string | null;
+  modusOperandiPecuaria: string | null;
+  empresasColigadas: string | null;
 }): PerfilGrupoEconomico {
   return {
     email: row.email ?? undefined,
@@ -59,6 +67,10 @@ function toPerfilGrupoDTO(row: {
     fundacao: row.fundacao ? row.fundacao.toISOString().slice(0, 10) : undefined,
     sede: row.sede ?? undefined,
     consultorResponsavel: row.consultorResponsavel ?? undefined,
-    historico: row.historico ?? undefined
+    historico: row.historico ?? undefined,
+    sucessao: row.sucessao ?? undefined,
+    modusOperandiAgricultura: row.modusOperandiAgricultura ?? undefined,
+    modusOperandiPecuaria: row.modusOperandiPecuaria ?? undefined,
+    empresasColigadas: row.empresasColigadas ?? undefined
   };
 }

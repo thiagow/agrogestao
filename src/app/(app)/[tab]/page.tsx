@@ -6,6 +6,7 @@ import { listSuppliers } from '@/server/suppliers';
 import { listSocios } from '@/server/socios';
 import { listBensDireitos } from '@/server/bens-direitos';
 import { listGarantias } from '@/server/garantias';
+import { listDividasPf } from '@/server/dividas-pf';
 import { listCapex } from '@/server/capex';
 import { getPerfilGrupo } from '@/server/perfil-grupo';
 import { listQuadroSafra } from '@/server/quadro-safra';
@@ -39,6 +40,7 @@ export default async function TabPage({ params }: TabPageProps) {
     initialSocios,
     initialBensDireitos,
     initialGarantias,
+    initialDividasPf,
     initialCapex,
     initialPerfilGrupo,
     initialCulturaSafras,
@@ -51,6 +53,7 @@ export default async function TabPage({ params }: TabPageProps) {
     listSocios(),
     listBensDireitos(),
     listGarantias(),
+    listDividasPf(),
     listCapex(),
     getPerfilGrupo(),
     listQuadroSafra(),
@@ -72,6 +75,7 @@ export default async function TabPage({ params }: TabPageProps) {
       initialSocios={initialSocios}
       initialBensDireitos={initialBensDireitos}
       initialGarantias={initialGarantias}
+      initialDividasPf={initialDividasPf}
       initialCapex={initialCapex}
       initialPerfilGrupo={initialPerfilGrupo}
       contaNome={ctx.conta.nome}

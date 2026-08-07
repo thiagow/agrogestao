@@ -4,7 +4,18 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requireContext } from '@/lib/session';
 import { contratoBancarioSchema } from '@/lib/validation';
-import { TIPO_TAXA_TO_DB, TIPO_TAXA_FROM_DB, PERIODICIDADE_TO_DB, PERIODICIDADE_FROM_DB } from '@/lib/enum-maps';
+import {
+  TIPO_TAXA_TO_DB,
+  TIPO_TAXA_FROM_DB,
+  TIPO_OPERACAO_TO_DB,
+  TIPO_OPERACAO_FROM_DB,
+  BASE_CALCULO_TO_DB,
+  BASE_CALCULO_FROM_DB,
+  TIPO_CAPITALIZACAO_TO_DB,
+  TIPO_CAPITALIZACAO_FROM_DB,
+  PERIODICIDADE_TO_DB,
+  PERIODICIDADE_FROM_DB
+} from '@/lib/enum-maps';
 import { gerarCronograma } from '@/lib/amortizacao';
 import type { ContratoBancario } from '@/types';
 
@@ -46,17 +57,26 @@ export async function listParcelas(contratoId: string) {
 interface SaveContratoInput {
   id?: string;
   banco: string;
-  tipoContrato: ContratoBancario['tipoContrato'];
+  nomeTomador?: string;
+  numeroContrato?: string;
+  tipoOperacao: ContratoBancario['tipoOperacao'];
+  safraVinculadaId?: string;
+  culturaVinculadaId?: string;
   saldoInicial: number;
   saldoAtual: number;
   taxaJuros: number;
   tipoTaxa: ContratoBancario['tipoTaxa'];
   taxaAdicional?: number;
+  baseCalculo: ContratoBancario['baseCalculo'];
+  capitalizacao: ContratoBancario['capitalizacao'];
   dataContratacao: string;
+  inicioPagamento?: string;
   dataVencimento: string;
   sistemaAmortizacao: ContratoBancario['sistemaAmortizacao'];
   periodicidade: ContratoBancario['periodicidade'];
-  finalidade: ContratoBancario['finalidade'];
+  possuiCarencia: boolean;
+  tipoGarantia?: string;
+  valorGarantia?: number;
   moeda: ContratoBancario['moeda'];
   observacoes?: string;
 }
@@ -66,20 +86,33 @@ export async function saveContratoBancario(input: SaveContratoInput): Promise<Co
   if (!ctx.propriedade) throw new Error('Nenhuma propriedade selecionada.');
 
   const parsed = contratoBancarioSchema.parse(input);
+  // "Início de Pagamento" é persistido sempre que preenchido — a checkbox "Possui
+  // carência?" só decide se ele entra no cálculo do cronograma (temCarencia), não se
+  // o campo é salvo. Desmarcar a caixa não deve apagar a data silenciosamente.
+  const temCarencia = parsed.possuiCarencia && !!parsed.inicioPagamento;
 
   const data = {
     banco: parsed.banco,
-    tipoContrato: parsed.tipoContrato,
+    nomeTomador: parsed.nomeTomador || null,
+    numeroContrato: parsed.numeroContrato || null,
+    tipoOperacao: TIPO_OPERACAO_TO_DB[parsed.tipoOperacao],
+    safraVinculadaId: parsed.safraVinculadaId || null,
+    culturaVinculadaId: parsed.culturaVinculadaId || null,
     saldoInicial: parsed.saldoInicial,
     saldoAtual: parsed.saldoAtual,
     taxaJuros: parsed.taxaJuros,
     tipoTaxa: TIPO_TAXA_TO_DB[parsed.tipoTaxa],
-    taxaAdicional: parsed.tipoTaxa === 'CDI' ? parsed.taxaAdicional ?? 0 : null,
+    taxaAdicional: parsed.tipoTaxa !== 'Pré-fixado (% a.a.)' ? parsed.taxaAdicional ?? 0 : null,
+    baseCalculo: BASE_CALCULO_TO_DB[parsed.baseCalculo],
+    capitalizacao: TIPO_CAPITALIZACAO_TO_DB[parsed.capitalizacao],
     dataContratacao: new Date(parsed.dataContratacao),
+    inicioPagamento: parsed.inicioPagamento ? new Date(parsed.inicioPagamento) : null,
     dataVencimento: new Date(parsed.dataVencimento),
     sistemaAmortizacao: parsed.sistemaAmortizacao,
     periodicidade: PERIODICIDADE_TO_DB[parsed.periodicidade],
-    finalidade: parsed.finalidade,
+    possuiCarencia: parsed.possuiCarencia,
+    tipoGarantia: parsed.tipoGarantia || null,
+    valorGarantia: parsed.valorGarantia ?? null,
     moeda: parsed.moeda,
     observacoes: parsed.observacoes || null
   };
@@ -100,8 +133,12 @@ export async function saveContratoBancario(input: SaveContratoInput): Promise<Co
     taxaJurosAnual: parsed.taxaJuros,
     sistemaAmortizacao: parsed.sistemaAmortizacao,
     periodicidade: parsed.periodicidade,
+    baseCalculo: parsed.baseCalculo,
+    capitalizacao: parsed.capitalizacao,
     dataContratacao: parsed.dataContratacao,
-    dataVencimento: parsed.dataVencimento
+    dataVencimento: parsed.dataVencimento,
+    possuiCarencia: temCarencia,
+    inicioPagamento: temCarencia ? (parsed.inicioPagamento as string) : undefined
   });
 
   await db.parcela.deleteMany({ where: { contratoId: row.id } });
@@ -140,17 +177,26 @@ export async function deleteContratoBancario(id: string) {
 type ContratoRow = {
   id: string;
   banco: string;
-  tipoContrato: string;
+  nomeTomador: string | null;
+  numeroContrato: string | null;
+  tipoOperacao: string;
+  safraVinculadaId: string | null;
+  culturaVinculadaId: string | null;
   saldoInicial: unknown;
   saldoAtual: unknown;
   taxaJuros: unknown;
   tipoTaxa: string;
   taxaAdicional: unknown;
+  baseCalculo: string;
+  capitalizacao: string;
   dataContratacao: Date;
+  inicioPagamento: Date | null;
   dataVencimento: Date;
   sistemaAmortizacao: string;
   periodicidade: string;
-  finalidade: string;
+  possuiCarencia: boolean;
+  tipoGarantia: string | null;
+  valorGarantia: unknown;
   moeda: string;
   observacoes: string | null;
 };
@@ -159,17 +205,26 @@ function toContratoDTO(row: ContratoRow): ContratoBancario {
   return {
     id: row.id,
     banco: row.banco,
-    tipoContrato: row.tipoContrato as ContratoBancario['tipoContrato'],
+    nomeTomador: row.nomeTomador ?? undefined,
+    numeroContrato: row.numeroContrato ?? undefined,
+    tipoOperacao: TIPO_OPERACAO_FROM_DB[row.tipoOperacao as keyof typeof TIPO_OPERACAO_FROM_DB],
+    safraVinculadaId: row.safraVinculadaId ?? undefined,
+    culturaVinculadaId: row.culturaVinculadaId ?? undefined,
     saldoInicial: Number(row.saldoInicial),
     saldoAtual: Number(row.saldoAtual),
     taxaJuros: Number(row.taxaJuros),
     tipoTaxa: TIPO_TAXA_FROM_DB[row.tipoTaxa as keyof typeof TIPO_TAXA_FROM_DB],
     taxaAdicional: row.taxaAdicional != null ? Number(row.taxaAdicional) : undefined,
+    baseCalculo: BASE_CALCULO_FROM_DB[row.baseCalculo as keyof typeof BASE_CALCULO_FROM_DB],
+    capitalizacao: TIPO_CAPITALIZACAO_FROM_DB[row.capitalizacao as keyof typeof TIPO_CAPITALIZACAO_FROM_DB],
     dataContratacao: row.dataContratacao.toISOString().slice(0, 10),
+    inicioPagamento: row.inicioPagamento ? row.inicioPagamento.toISOString().slice(0, 10) : undefined,
     dataVencimento: row.dataVencimento.toISOString().slice(0, 10),
     sistemaAmortizacao: row.sistemaAmortizacao as ContratoBancario['sistemaAmortizacao'],
     periodicidade: PERIODICIDADE_FROM_DB[row.periodicidade as keyof typeof PERIODICIDADE_FROM_DB],
-    finalidade: row.finalidade as ContratoBancario['finalidade'],
+    possuiCarencia: row.possuiCarencia,
+    tipoGarantia: row.tipoGarantia ?? undefined,
+    valorGarantia: row.valorGarantia != null ? Number(row.valorGarantia) : undefined,
     moeda: row.moeda as ContratoBancario['moeda'],
     observacoes: row.observacoes ?? undefined
   };

@@ -73,6 +73,15 @@ export const garantiaSchema = z.object({
   observacoes: z.string().trim().optional().or(z.literal(''))
 });
 
+export const dividaPfSchema = z.object({
+  tipoDivida: z.string().trim().min(1, 'Informe o tipo de dívida'),
+  credor: z.string().trim().optional().or(z.literal('')),
+  saldoDevedor: z.coerce.number().nonnegative('Valor não pode ser negativo'),
+  parcelaMensal: z.coerce.number().nonnegative('Valor não pode ser negativo').optional(),
+  vencimentoFinal: z.string().trim().optional().or(z.literal('')),
+  observacoes: z.string().trim().optional().or(z.literal(''))
+});
+
 export const capexSchema = z.object({
   descricao: z.string().trim().min(2, 'Informe a descrição'),
   tipo: z.string().trim().min(1, 'Informe o tipo'),
@@ -91,7 +100,11 @@ export const perfilGrupoSchema = z.object({
   fundacao: z.string().trim().optional().or(z.literal('')),
   sede: z.string().trim().optional().or(z.literal('')),
   consultorResponsavel: z.string().trim().optional().or(z.literal('')),
-  historico: z.string().trim().optional().or(z.literal(''))
+  historico: z.string().trim().optional().or(z.literal('')),
+  sucessao: z.string().trim().optional().or(z.literal('')),
+  modusOperandiAgricultura: z.string().trim().optional().or(z.literal('')),
+  modusOperandiPecuaria: z.string().trim().optional().or(z.literal('')),
+  empresasColigadas: z.string().trim().optional().or(z.literal(''))
 });
 
 export const compraFornecedorSchema = z.object({
@@ -130,17 +143,39 @@ export const quadroSafraSchema = z.object({
 
 export const contratoBancarioSchema = z.object({
   banco: z.string().trim().min(1, 'Informe o banco/credor'),
-  tipoContrato: z.enum(['CUSTEO', 'CPR', 'FINANCIAMENTO', 'CREDIARIO']),
+  nomeTomador: z.string().trim().optional().or(z.literal('')),
+  numeroContrato: z.string().trim().optional().or(z.literal('')),
+  tipoOperacao: z.enum([
+    'CUSTEIO AGRICOLA',
+    'CUSTEIO PECUARIO',
+    'INVESTIMENTO',
+    'CAPITAL DE GIRO',
+    'CPR',
+    'BARTER',
+    'PRONAF',
+    'PRONAMP',
+    'FCO',
+    'FNO',
+    'FINAME',
+    'OUTROS'
+  ]),
+  safraVinculadaId: z.string().trim().optional().or(z.literal('')),
+  culturaVinculadaId: z.string().trim().optional().or(z.literal('')),
   saldoInicial: z.coerce.number().nonnegative(),
   saldoAtual: z.coerce.number().nonnegative(),
   taxaJuros: z.coerce.number().nonnegative(),
-  tipoTaxa: z.enum(['CDI', 'PRIME', 'PRÉ', 'FLUTUANTE']),
+  tipoTaxa: z.enum(['Pré-fixado (% a.a.)', 'CDI + spread', 'IPCA + spread', 'Dólar + juros']),
   taxaAdicional: z.coerce.number().nonnegative().optional(),
+  baseCalculo: z.enum(['252 dias úteis', '360 dias corridos', '365 dias corridos']).default('360 dias corridos'),
+  capitalizacao: z.enum(['Composta', 'Simples']).default('Composta'),
   dataContratacao: z.string().min(1, 'Informe a data de contratação'),
+  inicioPagamento: z.string().trim().optional().or(z.literal('')),
   dataVencimento: z.string().min(1, 'Informe o vencimento'),
-  sistemaAmortizacao: z.enum(['SAC', 'PRICE', 'BULLET']),
+  sistemaAmortizacao: z.enum(['SAC', 'PRICE', 'BULLET', 'JUROS_PERIODICOS']),
   periodicidade: z.enum(['Mensal', 'Trimestral', 'Semestral', 'Anual']),
-  finalidade: z.enum(['CUSTEIO', 'INVESTIMENTO', 'CAPITAL_GIRO']),
+  possuiCarencia: z.coerce.boolean().default(false),
+  tipoGarantia: z.string().trim().optional().or(z.literal('')),
+  valorGarantia: z.coerce.number().nonnegative('Valor não pode ser negativo').optional(),
   moeda: z.enum(['BRL', 'USD']),
   observacoes: z.string().trim().optional().or(z.literal(''))
 });
@@ -209,5 +244,6 @@ export type SocioInput = z.infer<typeof socioSchema>;
 export type SupplierInput = z.infer<typeof supplierSchema>;
 export type BemDireitoInput = z.infer<typeof bemDireitoSchema>;
 export type GarantiaInput = z.infer<typeof garantiaSchema>;
+export type DividaPfInput = z.infer<typeof dividaPfSchema>;
 export type CapexInput = z.infer<typeof capexSchema>;
 export type PerfilGrupoInput = z.infer<typeof perfilGrupoSchema>;

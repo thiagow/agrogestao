@@ -11,7 +11,10 @@ import type {
   PeriodicidadePagamento,
   PeriodicidadeArrendamento,
   GrupoIrpfBem,
-  LiquidezBem
+  LiquidezBem,
+  TipoOperacaoBancaria,
+  BaseCalculoJuros,
+  TipoCapitalizacao
 } from '@/types';
 import {
   Category as PrismaCategory,
@@ -20,7 +23,10 @@ import {
   PeriodicidadePagamento as PrismaPeriodicidadePagamento,
   PeriodicidadeArrendamento as PrismaPeriodicidadeArrendamento,
   GrupoIrpfBem as PrismaGrupoIrpfBem,
-  LiquidezBem as PrismaLiquidezBem
+  LiquidezBem as PrismaLiquidezBem,
+  TipoOperacaoBancaria as PrismaTipoOperacaoBancaria,
+  BaseCalculoJuros as PrismaBaseCalculoJuros,
+  TipoCapitalizacao as PrismaTipoCapitalizacao
 } from '@prisma/client';
 
 export const CATEGORY_TO_DB: Record<Category, PrismaCategory> = {
@@ -60,17 +66,69 @@ export const ESTADO_CIVIL_FROM_DB: Record<PrismaEstadoCivil, EstadoCivil> = {
 };
 
 export const TIPO_TAXA_TO_DB: Record<TipoTaxaBancaria, PrismaTipoTaxaBancaria> = {
-  CDI: PrismaTipoTaxaBancaria.CDI,
-  PRIME: PrismaTipoTaxaBancaria.PRIME,
-  PRÉ: PrismaTipoTaxaBancaria.PRE,
-  FLUTUANTE: PrismaTipoTaxaBancaria.FLUTUANTE
+  'Pré-fixado (% a.a.)': PrismaTipoTaxaBancaria.PRE_FIXADO,
+  'CDI + spread': PrismaTipoTaxaBancaria.CDI_SPREAD,
+  'IPCA + spread': PrismaTipoTaxaBancaria.IPCA_SPREAD,
+  'Dólar + juros': PrismaTipoTaxaBancaria.DOLAR_JUROS
 };
 
 export const TIPO_TAXA_FROM_DB: Record<PrismaTipoTaxaBancaria, TipoTaxaBancaria> = {
-  CDI: 'CDI',
-  PRIME: 'PRIME',
-  PRE: 'PRÉ',
-  FLUTUANTE: 'FLUTUANTE'
+  PRE_FIXADO: 'Pré-fixado (% a.a.)',
+  CDI_SPREAD: 'CDI + spread',
+  IPCA_SPREAD: 'IPCA + spread',
+  DOLAR_JUROS: 'Dólar + juros'
+};
+
+export const TIPO_OPERACAO_TO_DB: Record<TipoOperacaoBancaria, PrismaTipoOperacaoBancaria> = {
+  'CUSTEIO AGRICOLA': PrismaTipoOperacaoBancaria.CUSTEIO_AGRICOLA,
+  'CUSTEIO PECUARIO': PrismaTipoOperacaoBancaria.CUSTEIO_PECUARIO,
+  INVESTIMENTO: PrismaTipoOperacaoBancaria.INVESTIMENTO,
+  'CAPITAL DE GIRO': PrismaTipoOperacaoBancaria.CAPITAL_DE_GIRO,
+  CPR: PrismaTipoOperacaoBancaria.CPR,
+  BARTER: PrismaTipoOperacaoBancaria.BARTER,
+  PRONAF: PrismaTipoOperacaoBancaria.PRONAF,
+  PRONAMP: PrismaTipoOperacaoBancaria.PRONAMP,
+  FCO: PrismaTipoOperacaoBancaria.FCO,
+  FNO: PrismaTipoOperacaoBancaria.FNO,
+  FINAME: PrismaTipoOperacaoBancaria.FINAME,
+  OUTROS: PrismaTipoOperacaoBancaria.OUTROS
+};
+
+export const TIPO_OPERACAO_FROM_DB: Record<PrismaTipoOperacaoBancaria, TipoOperacaoBancaria> = {
+  CUSTEIO_AGRICOLA: 'CUSTEIO AGRICOLA',
+  CUSTEIO_PECUARIO: 'CUSTEIO PECUARIO',
+  INVESTIMENTO: 'INVESTIMENTO',
+  CAPITAL_DE_GIRO: 'CAPITAL DE GIRO',
+  CPR: 'CPR',
+  BARTER: 'BARTER',
+  PRONAF: 'PRONAF',
+  PRONAMP: 'PRONAMP',
+  FCO: 'FCO',
+  FNO: 'FNO',
+  FINAME: 'FINAME',
+  OUTROS: 'OUTROS'
+};
+
+export const BASE_CALCULO_TO_DB: Record<BaseCalculoJuros, PrismaBaseCalculoJuros> = {
+  '252 dias úteis': PrismaBaseCalculoJuros.DIAS_UTEIS_252,
+  '360 dias corridos': PrismaBaseCalculoJuros.DIAS_CORRIDOS_360,
+  '365 dias corridos': PrismaBaseCalculoJuros.DIAS_CORRIDOS_365
+};
+
+export const BASE_CALCULO_FROM_DB: Record<PrismaBaseCalculoJuros, BaseCalculoJuros> = {
+  DIAS_UTEIS_252: '252 dias úteis',
+  DIAS_CORRIDOS_360: '360 dias corridos',
+  DIAS_CORRIDOS_365: '365 dias corridos'
+};
+
+export const TIPO_CAPITALIZACAO_TO_DB: Record<TipoCapitalizacao, PrismaTipoCapitalizacao> = {
+  Simples: PrismaTipoCapitalizacao.SIMPLES,
+  Composta: PrismaTipoCapitalizacao.COMPOSTA
+};
+
+export const TIPO_CAPITALIZACAO_FROM_DB: Record<PrismaTipoCapitalizacao, TipoCapitalizacao> = {
+  SIMPLES: 'Simples',
+  COMPOSTA: 'Composta'
 };
 
 export const PERIODICIDADE_TO_DB: Record<PeriodicidadePagamento, PrismaPeriodicidadePagamento> = {

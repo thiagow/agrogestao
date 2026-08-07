@@ -8,6 +8,7 @@ import {
   Socio,
   BemDireito,
   Garantia,
+  DividaPf,
   Capex,
   PerfilGrupoEconomico,
   CulturaSafraAno,
@@ -58,6 +59,7 @@ interface TabViewProps {
   initialSocios?: Socio[];
   initialBensDireitos?: BemDireito[];
   initialGarantias?: Garantia[];
+  initialDividasPf?: DividaPf[];
   initialCapex?: Capex[];
   initialPerfilGrupo?: PerfilGrupoEconomico | null;
   contaNome?: string;
@@ -80,6 +82,7 @@ export const TabView: React.FC<TabViewProps> = ({
   initialSocios = [],
   initialBensDireitos = [],
   initialGarantias = [],
+  initialDividasPf = [],
   initialCapex = [],
   initialPerfilGrupo = null,
   contaNome,
@@ -196,17 +199,26 @@ export const TabView: React.FC<TabViewProps> = ({
       const saved = await saveContratoBancario({
         id: data.id,
         banco: data.banco || '',
-        tipoContrato: data.tipoContrato || 'CUSTEO',
+        nomeTomador: data.nomeTomador,
+        numeroContrato: data.numeroContrato,
+        tipoOperacao: data.tipoOperacao || 'CUSTEIO AGRICOLA',
+        safraVinculadaId: data.safraVinculadaId,
+        culturaVinculadaId: data.culturaVinculadaId,
         saldoInicial: data.saldoInicial || 0,
         saldoAtual: data.saldoAtual || data.saldoInicial || 0,
         taxaJuros: data.taxaJuros || 0,
-        tipoTaxa: data.tipoTaxa || 'CDI',
+        tipoTaxa: data.tipoTaxa || 'Pré-fixado (% a.a.)',
         taxaAdicional: data.taxaAdicional,
+        baseCalculo: data.baseCalculo || '360 dias corridos',
+        capitalizacao: data.capitalizacao || 'Composta',
         dataContratacao: data.dataContratacao || new Date().toISOString().split('T')[0],
+        inicioPagamento: data.inicioPagamento,
         dataVencimento: data.dataVencimento || new Date().toISOString().split('T')[0],
         sistemaAmortizacao: data.sistemaAmortizacao || 'SAC',
         periodicidade: data.periodicidade || 'Mensal',
-        finalidade: data.finalidade || 'CUSTEIO',
+        possuiCarencia: data.possuiCarencia || false,
+        tipoGarantia: data.tipoGarantia,
+        valorGarantia: data.valorGarantia,
         moeda: data.moeda || 'BRL',
         observacoes: data.observacoes
       });
@@ -382,6 +394,7 @@ export const TabView: React.FC<TabViewProps> = ({
           initialSocios={initialSocios}
           initialBensDireitos={initialBensDireitos}
           initialGarantias={initialGarantias}
+          initialDividasPf={initialDividasPf}
           initialCapex={initialCapex}
           initialPerfilGrupo={initialPerfilGrupo}
           contaNome={contaNome}

@@ -204,7 +204,8 @@ export const BancosView: React.FC<BancosViewProps> = ({ contratos, onSave, onDel
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] uppercase tracking-wider text-slate-600 font-bold">
                       <th className="py-3 px-4">Banco/Credor</th>
-                      <th className="py-3 px-4">Tipo</th>
+                      <th className="py-3 px-4">Tomador</th>
+                      <th className="py-3 px-4">Tipo de Operação</th>
                       <th className="py-3 px-4">Saldo</th>
                       <th className="py-3 px-4">Taxa</th>
                       <th className="py-3 px-4">Tipo de Taxa</th>
@@ -218,8 +219,9 @@ export const BancosView: React.FC<BancosViewProps> = ({ contratos, onSave, onDel
                     {contratos.map((c) => (
                       <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
                         <td className="py-3 px-4 font-bold text-slate-900">{c.banco}</td>
+                        <td className="py-3 px-4 text-slate-600">{c.nomeTomador || '—'}</td>
                         <td className="py-3 px-4">
-                          <Badge tone="slate">{c.tipoContrato}</Badge>
+                          <Badge tone="slate">{c.tipoOperacao}</Badge>
                         </td>
                         <td className="py-3 px-4 font-extrabold text-slate-900">{formatCurrency(c.saldoAtual)}</td>
                         <td className="py-3 px-4 font-medium text-slate-700">{c.taxaJuros.toFixed(2)}% a.a.</td>
