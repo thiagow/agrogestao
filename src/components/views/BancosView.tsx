@@ -92,6 +92,91 @@ const CronogramaTab: React.FC<{ contratos: ContratoBancario[] }> = ({ contratos 
   );
 };
 
+interface CredorGroup {
+  banco: string;
+  saldoAtualTotal: number;
+  saldoInicialTotal: number;
+  qtdContratos: number;
+  tipos: string[];
+  percentual: number;
+}
+
+const PorCredorTab: React.FC<{ contratos: ContratoBancario[] }> = ({ contratos }) => {
+  if (contratos.length === 0) {
+    return (
+      <div className="py-16 text-center text-slate-400">
+        <p className="text-sm font-semibold">Por Credor</p>
+        <p className="text-xs mt-1">Cadastre um contrato para ver o ranking de credores.</p>
+      </div>
+    );
+  }
+
+  // Agrupar contratos por banco
+  const creditoresMap = new Map<string, ContratoBancario[]>();
+  contratos.forEach((c) => {
+    const grupo = creditoresMap.get(c.banco) ?? [];
+    creditoresMap.set(c.banco, [...grupo, c]);
+  });
+
+  // Calcular totais gerais
+  const saldoGeralTotal = contratos.reduce((sum, c) => sum + c.saldoAtual, 0);
+
+  // Montar dados de cada credor
+  const credores: CredorGroup[] = Array.from(creditoresMap.entries())
+    .map(([banco, contratosBanco]) => {
+      const saldoAtualTotal = contratosBanco.reduce((sum, c) => sum + c.saldoAtual, 0);
+      const saldoInicialTotal = contratosBanco.reduce((sum, c) => sum + c.saldoInicial, 0);
+      const tipos = Array.from(new Set(contratosBanco.map((c) => c.tipoOperacao)));
+      const percentual = saldoGeralTotal > 0 ? (saldoAtualTotal / saldoGeralTotal) * 100 : 0;
+
+      return {
+        banco,
+        saldoAtualTotal,
+        saldoInicialTotal,
+        qtdContratos: contratosBanco.length,
+        tipos,
+        percentual
+      };
+    })
+    .sort((a, b) => b.saldoAtualTotal - a.saldoAtualTotal);
+
+  return (
+    <div className="space-y-3">
+      {credores.map((credor) => (
+        <Card key={credor.banco} className="p-5">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <p className="font-bold text-slate-900">{credor.banco}</p>
+              <p className="text-xs text-slate-600 mt-0.5">
+                {credor.qtdContratos} contrato{credor.qtdContratos !== 1 ? 's' : ''} ·{' '}
+                {credor.tipos.join(', ')}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="font-bold text-rose-800">{formatCurrency(credor.saldoAtualTotal)}</p>
+              <p className="text-xs text-slate-600 mt-0.5">{credor.percentual.toFixed(1)}% do total</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
+              <div
+                className="bg-rose-600 rounded-full h-full transition-all duration-300"
+                style={{ width: `${credor.percentual}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-xs text-slate-600">
+            <span>Contratado: {formatCurrency(credor.saldoInicialTotal)}</span>
+            <span>Participação: {credor.percentual.toFixed(1)}%</span>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+};
+
 interface BancosViewProps {
   contratos: ContratoBancario[];
   onSave: (data: Partial<ContratoBancario>) => void;
@@ -186,13 +271,14 @@ export const BancosView: React.FC<BancosViewProps> = ({ contratos, onSave, onDel
               return <CronogramaTab contratos={contratos} />;
             }
 
+            if (activeTabId === 'credor') {
+              return <PorCredorTab contratos={contratos} />;
+            }
+
             if (activeTabId !== 'contratos') {
               return (
                 <div className="py-16 text-center text-slate-400">
-                  <p className="text-sm font-semibold">
-                    {activeTabId === 'credor' && 'Por Credor'}
-                    {activeTabId === 'fluxo' && 'Fluxo Detalhado'}
-                  </p>
+                  <p className="text-sm font-semibold">Fluxo Detalhado</p>
                   <p className="text-xs mt-1">Em construção — aguardando especificação detalhada desta aba.</p>
                 </div>
               );
