@@ -1,5 +1,5 @@
 // Seed idempotente — ver docs/PLANO_BACKEND_FASE1.md.
-// `npm run db:seed`         → superadmin + catálogo global de culturas
+// `npm run db:seed`         → superadmin + catálogo global de culturas + índices de mercado
 // `npm run db:seed -- --demo` → também cria a conta "Grupo Pereira" com os mocks de initialData.ts
 
 import { auth } from '../src/lib/auth';
@@ -47,6 +47,42 @@ async function seedCulturasGlobais() {
     }
   }
   console.log(`✔ Catálogo global de culturas (${CULTURA_BASES.length})`);
+}
+
+// Índices de mercado (CDI/IPCA/dólar) — ambiente novo não pode nascer sem eles,
+// senão todo contrato indexado é projetado só com o spread. Fail-soft: se as
+// fontes estiverem fora do ar, o seed segue e o usuário atualiza pela UI.
+async function seedIndices() {
+  const { fetchSerieBcb, fetchDolarBRL, SERIE_BCB } = await import('../src/lib/market-data');
+
+  const fontes = [
+    { tipo: 'CDI' as const, unidade: '% a.a.', fonte: `BCB SGS ${SERIE_BCB.CDI}`, buscar: () => fetchSerieBcb(SERIE_BCB.CDI) },
+    { tipo: 'IPCA' as const, unidade: '% a.a.', fonte: `BCB SGS ${SERIE_BCB.IPCA}`, buscar: () => fetchSerieBcb(SERIE_BCB.IPCA) },
+    {
+      tipo: 'USD' as const,
+      unidade: 'BRL/USD',
+      fonte: 'AwesomeAPI USD-BRL',
+      buscar: async () => {
+        const d = await fetchDolarBRL();
+        return d ? { valor: d.precoBrl, dataReferencia: new Date().toISOString().slice(0, 10) } : null;
+      }
+    }
+  ];
+
+  for (const f of fontes) {
+    const r = await f.buscar();
+    if (!r) {
+      console.log(`⚠️  ${f.tipo} indisponível na fonte — atualize pela aba Cronograma de Bancos.`);
+      continue;
+    }
+    const dados = { valor: r.valor, unidade: f.unidade, fonte: f.fonte, dataReferencia: new Date(r.dataReferencia) };
+    await db.indiceMercado.upsert({
+      where: { tipo: f.tipo },
+      update: { ...dados, atualizadoEm: new Date() },
+      create: { tipo: f.tipo, ...dados }
+    });
+    console.log(`✔ ${f.tipo}: ${r.valor} (${r.dataReferencia})`);
+  }
 }
 
 async function seedDemo() {
@@ -120,6 +156,7 @@ async function seedDemo() {
 async function main() {
   await seedSuperadmin();
   await seedCulturasGlobais();
+  await seedIndices();
 
   if (process.argv.includes('--demo')) {
     await seedDemo();

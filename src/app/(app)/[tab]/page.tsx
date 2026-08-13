@@ -11,7 +11,8 @@ import { listCapex } from '@/server/capex';
 import { getPerfilGrupo } from '@/server/perfil-grupo';
 import { listQuadroSafra } from '@/server/quadro-safra';
 import { listLancamentosMensais } from '@/server/lancamentos';
-import { listContratosBancarios } from '@/server/contratos-bancarios';
+import { listContratosBancarios, listCronogramaConsolidado } from '@/server/contratos-bancarios';
+import { listIndices } from '@/server/indices';
 import { listAquisicoes } from '@/server/aquisicoes';
 import { listArrendamentos } from '@/server/arrendamentos';
 import { listContratosComerciais } from '@/server/contratos-comerciais';
@@ -67,6 +68,8 @@ export default async function TabPage({ params }: TabPageProps) {
   const initialLancamentosMensais = tab === 'fluxo_mensal' ? await listLancamentosMensais() : undefined;
   const initialBalanco = tab === 'analise_financeira' ? await getBalancoAtual() : undefined;
   const cotacoes = tab === 'cotacoes' ? await listCotacoes() : undefined;
+  const [cronogramaConsolidado, indices] =
+    tab === 'bancos' ? await Promise.all([listCronogramaConsolidado(), listIndices()]) : [undefined, undefined];
 
   return (
     <TabView
@@ -84,6 +87,8 @@ export default async function TabPage({ params }: TabPageProps) {
       initialCulturaSafras={initialCulturaSafras}
       initialLancamentosMensais={initialLancamentosMensais}
       initialContratosBancarios={initialContratosBancarios}
+      cronogramaConsolidado={cronogramaConsolidado}
+      indices={indices}
       initialAquisicoes={initialAquisicoes}
       initialArrendamentos={initialArrendamentos}
       initialContratosComerciais={initialContratosComerciais}

@@ -10,6 +10,16 @@
 // feriados no projeto. Isso é suficiente para refletir a diferença entre as 3
 // convenções de Base de Cálculo e as 2 de Capitalização de forma real no valor do
 // cronograma, mas não substitui um cálculo bancário exato dia a dia.
+//
+// Fechamento ao centavo (garantido por amortizacao.test.ts): o saldo é mantido
+// arredondado a cada período e a última parcela liquida o remanescente, de modo
+// que a soma dos principais bate exatamente com o valor contratado, o saldo
+// final é exatamente zero e `valorTotal === valorPrincipal + valorJuros` em toda
+// parcela. Antes desta revisão o cronograma acumulava resíduo de arredondamento
+// e não reconciliava com o contrato.
+//
+// A taxa recebida em `taxaJurosAnual` é a taxa EFETIVA — indexador e spread já
+// somados. Quem resolve CDI/IPCA/dólar é src/lib/taxa-efetiva.ts.
 
 export type SistemaAmortizacao = 'SAC' | 'PRICE' | 'BULLET' | 'JUROS_PERIODICOS';
 export type PeriodicidadePagamento = 'Mensal' | 'Trimestral' | 'Semestral' | 'Anual';
@@ -102,16 +112,17 @@ export function gerarCronograma(params: GerarCronogramaParams): ParcelaCalculada
     // pagamento (ou da contratação, se não houver carência) até o vencimento.
     const diasTotais = diasEntre(inicioPagto, fim);
     const taxaTotal = taxaDoPeriodo(params.taxaJurosAnual, diasTotais, params.baseCalculo, params.capitalizacao);
-    const juros = params.saldoInicial * taxaTotal;
+    const principal = round2(params.saldoInicial);
+    const juros = round2(principal * taxaTotal);
 
     return [
       ...parcelasCarencia,
       {
         numero: numeroInicial + 1,
         dataPagamento: toDateStr(fim),
-        valorPrincipal: round2(params.saldoInicial),
-        valorJuros: round2(juros),
-        valorTotal: round2(params.saldoInicial + juros),
+        valorPrincipal: principal,
+        valorJuros: juros,
+        valorTotal: round2(principal + juros),
         saldoDevedor: 0
       }
     ];
@@ -149,16 +160,17 @@ function gerarCarencia(
 
   const numPeriodos = Math.max(1, Math.round(mesesCarencia / mesesPorPeriodo));
   const parcelas: ParcelaCalculada[] = [];
+  const saldoBase = round2(saldo);
+  const juros = round2(saldoBase * taxaPeriodo);
 
   for (let i = 1; i <= numPeriodos; i++) {
-    const juros = saldo * taxaPeriodo;
     parcelas.push({
       numero: i,
       dataPagamento: toDateStr(addMonths(inicio, Math.round(i * mesesPorPeriodo))),
       valorPrincipal: 0,
-      valorJuros: round2(juros),
-      valorTotal: round2(juros),
-      saldoDevedor: round2(saldo)
+      valorJuros: juros,
+      valorTotal: juros,
+      saldoDevedor: saldoBase
     });
   }
 
@@ -174,21 +186,23 @@ function gerarSac(
   numeroInicial: number
 ): ParcelaCalculada[] {
   const amortizacaoConstante = saldoInicial / numParcelas;
-  let saldo = saldoInicial;
+  let saldo = round2(saldoInicial);
   const parcelas: ParcelaCalculada[] = [];
 
   for (let i = 1; i <= numParcelas; i++) {
-    const juros = saldo * taxaPeriodo;
-    const principal = i === numParcelas ? saldo : amortizacaoConstante;
-    saldo = Math.max(0, saldo - principal);
+    const juros = round2(saldo * taxaPeriodo);
+    // A última parcela liquida o saldo remanescente — como o saldo é mantido em
+    // centavos exatos, isso faz a soma dos principais fechar com o contratado.
+    const principal = i === numParcelas ? saldo : Math.min(round2(amortizacaoConstante), saldo);
+    saldo = round2(saldo - principal);
 
     parcelas.push({
       numero: numeroInicial + i,
       dataPagamento: toDateStr(addMonths(inicio, Math.round(i * mesesPorPeriodo))),
-      valorPrincipal: round2(principal),
-      valorJuros: round2(juros),
+      valorPrincipal: principal,
+      valorJuros: juros,
       valorTotal: round2(principal + juros),
-      saldoDevedor: round2(saldo)
+      saldoDevedor: saldo
     });
   }
 
@@ -208,21 +222,21 @@ function gerarPrice(
       ? saldoInicial / numParcelas
       : (saldoInicial * taxaPeriodo) / (1 - Math.pow(1 + taxaPeriodo, -numParcelas));
 
-  let saldo = saldoInicial;
+  let saldo = round2(saldoInicial);
   const parcelas: ParcelaCalculada[] = [];
 
   for (let i = 1; i <= numParcelas; i++) {
-    const juros = saldo * taxaPeriodo;
-    const principal = i === numParcelas ? saldo : parcelaConstante - juros;
-    saldo = Math.max(0, saldo - principal);
+    const juros = round2(saldo * taxaPeriodo);
+    const principal = i === numParcelas ? saldo : Math.min(round2(parcelaConstante - juros), saldo);
+    saldo = round2(saldo - principal);
 
     parcelas.push({
       numero: numeroInicial + i,
       dataPagamento: toDateStr(addMonths(inicio, Math.round(i * mesesPorPeriodo))),
-      valorPrincipal: round2(principal),
-      valorJuros: round2(juros),
+      valorPrincipal: principal,
+      valorJuros: juros,
       valorTotal: round2(principal + juros),
-      saldoDevedor: round2(saldo)
+      saldoDevedor: saldo
     });
   }
 
@@ -239,18 +253,19 @@ function gerarJurosPeriodicos(
   numeroInicial: number
 ): ParcelaCalculada[] {
   const parcelas: ParcelaCalculada[] = [];
+  const saldoBase = round2(saldo);
+  const juros = round2(saldoBase * taxaPeriodo);
 
   for (let i = 1; i <= numParcelas; i++) {
-    const juros = saldo * taxaPeriodo;
-    const principal = i === numParcelas ? saldo : 0;
+    const principal = i === numParcelas ? saldoBase : 0;
 
     parcelas.push({
       numero: numeroInicial + i,
       dataPagamento: toDateStr(addMonths(inicio, Math.round(i * mesesPorPeriodo))),
-      valorPrincipal: round2(principal),
-      valorJuros: round2(juros),
+      valorPrincipal: principal,
+      valorJuros: juros,
       valorTotal: round2(principal + juros),
-      saldoDevedor: round2(i === numParcelas ? 0 : saldo)
+      saldoDevedor: i === numParcelas ? 0 : saldoBase
     });
   }
 

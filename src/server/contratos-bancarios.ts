@@ -16,7 +16,7 @@ import {
   PERIODICIDADE_TO_DB,
   PERIODICIDADE_FROM_DB
 } from '@/lib/enum-maps';
-import { gerarCronograma } from '@/lib/amortizacao';
+import { carregarIndicesVigentes, regerarCronograma } from './cronograma-engine';
 import type { ContratoBancario } from '@/types';
 
 export async function listContratosBancarios(): Promise<ContratoBancario[]> {
@@ -54,6 +54,117 @@ export async function listParcelas(contratoId: string) {
   }));
 }
 
+export interface AnoCronograma {
+  ano: number;
+  juros: number;
+  amortizacao: number;
+  total: number;
+  /** Total do ano quebrado por Tipo de Operação, ordenado do maior para o menor. */
+  porTipo: { tipoOperacao: string; total: number }[];
+}
+
+export interface CronogramaConsolidado {
+  anos: AnoCronograma[];
+  totalJuros: number;
+  totalAmortizacao: number;
+  totalGeral: number;
+  /** Menor ano com parcela projetada. 0 quando não há nenhuma. */
+  anoInicial: number;
+  /** Maior ano de vencimento entre os contratos ativos — pode ser além da última parcela. */
+  anoFinal: number;
+  /** Contratos indexados cujo índice ainda não foi buscado (projeção só com o spread). */
+  contratosSemIndice: number;
+}
+
+/**
+ * Projeção consolidada de pagamentos por ano, somando todos os contratos ativos
+ * da propriedade — a tabela principal da aba "Cronograma".
+ *
+ * Uma query só: as parcelas já estão persistidas com os juros corretos (o
+ * indexador entra na geração, não na leitura), então aqui é pura agregação.
+ */
+export async function listCronogramaConsolidado(): Promise<CronogramaConsolidado> {
+  const ctx = await requireContext();
+  if (!ctx.propriedade) return vazio();
+
+  const [parcelas, contratos] = await Promise.all([
+    db.parcela.findMany({
+      where: { contrato: { propriedadeId: ctx.propriedade.id, ativo: true } },
+      select: {
+        dataPagamento: true,
+        valorPrincipal: true,
+        valorJuros: true,
+        valorTotal: true,
+        contrato: { select: { tipoOperacao: true } }
+      }
+    }),
+    db.contratoBancario.findMany({
+      where: { propriedadeId: ctx.propriedade.id, ativo: true },
+      select: { dataVencimento: true, tipoTaxa: true, indiceReferencia: true }
+    })
+  ]);
+
+  const porAno = new Map<number, { juros: number; amortizacao: number; tipos: Map<string, number> }>();
+
+  for (const p of parcelas) {
+    // getUTCFullYear: as datas são gravadas à meia-noite UTC (ver amortizacao.ts),
+    // e ler em horário local jogaria uma parcela de 1º de janeiro para o ano anterior.
+    const ano = p.dataPagamento.getUTCFullYear();
+    const acc = porAno.get(ano) ?? { juros: 0, amortizacao: 0, tipos: new Map<string, number>() };
+
+    acc.juros += Number(p.valorJuros);
+    acc.amortizacao += Number(p.valorPrincipal);
+
+    const tipo = TIPO_OPERACAO_FROM_DB[p.contrato.tipoOperacao as keyof typeof TIPO_OPERACAO_FROM_DB];
+    acc.tipos.set(tipo, (acc.tipos.get(tipo) ?? 0) + Number(p.valorTotal));
+
+    porAno.set(ano, acc);
+  }
+
+  const anos: AnoCronograma[] = Array.from(porAno.entries())
+    .map(([ano, acc]) => ({
+      ano,
+      juros: acc.juros,
+      amortizacao: acc.amortizacao,
+      total: acc.juros + acc.amortizacao,
+      porTipo: Array.from(acc.tipos.entries())
+        .map(([tipoOperacao, total]) => ({ tipoOperacao, total }))
+        .sort((a, b) => b.total - a.total)
+    }))
+    .sort((a, b) => a.ano - b.ano);
+
+  if (anos.length === 0) return vazio();
+
+  const anoUltimoVencimento = Math.max(...contratos.map((c) => c.dataVencimento.getUTCFullYear()));
+  const contratosSemIndice = contratos.filter(
+    (c) => c.tipoTaxa !== 'PRE_FIXADO' && c.indiceReferencia == null
+  ).length;
+
+  return {
+    anos,
+    totalJuros: anos.reduce((s, a) => s + a.juros, 0),
+    totalAmortizacao: anos.reduce((s, a) => s + a.amortizacao, 0),
+    totalGeral: anos.reduce((s, a) => s + a.total, 0),
+    anoInicial: anos[0].ano,
+    // O título do cronograma vai até o último vencimento contratado, mesmo que
+    // não haja parcela projetada lá no fim (é assim no AgroFlow original).
+    anoFinal: Math.max(anos[anos.length - 1].ano, anoUltimoVencimento),
+    contratosSemIndice
+  };
+}
+
+function vazio(): CronogramaConsolidado {
+  return {
+    anos: [],
+    totalJuros: 0,
+    totalAmortizacao: 0,
+    totalGeral: 0,
+    anoInicial: 0,
+    anoFinal: 0,
+    contratosSemIndice: 0
+  };
+}
+
 interface SaveContratoInput {
   id?: string;
   banco: string;
@@ -66,7 +177,6 @@ interface SaveContratoInput {
   saldoAtual: number;
   taxaJuros: number;
   tipoTaxa: ContratoBancario['tipoTaxa'];
-  taxaAdicional?: number;
   baseCalculo: ContratoBancario['baseCalculo'];
   capitalizacao: ContratoBancario['capitalizacao'];
   dataContratacao: string;
@@ -102,7 +212,6 @@ export async function saveContratoBancario(input: SaveContratoInput): Promise<Co
     saldoAtual: parsed.saldoAtual,
     taxaJuros: parsed.taxaJuros,
     tipoTaxa: TIPO_TAXA_TO_DB[parsed.tipoTaxa],
-    taxaAdicional: parsed.tipoTaxa !== 'Pré-fixado (% a.a.)' ? parsed.taxaAdicional ?? 0 : null,
     baseCalculo: BASE_CALCULO_TO_DB[parsed.baseCalculo],
     capitalizacao: TIPO_CAPITALIZACAO_TO_DB[parsed.capitalizacao],
     dataContratacao: new Date(parsed.dataContratacao),
@@ -126,38 +235,19 @@ export async function saveContratoBancario(input: SaveContratoInput): Promise<Co
         data: { ...data, propriedadeId: ctx.propriedade.id, createdById: ctx.user.id }
       });
 
-  // Cronograma sempre recriado do zero — não há UI de baixa de parcela ainda,
-  // então não existe estado ("pago") a preservar entre edições do contrato.
-  const cronograma = gerarCronograma({
-    saldoInicial: parsed.saldoInicial,
-    taxaJurosAnual: parsed.taxaJuros,
-    sistemaAmortizacao: parsed.sistemaAmortizacao,
-    periodicidade: parsed.periodicidade,
-    baseCalculo: parsed.baseCalculo,
-    capitalizacao: parsed.capitalizacao,
-    dataContratacao: parsed.dataContratacao,
-    dataVencimento: parsed.dataVencimento,
-    possuiCarencia: temCarencia,
-    inicioPagamento: temCarencia ? (parsed.inicioPagamento as string) : undefined
-  });
-
-  await db.parcela.deleteMany({ where: { contratoId: row.id } });
-  await db.parcela.createMany({
-    data: cronograma.map((p) => ({
-      contratoId: row.id,
-      numero: p.numero,
-      dataPagamento: new Date(p.dataPagamento),
-      valorPrincipal: p.valorPrincipal,
-      valorJuros: p.valorJuros,
-      valorTotal: p.valorTotal,
-      saldoDevedor: p.saldoDevedor
-    }))
-  });
+  // Cronograma sempre recriado do zero, já com a taxa efetiva do indexador
+  // vigente (CDI/IPCA/dólar) — ver src/server/cronograma-engine.ts.
+  const indices = await carregarIndicesVigentes();
+  await regerarCronograma(row, indices);
 
   revalidatePath('/bancos');
   revalidatePath('/resumo');
   revalidatePath('/fluxo_safra');
-  return toContratoDTO(row);
+
+  // Releitura para devolver ao client a memória de cálculo que o engine acabou
+  // de gravar (taxa efetiva, índice aplicado e sua data).
+  const atualizado = await db.contratoBancario.findUniqueOrThrow({ where: { id: row.id } });
+  return toContratoDTO(atualizado);
 }
 
 export async function deleteContratoBancario(id: string) {
@@ -186,7 +276,6 @@ type ContratoRow = {
   saldoAtual: unknown;
   taxaJuros: unknown;
   tipoTaxa: string;
-  taxaAdicional: unknown;
   baseCalculo: string;
   capitalizacao: string;
   dataContratacao: Date;
@@ -199,6 +288,9 @@ type ContratoRow = {
   valorGarantia: unknown;
   moeda: string;
   observacoes: string | null;
+  taxaEfetivaAplicada: unknown;
+  indiceReferencia: unknown;
+  indiceAtualizadoEm: Date | null;
 };
 
 function toContratoDTO(row: ContratoRow): ContratoBancario {
@@ -214,7 +306,6 @@ function toContratoDTO(row: ContratoRow): ContratoBancario {
     saldoAtual: Number(row.saldoAtual),
     taxaJuros: Number(row.taxaJuros),
     tipoTaxa: TIPO_TAXA_FROM_DB[row.tipoTaxa as keyof typeof TIPO_TAXA_FROM_DB],
-    taxaAdicional: row.taxaAdicional != null ? Number(row.taxaAdicional) : undefined,
     baseCalculo: BASE_CALCULO_FROM_DB[row.baseCalculo as keyof typeof BASE_CALCULO_FROM_DB],
     capitalizacao: TIPO_CAPITALIZACAO_FROM_DB[row.capitalizacao as keyof typeof TIPO_CAPITALIZACAO_FROM_DB],
     dataContratacao: row.dataContratacao.toISOString().slice(0, 10),
@@ -226,6 +317,11 @@ function toContratoDTO(row: ContratoRow): ContratoBancario {
     tipoGarantia: row.tipoGarantia ?? undefined,
     valorGarantia: row.valorGarantia != null ? Number(row.valorGarantia) : undefined,
     moeda: row.moeda as ContratoBancario['moeda'],
-    observacoes: row.observacoes ?? undefined
+    observacoes: row.observacoes ?? undefined,
+    taxaEfetivaAplicada: row.taxaEfetivaAplicada != null ? Number(row.taxaEfetivaAplicada) : undefined,
+    indiceReferencia: row.indiceReferencia != null ? Number(row.indiceReferencia) : undefined,
+    indiceAtualizadoEm: row.indiceAtualizadoEm
+      ? row.indiceAtualizadoEm.toISOString().slice(0, 10)
+      : undefined
   };
 }

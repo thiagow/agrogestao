@@ -1,12 +1,15 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { Plus, Edit2, Trash2, Landmark } from 'lucide-react';
+import React, { useEffect, useMemo, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { Plus, Edit2, Trash2, Landmark, RefreshCw, BarChart3, AlertTriangle } from 'lucide-react';
 import { ContratoBancario } from '../../types';
 import { formatCurrency, formatDateBR, isCurtoPrazo } from '../../data/initialData';
 import { Card, Tabs, Button, Badge, KpiCard, Select } from '../ui';
 import { ContratoBancarioDrawer } from '../ContratoBancarioDrawer';
-import { listParcelas } from '../../server/contratos-bancarios';
+import { listParcelas, type CronogramaConsolidado } from '../../server/contratos-bancarios';
+import { atualizarIndices } from '../../server/indices';
+import { INDICES_VAZIOS, type IndicesVigentes } from '../../lib/taxa-efetiva';
 
 interface ParcelaRow {
   id: string;
@@ -19,7 +22,148 @@ interface ParcelaRow {
   pago: boolean;
 }
 
-const CronogramaTab: React.FC<{ contratos: ContratoBancario[] }> = ({ contratos }) => {
+/** Faixa de índices vigentes + gatilho de atualização das fontes externas. */
+const FaixaIndices: React.FC<{ indices: IndicesVigentes; contratosSemIndice: number }> = ({
+  indices,
+  contratosSemIndice
+}) => {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+
+  const handleAtualizar = () => {
+    setErro(null);
+    startTransition(async () => {
+      const result = await atualizarIndices();
+      if (result.falhas.length > 0) {
+        setErro(`Não foi possível atualizar: ${result.falhas.join(', ')}. Os últimos valores foram mantidos.`);
+      }
+      router.refresh();
+    });
+  };
+
+  const itens = [
+    { rotulo: 'CDI', valor: indices.cdiAA, sufixo: '% a.a.' },
+    { rotulo: 'IPCA', valor: indices.ipcaAA, sufixo: '% (12m)' },
+    { rotulo: 'Dólar', valor: indices.usdBrl, sufixo: '', prefixo: 'R$ ' }
+  ];
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+          {itens.map((i) => (
+            <div key={i.rotulo} className="flex items-baseline gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{i.rotulo}</span>
+              <span className="font-mono text-sm font-bold text-slate-900">
+                {i.valor === null
+                  ? '—'
+                  : `${i.prefixo ?? ''}${i.valor.toLocaleString('pt-BR', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })}${i.sufixo}`}
+              </span>
+            </div>
+          ))}
+          <span className="text-[11px] text-slate-500">
+            {indices.atualizadoEm ? `referência ${formatDateBR(indices.atualizadoEm)}` : 'nunca atualizado'}
+          </span>
+        </div>
+
+        <Button
+          variant="secondary"
+          onClick={handleAtualizar}
+          disabled={isPending}
+          className="w-auto flex items-center gap-2 px-3 py-2 text-xs"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isPending ? 'animate-spin' : ''}`} />
+          {isPending ? 'Atualizando…' : 'Atualizar Índices'}
+        </Button>
+      </div>
+
+      {erro && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{erro}</div>
+      )}
+
+      {contratosSemIndice > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span>
+            {contratosSemIndice} contrato{contratosSemIndice !== 1 ? 's' : ''} indexado
+            {contratosSemIndice !== 1 ? 's' : ''} projetado{contratosSemIndice !== 1 ? 's' : ''} apenas com o
+            spread — o indexador ainda não foi buscado. Clique em Atualizar Índices.
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** Projeção consolidada por ano — a tabela principal da aba, réplica do AgroFlow. */
+const TabelaConsolidada: React.FC<{ cronograma: CronogramaConsolidado }> = ({ cronograma }) => (
+  <div>
+    <div className="flex items-center gap-2 mb-1">
+      <BarChart3 className="w-4 h-4 text-slate-700" />
+      <h3 className="text-sm font-bold text-slate-900">
+        Cronograma de Amortização — {cronograma.anoInicial} a {cronograma.anoFinal}
+      </h3>
+    </div>
+    <p className="text-xs text-slate-500 mb-4">
+      Projeção consolidada de pagamentos por ano, incluindo juros e amortização de todos os contratos ativos.
+    </p>
+
+    <div className="overflow-x-auto">
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="border-b border-slate-200 text-[11px] uppercase tracking-wider text-slate-600 font-bold">
+            <th className="py-2.5 px-4">Ano</th>
+            <th className="py-2.5 px-4 text-right">Juros</th>
+            <th className="py-2.5 px-4 text-right">Amortização</th>
+            <th className="py-2.5 px-4 text-right">Total</th>
+            <th className="py-2.5 px-4">Composição por Tipo</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 text-xs">
+          {cronograma.anos.map((a) => (
+            <tr key={a.ano} className="hover:bg-slate-50/60">
+              <td className="py-3 px-4 font-bold text-slate-900">{a.ano}</td>
+              <td className="py-3 px-4 text-right font-medium text-amber-700">{formatCurrency(a.juros)}</td>
+              <td className="py-3 px-4 text-right font-medium text-blue-700">{formatCurrency(a.amortizacao)}</td>
+              <td className="py-3 px-4 text-right font-bold text-rose-700">{formatCurrency(a.total)}</td>
+              <td className="py-3 px-4">
+                <div className="flex flex-wrap gap-1.5">
+                  {a.porTipo.map((t) => (
+                    <Badge key={t.tipoOperacao} tone="slate">
+                      {t.tipoOperacao}: {formatCurrency(t.total)}
+                    </Badge>
+                  ))}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="bg-slate-50 border-t border-slate-200 text-xs">
+            <td className="py-3 px-4 font-bold text-slate-900">Total Geral</td>
+            <td className="py-3 px-4 text-right font-bold text-amber-700">
+              {formatCurrency(cronograma.totalJuros)}
+            </td>
+            <td className="py-3 px-4 text-right font-bold text-blue-700">
+              {formatCurrency(cronograma.totalAmortizacao)}
+            </td>
+            <td className="py-3 px-4 text-right font-bold text-rose-700">
+              {formatCurrency(cronograma.totalGeral)}
+            </td>
+            <td />
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+);
+
+/** Detalhamento parcela a parcela de um contrato específico. */
+const DetalhePorContrato: React.FC<{ contratos: ContratoBancario[] }> = ({ contratos }) => {
   const [contratoId, setContratoId] = useState(contratos[0]?.id ?? '');
   const [parcelas, setParcelas] = useState<ParcelaRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,25 +179,34 @@ const CronogramaTab: React.FC<{ contratos: ContratoBancario[] }> = ({ contratos 
       .finally(() => setLoading(false));
   }, [contratoId]);
 
-  if (contratos.length === 0) {
-    return (
-      <div className="py-16 text-center text-slate-400">
-        <p className="text-sm font-semibold">Cronograma</p>
-        <p className="text-xs mt-1">Cadastre um contrato para ver o cronograma de amortização.</p>
-      </div>
-    );
-  }
+  const selecionado = contratos.find((c) => c.id === contratoId);
 
   return (
-    <div className="space-y-4">
-      <div className="max-w-xs">
-        <Select label="Contrato" value={contratoId} onChange={(e) => setContratoId(e.target.value)}>
-          {contratos.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.banco} — {c.sistemaAmortizacao} ({formatCurrency(c.saldoAtual)})
-            </option>
-          ))}
-        </Select>
+    <div className="space-y-4 pt-6 border-t border-slate-200">
+      <div>
+        <h3 className="text-sm font-bold text-slate-900 mb-1">Detalhar por contrato</h3>
+        <p className="text-xs text-slate-500">Parcela a parcela, com saldo devedor após cada pagamento.</p>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="max-w-xs flex-1 min-w-[240px]">
+          <Select label="Contrato" value={contratoId} onChange={(e) => setContratoId(e.target.value)}>
+            {contratos.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.banco} — {c.sistemaAmortizacao} ({formatCurrency(c.saldoAtual)})
+              </option>
+            ))}
+          </Select>
+        </div>
+        {selecionado?.taxaEfetivaAplicada != null && (
+          <p className="text-xs text-slate-500 pb-2.5">
+            Projetado a{' '}
+            <span className="font-mono font-bold text-slate-800">
+              {selecionado.taxaEfetivaAplicada.toFixed(2)}% a.a.
+            </span>
+            {selecionado.indiceAtualizadoEm && ` · índice de ${formatDateBR(selecionado.indiceAtualizadoEm)}`}
+          </p>
+        )}
       </div>
 
       {loading ? (
@@ -88,6 +241,37 @@ const CronogramaTab: React.FC<{ contratos: ContratoBancario[] }> = ({ contratos 
           </table>
         </div>
       )}
+    </div>
+  );
+};
+
+interface CronogramaTabProps {
+  contratos: ContratoBancario[];
+  cronograma: CronogramaConsolidado;
+  indices: IndicesVigentes;
+}
+
+const CronogramaTab: React.FC<CronogramaTabProps> = ({ contratos, cronograma, indices }) => {
+  if (contratos.length === 0) {
+    return (
+      <div className="py-16 text-center text-slate-400">
+        <p className="text-sm font-semibold">Cronograma</p>
+        <p className="text-xs mt-1">Cadastre um contrato para ver o cronograma de amortização.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <FaixaIndices indices={indices} contratosSemIndice={cronograma.contratosSemIndice} />
+
+      {cronograma.anos.length > 0 ? (
+        <TabelaConsolidada cronograma={cronograma} />
+      ) : (
+        <p className="text-xs text-slate-400 py-8 text-center">Nenhuma parcela projetada.</p>
+      )}
+
+      <DetalhePorContrato contratos={contratos} />
     </div>
   );
 };
@@ -179,11 +363,29 @@ const PorCredorTab: React.FC<{ contratos: ContratoBancario[] }> = ({ contratos }
 
 interface BancosViewProps {
   contratos: ContratoBancario[];
+  cronograma?: CronogramaConsolidado;
+  indices?: IndicesVigentes;
   onSave: (data: Partial<ContratoBancario>) => void;
   onDelete: (id: string) => void;
 }
 
-export const BancosView: React.FC<BancosViewProps> = ({ contratos, onSave, onDelete }) => {
+const CRONOGRAMA_VAZIO: CronogramaConsolidado = {
+  anos: [],
+  totalJuros: 0,
+  totalAmortizacao: 0,
+  totalGeral: 0,
+  anoInicial: 0,
+  anoFinal: 0,
+  contratosSemIndice: 0
+};
+
+export const BancosView: React.FC<BancosViewProps> = ({
+  contratos,
+  cronograma = CRONOGRAMA_VAZIO,
+  indices = INDICES_VAZIOS,
+  onSave,
+  onDelete
+}) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<ContratoBancario | null>(null);
 
@@ -193,17 +395,25 @@ export const BancosView: React.FC<BancosViewProps> = ({ contratos, onSave, onDel
     .reduce((sum, c) => sum + c.saldoAtual, 0);
   const longoPrazo = saldoTotal - curtoPrazo;
 
-  const custoMedioPonderado = saldoTotal > 0
-    ? contratos.reduce((sum, c) => sum + c.saldoAtual * c.taxaJuros, 0) / saldoTotal
-    : 0;
+  // Custo do contrato = taxa EFETIVA (indexador + spread), não a taxa digitada:
+  // num contrato CDI + spread a taxa cadastrada é só o spread, e usá-la aqui
+  // subestimaria o custo da dívida. Cai para a taxa cadastrada só enquanto o
+  // cronograma nunca foi gerado.
+  const custoEfetivo = (c: ContratoBancario) => c.taxaEfetivaAplicada ?? c.taxaJuros;
 
-  const gruposPorTaxa = new Map<string, { saldo: number; somaPonderada: number }>();
-  contratos.forEach((c) => {
-    const grupo = gruposPorTaxa.get(c.tipoTaxa) ?? { saldo: 0, somaPonderada: 0 };
-    grupo.saldo += c.saldoAtual;
-    grupo.somaPonderada += c.saldoAtual * c.taxaJuros;
-    gruposPorTaxa.set(c.tipoTaxa, grupo);
-  });
+  const custoMedioPonderado =
+    saldoTotal > 0 ? contratos.reduce((sum, c) => sum + c.saldoAtual * custoEfetivo(c), 0) / saldoTotal : 0;
+
+  const gruposPorTaxa = useMemo(() => {
+    const grupos = new Map<string, { saldo: number; somaPonderada: number }>();
+    contratos.forEach((c) => {
+      const grupo = grupos.get(c.tipoTaxa) ?? { saldo: 0, somaPonderada: 0 };
+      grupo.saldo += c.saldoAtual;
+      grupo.somaPonderada += c.saldoAtual * custoEfetivo(c);
+      grupos.set(c.tipoTaxa, grupo);
+    });
+    return grupos;
+  }, [contratos]);
 
   const handleOpenNew = () => {
     setEditing(null);
@@ -268,7 +478,7 @@ export const BancosView: React.FC<BancosViewProps> = ({ contratos, onSave, onDel
         >
           {(activeTabId) => {
             if (activeTabId === 'cronograma') {
-              return <CronogramaTab contratos={contratos} />;
+              return <CronogramaTab contratos={contratos} cronograma={cronograma} indices={indices} />;
             }
 
             if (activeTabId === 'credor') {
@@ -310,7 +520,14 @@ export const BancosView: React.FC<BancosViewProps> = ({ contratos, onSave, onDel
                           <Badge tone="slate">{c.tipoOperacao}</Badge>
                         </td>
                         <td className="py-3 px-4 font-extrabold text-slate-900">{formatCurrency(c.saldoAtual)}</td>
-                        <td className="py-3 px-4 font-medium text-slate-700">{c.taxaJuros.toFixed(2)}% a.a.</td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className="font-bold text-slate-800">{custoEfetivo(c).toFixed(2)}% a.a.</span>
+                          {c.taxaEfetivaAplicada != null && c.tipoTaxa !== 'Pré-fixado (% a.a.)' && (
+                            <span className="block text-[10px] text-slate-500">
+                              spread {c.taxaJuros.toFixed(2)}%
+                            </span>
+                          )}
+                        </td>
                         <td className="py-3 px-4">
                           <Badge tone="blue">{c.tipoTaxa}</Badge>
                         </td>
@@ -352,6 +569,7 @@ export const BancosView: React.FC<BancosViewProps> = ({ contratos, onSave, onDel
         onClose={() => setIsDrawerOpen(false)}
         onSave={onSave}
         editingContrato={editing}
+        indices={indices}
       />
     </div>
   );

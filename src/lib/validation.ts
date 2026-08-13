@@ -163,9 +163,10 @@ export const contratoBancarioSchema = z.object({
   culturaVinculadaId: z.string().trim().optional().or(z.literal('')),
   saldoInicial: z.coerce.number().nonnegative(),
   saldoAtual: z.coerce.number().nonnegative(),
+  // Taxa cheia no pré-fixado; spread sobre o indexador nos demais tipos de taxa
+  // (ver src/lib/taxa-efetiva.ts). Campo único — não há spread separado.
   taxaJuros: z.coerce.number().nonnegative(),
   tipoTaxa: z.enum(['Pré-fixado (% a.a.)', 'CDI + spread', 'IPCA + spread', 'Dólar + juros']),
-  taxaAdicional: z.coerce.number().nonnegative().optional(),
   baseCalculo: z.enum(['252 dias úteis', '360 dias corridos', '365 dias corridos']).default('360 dias corridos'),
   capitalizacao: z.enum(['Composta', 'Simples']).default('Composta'),
   dataContratacao: z.string().min(1, 'Informe a data de contratação'),

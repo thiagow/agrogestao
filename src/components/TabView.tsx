@@ -41,6 +41,8 @@ import { SupplierDrawer } from './SupplierDrawer';
 import { Button } from './ui';
 import { ResumoView } from './views/ResumoView';
 import { BancosView } from './views/BancosView';
+import type { CronogramaConsolidado } from '../server/contratos-bancarios';
+import type { IndicesVigentes } from '../lib/taxa-efetiva';
 import { QuadroSafraView } from './views/QuadroSafraView';
 import { CotacoesView } from './views/CotacoesView';
 import { CadastroMestreView } from './views/CadastroMestreView';
@@ -68,6 +70,10 @@ interface TabViewProps {
   initialCulturaSafras?: CulturaSafraAno[];
   initialLancamentosMensais?: LancamentoMensal[];
   initialContratosBancarios?: ContratoBancario[];
+  /** Projeção consolidada por ano da aba Cronograma — computada no servidor. */
+  cronogramaConsolidado?: CronogramaConsolidado;
+  /** CDI/IPCA/dólar vigentes, usados no cálculo de juros dos contratos indexados. */
+  indices?: IndicesVigentes;
   initialAquisicoes?: Aquisicao[];
   initialArrendamentos?: ContratoArrendamento[];
   initialContratosComerciais?: ContratoComercial[];
@@ -91,6 +97,8 @@ export const TabView: React.FC<TabViewProps> = ({
   initialCulturaSafras = [],
   initialLancamentosMensais = [],
   initialContratosBancarios = [],
+  cronogramaConsolidado,
+  indices,
   initialAquisicoes = [],
   initialArrendamentos = [],
   initialContratosComerciais = [],
@@ -208,7 +216,6 @@ export const TabView: React.FC<TabViewProps> = ({
         saldoAtual: data.saldoAtual || data.saldoInicial || 0,
         taxaJuros: data.taxaJuros || 0,
         tipoTaxa: data.tipoTaxa || 'Pré-fixado (% a.a.)',
-        taxaAdicional: data.taxaAdicional,
         baseCalculo: data.baseCalculo || '360 dias corridos',
         capitalizacao: data.capitalizacao || 'Composta',
         dataContratacao: data.dataContratacao || new Date().toISOString().split('T')[0],
@@ -406,7 +413,13 @@ export const TabView: React.FC<TabViewProps> = ({
         <QuadroSafraView culturaSafras={culturaSafras} onSave={handleSaveSafra} onDelete={handleDeleteSafra} />
       )}
       {tab === 'bancos' && (
-        <BancosView contratos={contratosBancarios} onSave={handleSaveContrato} onDelete={handleDeleteContrato} />
+        <BancosView
+          contratos={contratosBancarios}
+          cronograma={cronogramaConsolidado}
+          indices={indices}
+          onSave={handleSaveContrato}
+          onDelete={handleDeleteContrato}
+        />
       )}
       {tab === 'aquisicao_fazenda' && (
         <AquisicaoFazendaView

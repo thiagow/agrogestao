@@ -7,9 +7,16 @@
     "build": "next build",
     "start": "next start --port 3000",
     "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts"
+  },
+  "//overrides": "Correções de segurança em dependências transitivas do Next 15. O Next fixa postcss 8.4.31 (GHSA-qx2v-qp2m-jg93 e outros 3) e traz sharp 0.34.x (CVEs de libvips) — a linha 15.x não recebeu backport, e a correção oficial exige subir para o Next 16 (breaking). Ambas as versões forçadas aqui são patches dentro da mesma major. Remover quando o projeto migrar para o Next 16.",
+  "overrides": {
+    "postcss": "^8.5.26",
+    "sharp": "^0.35.3"
   },
   "dependencies": {
     "@prisma/client": "^6.3.1",
@@ -31,6 +38,7 @@
     "prisma": "^6.3.1",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.23.5",
-    "typescript": "~5.8.2"
+    "typescript": "~5.8.2",
+    "vitest": "^4.1.10"
   }
 }

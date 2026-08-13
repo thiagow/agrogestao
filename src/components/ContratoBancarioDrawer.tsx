@@ -14,13 +14,26 @@ import {
 import { Drawer, Input, Select, Textarea, Button } from './ui';
 import { listCulturas } from '../server/culturas';
 import { listSafras } from '../server/safras';
+import { calcularTaxaEfetiva, INDICES_VAZIOS, type IndicesVigentes } from '../lib/taxa-efetiva';
 
 interface ContratoBancarioDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: Partial<ContratoBancario>) => void;
   editingContrato?: ContratoBancario | null;
+  /** Índices vigentes, para mostrar a taxa efetiva ao vivo enquanto se digita. */
+  indices?: IndicesVigentes;
 }
+
+// O campo "Taxa" muda de significado conforme o Tipo de Taxa: é a taxa cheia no
+// pré-fixado e o spread sobre o indexador nos demais. O label acompanha — dizer
+// "% a.a." num contrato CDI + spread seria enganoso.
+const LABEL_TAXA: Record<TipoTaxaBancaria, string> = {
+  'Pré-fixado (% a.a.)': 'Taxa (% a.a.) *',
+  'CDI + spread': 'Spread sobre o CDI (% a.a.) *',
+  'IPCA + spread': 'Spread sobre o IPCA (% a.a.) *',
+  'Dólar + juros': 'Juros em USD (% a.a.) *'
+};
 
 // Lista fechada de bancos do print "Cadastrar Contrato Bancário" (fotografado pelo
 // usuário em 07/08/2026). "Outro" revela um campo de texto livre.
@@ -84,7 +97,8 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
   isOpen,
   onClose,
   onSave,
-  editingContrato
+  editingContrato,
+  indices = INDICES_VAZIOS
 }) => {
   const [culturas, setCulturas] = useState<OpcaoSelect[]>([]);
   const [safras, setSafras] = useState<OpcaoSelect[]>([]);
@@ -108,7 +122,6 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
   const [saldoAtual, setSaldoAtual] = useState('');
   const [tipoTaxa, setTipoTaxa] = useState<TipoTaxaBancaria>('Pré-fixado (% a.a.)');
   const [taxaJuros, setTaxaJuros] = useState('');
-  const [taxaAdicional, setTaxaAdicional] = useState('0');
   const [baseCalculo, setBaseCalculo] = useState<BaseCalculoJuros>('360 dias corridos');
   const [capitalizacao, setCapitalizacao] = useState<TipoCapitalizacao>('Composta');
 
@@ -140,7 +153,6 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
       setSaldoAtual(editingContrato.saldoAtual.toString());
       setTipoTaxa(editingContrato.tipoTaxa);
       setTaxaJuros(editingContrato.taxaJuros.toString());
-      setTaxaAdicional((editingContrato.taxaAdicional ?? 0).toString());
       setBaseCalculo(editingContrato.baseCalculo);
       setCapitalizacao(editingContrato.capitalizacao);
       setSistemaAmortizacao(editingContrato.sistemaAmortizacao);
@@ -165,7 +177,6 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
       setSaldoAtual('');
       setTipoTaxa('Pré-fixado (% a.a.)');
       setTaxaJuros('');
-      setTaxaAdicional('0');
       setBaseCalculo('360 dias corridos');
       setCapitalizacao('Composta');
       setSistemaAmortizacao('SAC');
@@ -181,6 +192,11 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
   }, [editingContrato, isOpen]);
 
   const banco = bancoSelecionado === 'Outro' ? bancoCustom.trim() : bancoSelecionado;
+  const simboloMoeda = moeda === 'USD' ? 'US$' : 'R$';
+
+  // Memória de cálculo ao vivo: a mesma função pura que o servidor usa para
+  // gerar o cronograma, então o que o usuário lê aqui é o que vai ser projetado.
+  const taxaEfetiva = calcularTaxaEfetiva(tipoTaxa, parseFloat(taxaJuros) || 0, indices);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -198,7 +214,6 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
       saldoAtual: editingContrato ? parseFloat(saldoAtual) || 0 : parseFloat(saldoInicial) || 0,
       taxaJuros: parseFloat(taxaJuros) || 0,
       tipoTaxa,
-      taxaAdicional: tipoTaxa !== 'Pré-fixado (% a.a.)' ? parseFloat(taxaAdicional) || 0 : undefined,
       baseCalculo,
       capitalizacao,
       dataContratacao,
@@ -319,7 +334,7 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
 
           <div className="grid grid-cols-2 gap-3">
             <Input
-              label="Valor Contratado (R$)"
+              label={`Valor Contratado (${simboloMoeda})`}
               type="number"
               required
               min={0}
@@ -328,7 +343,7 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
               onChange={(e) => setSaldoInicial(e.target.value)}
             />
             <Input
-              label="Saldo Devedor Atual (R$) *"
+              label={`Saldo Devedor Atual (${simboloMoeda}) *`}
               type="number"
               required
               min={0}
@@ -348,27 +363,34 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
               ))}
             </Select>
             <Input
-              label="Taxa (% a.a.)"
+              label={LABEL_TAXA[tipoTaxa]}
               type="number"
               required
               min={0}
               step="0.01"
-              placeholder="Ex: 12.5"
+              placeholder={tipoTaxa === 'Pré-fixado (% a.a.)' ? 'Ex: 12.5' : 'Ex: 4.0'}
               value={taxaJuros}
               onChange={(e) => setTaxaJuros(e.target.value)}
             />
           </div>
 
-          {tipoTaxa !== 'Pré-fixado (% a.a.)' && (
-            <Input
-              label="Spread / Taxa Adicional (% a.a.)"
-              type="number"
-              min={0}
-              step="0.01"
-              value={taxaAdicional}
-              onChange={(e) => setTaxaAdicional(e.target.value)}
-            />
-          )}
+          <div
+            className={`rounded-lg px-3 py-2.5 text-xs border ${
+              taxaEfetiva.indisponivel
+                ? 'bg-amber-50 border-amber-200 text-amber-800'
+                : 'bg-slate-50 border-slate-200 text-slate-700'
+            }`}
+          >
+            <span className="font-bold uppercase tracking-wider text-[10px] block mb-0.5 opacity-70">
+              Taxa aplicada no cronograma
+            </span>
+            {taxaEfetiva.memoria}
+            {taxaEfetiva.indisponivel && (
+              <span className="block mt-1 opacity-80">
+                Atualize os índices na aba Cronograma para projetar com o valor vigente.
+              </span>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <Select

@@ -12,6 +12,9 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Banco vazio e descartável que o Prisma usa para gerar migrations
+  // (`migrate dev`) e comparar histórico com produção. Ver .env.example.
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 // ============================================================
@@ -113,10 +116,10 @@ model Conta {
   status      ContaStatus @default(ATIVA)
   ativo       Boolean     @default(true)
 
-  memberships   Membership[]
-  propriedades  Propriedade[]
-  culturas      Cultura[]
-  safras        Safra[]
+  memberships          Membership[]
+  propriedades         Propriedade[]
+  culturas             Cultura[]
+  safras               Safra[]
   socios               Socio[]
   bensDireitos         BemDireito[]
   garantias            Garantia[]
@@ -301,13 +304,13 @@ model Socio {
 
 enum GrupoIrpfBem {
   BENS_IMOVEIS              @map("Bens Imóveis")
-  BENS_MOVEIS                @map("Bens Móveis")
+  BENS_MOVEIS               @map("Bens Móveis")
   PARTICIPACOES_SOCIETARIAS @map("Participações Societárias")
   APLICACOES_INVESTIMENTOS  @map("Aplicações e Investimentos")
-  DEPOSITOS_POUPANCA         @map("Depósitos à Vista e Poupança")
-  CREDITOS_DIREITOS          @map("Créditos e Outros Direitos")
-  CRIPTOATIVOS               @map("Criptoativos")
-  OUTROS_BENS                @map("Outros Bens e Direitos")
+  DEPOSITOS_POUPANCA        @map("Depósitos à Vista e Poupança")
+  CREDITOS_DIREITOS         @map("Créditos e Outros Direitos")
+  CRIPTOATIVOS              @map("Criptoativos")
+  OUTROS_BENS               @map("Outros Bens e Direitos")
 }
 
 enum LiquidezBem {
@@ -452,19 +455,19 @@ model Capex {
 // log automático vs. timeline manual): não é nenhum dos dois, é um único campo de texto
 // livre, usado na Apresentação do Grupo (Slide 2) e no Parecer Executivo.
 model PerfilGrupoEconomico {
-  id                           String    @id @default(cuid())
-  contaId                      String    @unique
-  email                        String?
-  telefone                     String?
-  atividadePrincipal           String?
-  fundacao                     DateTime?
-  sede                         String?
-  consultorResponsavel         String?
-  historico                    String?
-  sucessao                     String?
-  modusOperandiAgricultura     String?
-  modusOperandiPecuaria        String?
-  empresasColigadas            String?
+  id                       String    @id @default(cuid())
+  contaId                  String    @unique
+  email                    String?
+  telefone                 String?
+  atividadePrincipal       String?
+  fundacao                 DateTime?
+  sede                     String?
+  consultorResponsavel     String?
+  historico                String?
+  sucessao                 String?
+  modusOperandiAgricultura String?
+  modusOperandiPecuaria    String?
+  empresasColigadas        String?
 
   conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
 
@@ -507,19 +510,19 @@ enum SupplierStatus {
 // existe no print) — o "Gerador de Links de Imagem HTML" continua existindo na Sidebar,
 // mas como utilitário standalone, sem vínculo com Fornecedor.
 model Supplier {
-  id              String         @id @default(cuid())
-  propriedadeId   String
-  nome            String
-  categoria       Category
-  cultura         String?
-  safra           String?
-  dividaTotal     Decimal        @db.Decimal(18, 2)
-  moeda           Currency
-  vencimento      DateTime
-  observacoes     String?
-  status          SupplierStatus @default(PENDENTE)
-  comprovanteUrl  String?
-  ativo           Boolean        @default(true)
+  id             String         @id @default(cuid())
+  propriedadeId  String
+  nome           String
+  categoria      Category
+  cultura        String?
+  safra          String?
+  dividaTotal    Decimal        @db.Decimal(18, 2)
+  moeda          Currency
+  vencimento     DateTime
+  observacoes    String?
+  status         SupplierStatus @default(PENDENTE)
+  comprovanteUrl String?
+  ativo          Boolean        @default(true)
 
   propriedade Propriedade        @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
   compras     CompraFornecedor[]
@@ -619,9 +622,10 @@ model ContratoBancario {
   culturaVinculadaId String?
   saldoInicial       Decimal                @db.Decimal(18, 2) // "Valor Contratado" no print
   saldoAtual         Decimal                @db.Decimal(18, 2)
+  // Taxa cheia quando tipoTaxa = PRE_FIXADO; spread sobre o indexador nos demais
+  // casos. Não existe campo de spread separado — ver src/lib/taxa-efetiva.ts.
   taxaJuros          Decimal                @db.Decimal(8, 4) // % a.a.
   tipoTaxa           TipoTaxaBancaria
-  taxaAdicional      Decimal?               @db.Decimal(8, 4) // % a.a. (spread) — irrelevante quando tipoTaxa = PRE_FIXADO
   baseCalculo        BaseCalculoJuros       @default(DIAS_CORRIDOS_360)
   capitalizacao      TipoCapitalizacao      @default(COMPOSTA)
   sistemaAmortizacao SistemaAmortizacao
@@ -635,6 +639,14 @@ model ContratoBancario {
   moeda              Currency
   observacoes        String?
   ativo              Boolean                @default(true)
+
+  // Memória de cálculo do último cronograma gerado — sem isso não há como saber
+  // de que indexador saiu a projeção nem se ela está defasada. Preenchidos por
+  // regerarCronograma() (src/server/contratos-bancarios.ts) a cada save e a cada
+  // "Atualizar Índices".
+  taxaEfetivaAplicada Decimal?  @db.Decimal(8, 4) // % a.a. efetivamente usada
+  indiceReferencia    Decimal?  @db.Decimal(10, 4) // valor do CDI/IPCA/USD aplicado
+  indiceAtualizadoEm  DateTime?
 
   propriedade      Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
   safraVinculada   Safra?      @relation(fields: [safraVinculadaId], references: [id], onDelete: SetNull)
@@ -858,4 +870,37 @@ model Cotacao {
   atualizadoEm       DateTime @default(now())
 
   @@map("cotacoes")
+}
+
+// ============================================================
+// Índices de Mercado — dado global, sem tenant (o CDI é o mesmo pra todo mundo,
+// mesmo critério de Cotacao). Alimentam o cálculo de juros dos contratos
+// bancários indexados (src/lib/taxa-efetiva.ts).
+//
+// Fontes, todas públicas e sem chave (src/lib/market-data.ts):
+//  - CDI:  BCB SGS 4389  (CDI anualizado base 252, % a.a.)
+//  - IPCA: BCB SGS 13522 (IPCA acumulado em 12 meses, %)
+//  - USD:  AwesomeAPI USD-BRL (mesma fonte já usada pelas cotações)
+//
+// Snapshot, não série histórica: guarda só o valor vigente, com a data de
+// referência da fonte. Atualizado sob demanda pelo botão "Atualizar Índices"
+// da aba Cronograma, que em seguida regrava os cronogramas indexados.
+// ============================================================
+
+enum TipoIndice {
+  CDI
+  IPCA
+  USD
+}
+
+model IndiceMercado {
+  id             String     @id @default(cuid())
+  tipo           TipoIndice @unique
+  valor          Decimal    @db.Decimal(10, 4) // CDI/IPCA: % a.a. | USD: BRL por USD
+  unidade        String // "% a.a." | "BRL/USD"
+  fonte          String // "BCB SGS 4389" | "AwesomeAPI USD-BRL"
+  dataReferencia DateTime // data do dado na fonte, não a do fetch
+  atualizadoEm   DateTime   @default(now())
+
+  @@map("indices_mercado")
 }

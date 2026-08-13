@@ -204,9 +204,10 @@ export interface ContratoBancario {
   culturaVinculadaId?: string;
   saldoInicial: number; // "Valor Contratado" no print
   saldoAtual: number;
+  // Taxa cheia quando tipoTaxa === 'Pré-fixado (% a.a.)'; spread sobre o
+  // indexador nos demais casos. Ver src/lib/taxa-efetiva.ts.
   taxaJuros: number; // % a.a.
   tipoTaxa: TipoTaxaBancaria;
-  taxaAdicional?: number; // % a.a. (spread) — irrelevante quando tipoTaxa === 'Pré-fixado (% a.a.)'
   baseCalculo: BaseCalculoJuros;
   capitalizacao: TipoCapitalizacao;
   sistemaAmortizacao: SistemaAmortizacao;
@@ -219,6 +220,10 @@ export interface ContratoBancario {
   valorGarantia?: number;
   moeda: Currency;
   observacoes?: string;
+  // Memória de cálculo do último cronograma gerado (ver src/lib/taxa-efetiva.ts).
+  taxaEfetivaAplicada?: number; // % a.a. efetivamente usada
+  indiceReferencia?: number; // valor do CDI/IPCA/USD aplicado
+  indiceAtualizadoEm?: string; // YYYY-MM-DD
 }
 
 // ---- Análise Financeira ----
