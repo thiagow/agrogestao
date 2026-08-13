@@ -2,13 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { CulturaSafraAno } from '../types';
 import { calcularSafra, formatCurrency } from '../data/initialData';
 import { Drawer, Input, Select, Button } from './ui';
+import { GerenciarCulturasModal } from './GerenciarCulturasModal';
+import type { Cultura, UnidadeMedida } from '../types';
+import { saveCultura, deleteCultura } from '../server/culturas';
 
 interface SafraDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: Partial<CulturaSafraAno>) => void;
   editingSafra?: CulturaSafraAno | null;
-  culturasDisponiveis: string[];
+  culturas: Cultura[];
+  onSaveCultura: (input: { nome: string; unidadeMedida: string }) => Promise<Cultura>;
+  onDeleteCultura: (id: string) => Promise<void>;
   anosSafraDisponiveis: string[];
 }
 
@@ -17,7 +22,9 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
   onClose,
   onSave,
   editingSafra,
-  culturasDisponiveis,
+  culturas,
+  onSaveCultura,
+  onDeleteCultura,
   anosSafraDisponiveis
 }) => {
   const [cultura, setCultura] = useState('');
@@ -29,6 +36,12 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
   const [unidadeProducao, setUnidadeProducao] = useState('sc');
   const [precoMedio, setPrecoMedio] = useState('');
   const [despesa, setDespesa] = useState('');
+  const [isGerenciarOpen, setIsGerenciarOpen] = useState(false);
+  const [culturasState, setCulturas] = useState<Cultura[]>(culturas);
+
+  useEffect(() => {
+    setCulturas(culturas);
+  }, [culturas]);
 
   useEffect(() => {
     if (editingSafra) {
@@ -42,17 +55,38 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
       setPrecoMedio(editingSafra.precoMedio.toString());
       setDespesa(editingSafra.despesa.toString());
     } else {
-      setCultura(culturasDisponiveis[0] ?? '');
+      const primeiraCultura = culturasState[0];
+      setCultura(primeiraCultura?.nome ?? '');
+      setUnidadeProducao(primeiraCultura?.unidadeMedida ?? 'sc');
       setAnoSafra(anosSafraDisponiveis[anosSafraDisponiveis.length - 1] ?? '');
       setHectares('');
       setHaPropria('');
       setHaArrendada('0');
       setRendimento('');
-      setUnidadeProducao('sc');
       setPrecoMedio('');
       setDespesa('');
     }
-  }, [editingSafra, isOpen, culturasDisponiveis, anosSafraDisponiveis]);
+  }, [editingSafra, isOpen, culturasState, anosSafraDisponiveis]);
+
+  const handleCulturaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const valor = e.target.value;
+    if (valor === '__nova__') {
+      setIsGerenciarOpen(true);
+      return;
+    }
+    setCultura(valor);
+    // Auto-preenche unidade a partir da cultura selecionada
+    const culturaSelecionada = culturasState.find((c) => c.nome === valor);
+    if (culturaSelecionada) {
+      setUnidadeProducao(culturaSelecionada.unidadeMedida);
+    }
+  };
+
+  const handleCulturaCriada = (novaCultura: Cultura) => {
+    setCulturas([...culturasState, novaCultura]);
+    setCultura(novaCultura.nome);
+    setUnidadeProducao(novaCultura.unidadeMedida);
+  };
 
   const preview = calcularSafra({
     id: 'preview',
@@ -95,12 +129,33 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
       subtitle="Planejamento de produção por cultura e ano-safra"
     >
       <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-        <Select label="Cultura" required value={cultura} onChange={(e) => setCultura(e.target.value)}>
-          {culturasDisponiveis.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
+        <Select label="Cultura" required value={cultura} onChange={handleCulturaChange}>
+          {culturasState.length === 0 && <option value="">Nenhuma cultura cadastrada</option>}
+          {culturasState.length > 0 && (
+            <>
+              <optgroup label="Culturas Padrão">
+                {culturasState
+                  .filter((c) => c.contaId === null)
+                  .map((c) => (
+                    <option key={c.id} value={c.nome}>
+                      {c.nome}
+                    </option>
+                  ))}
+              </optgroup>
+              {culturasState.some((c) => c.contaId !== null) && (
+                <optgroup label="Culturas Personalizadas">
+                  {culturasState
+                    .filter((c) => c.contaId !== null)
+                    .map((c) => (
+                      <option key={c.id} value={c.nome}>
+                        {c.nome}
+                      </option>
+                    ))}
+                </optgroup>
+              )}
+              <option value="__nova__">+ Adicionar nova cultura...</option>
+            </>
+          )}
         </Select>
 
         <Input
@@ -207,6 +262,15 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
           </Button>
         </div>
       </form>
+
+      <GerenciarCulturasModal
+        isOpen={isGerenciarOpen}
+        onClose={() => setIsGerenciarOpen(false)}
+        culturas={culturasState}
+        onSave={onSaveCultura}
+        onDelete={onDeleteCultura}
+        onCulturaCriada={handleCulturaCriada}
+      />
     </Drawer>
   );
 };

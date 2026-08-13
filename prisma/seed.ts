@@ -7,7 +7,14 @@ import { db } from '../src/lib/db';
 import { initialSuppliers, initialSocios } from '../src/data/initialData';
 import { CATEGORY_TO_DB, ESTADO_CIVIL_TO_DB } from '../src/lib/enum-maps';
 
-const CULTURA_BASES = ['Soja', 'Milho', 'Seringueira', 'Cana de Açúcar', 'Café Irrigado', 'Eucalipto', 'Arroz', 'Bovino'];
+const CULTURAS_PADRAO = [
+  { nome: 'Soja', unidadeMedida: 'sc' },
+  { nome: 'Milho', unidadeMedida: 'sc' },
+  { nome: 'Algodão Safrinha', unidadeMedida: '@' },
+  { nome: 'Algodão Safra', unidadeMedida: '@' },
+  { nome: 'Bovino', unidadeMedida: '@' },
+  { nome: 'Outras Culturas', unidadeMedida: 'sc' }
+];
 
 async function seedSuperadmin() {
   const email = process.env.SUPERADMIN_EMAIL;
@@ -39,14 +46,17 @@ async function seedSuperadmin() {
 
 async function seedCulturasGlobais() {
   // Prisma não aceita `null` no lado de um índice único composto em upsert
-  // (@@unique([contaId, nome]) com contaId nullable) — busca manual + create.
-  for (const nome of CULTURA_BASES) {
-    const existente = await db.cultura.findFirst({ where: { contaId: null, nome } });
+  // (@@unique([contaId, nome]) com contaId nullable) — busca manual + create/update.
+  for (const cultura of CULTURAS_PADRAO) {
+    const existente = await db.cultura.findFirst({ where: { contaId: null, nome: cultura.nome } });
     if (!existente) {
-      await db.cultura.create({ data: { nome, contaId: null } });
+      await db.cultura.create({ data: { nome: cultura.nome, unidadeMedida: cultura.unidadeMedida, contaId: null } });
+    } else if (existente.unidadeMedida !== cultura.unidadeMedida) {
+      // Backfill de unidade caso a cultura já exista mas sem a unidade correta
+      await db.cultura.update({ where: { id: existente.id }, data: { unidadeMedida: cultura.unidadeMedida } });
     }
   }
-  console.log(`✔ Catálogo global de culturas (${CULTURA_BASES.length})`);
+  console.log(`✔ Catálogo global de culturas (${CULTURAS_PADRAO.length})`);
 }
 
 // Índices de mercado (CDI/IPCA/dólar) — ambiente novo não pode nascer sem eles,

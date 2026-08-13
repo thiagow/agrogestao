@@ -2,15 +2,18 @@
 
 import React, { useState } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
-import { CulturaSafraAno } from '../../types';
+import { CulturaSafraAno, Cultura, UnidadeMedida } from '../../types';
 import { formatCurrency, calcularSafra } from '../../data/initialData';
 import { Card, Button } from '../ui';
 import { SafraDrawer } from '../SafraDrawer';
 
 interface QuadroSafraViewProps {
   culturaSafras: CulturaSafraAno[];
+  culturas: Cultura[];
   onSave: (data: Partial<CulturaSafraAno>) => void;
   onDelete: (id: string) => void;
+  onSaveCultura: (input: { nome: string; unidadeMedida: string }) => Promise<Cultura>;
+  onDeleteCultura: (id: string) => Promise<void>;
 }
 
 const ANOS_SAFRA = ['2024/2025', '2025/2026', '2026/2027', '2027/2028'];
@@ -27,13 +30,20 @@ const LINHAS = [
   { key: 'margem', label: 'Margem (%)' }
 ] as const;
 
-export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({ culturaSafras, onSave, onDelete }) => {
-  const culturas = Array.from(new Set(culturaSafras.map((s) => s.cultura)));
+export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
+  culturaSafras,
+  culturas,
+  onSave,
+  onDelete,
+  onSaveCultura,
+  onDeleteCultura
+}) => {
+  const culturasComRegistro = Array.from(new Set(culturaSafras.map((s) => s.cultura)));
   const [culturaFiltro, setCulturaFiltro] = useState('Todas');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<CulturaSafraAno | null>(null);
 
-  const culturasVisiveis = culturaFiltro === 'Todas' ? culturas : [culturaFiltro];
+  const culturasVisiveis = culturaFiltro === 'Todas' ? culturasComRegistro : [culturaFiltro];
 
   const handleOpenNew = () => {
     setEditing(null);
@@ -60,7 +70,7 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({ culturaSafras,
         >
           Todas
         </button>
-        {culturas.map((c) => (
+        {culturasComRegistro.map((c) => (
           <button
             key={c}
             onClick={() => setCulturaFiltro(c)}
@@ -209,7 +219,9 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({ culturaSafras,
         onClose={() => setIsDrawerOpen(false)}
         onSave={onSave}
         editingSafra={editing}
-        culturasDisponiveis={culturas}
+        culturas={culturas}
+        onSaveCultura={onSaveCultura}
+        onDeleteCultura={onDeleteCultura}
         anosSafraDisponiveis={ANOS_SAFRA}
       />
     </div>

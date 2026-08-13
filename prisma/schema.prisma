@@ -185,10 +185,11 @@ model Propriedade {
 // ============================================================
 
 model Cultura {
-  id      String  @id @default(cuid())
-  contaId String? // null = catálogo global seedado; preenchido = cultura própria da conta
-  nome    String
-  ativo   Boolean @default(true)
+  id                String  @id @default(cuid())
+  contaId           String? // null = catálogo global seedado; preenchido = cultura própria da conta
+  nome              String
+  unidadeMedida     String  @default("sc") // "sc", "kg", "@", "t", "m³"
+  ativo             Boolean @default(true)
 
   conta              Conta?             @relation(fields: [contaId], references: [id], onDelete: Cascade)
   contratosBancarios ContratoBancario[]

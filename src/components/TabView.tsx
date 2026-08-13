@@ -12,6 +12,7 @@ import {
   Capex,
   PerfilGrupoEconomico,
   CulturaSafraAno,
+  Cultura,
   ContratoBancario,
   Aquisicao,
   ContratoArrendamento,
@@ -22,6 +23,7 @@ import {
 } from '../types';
 import { saveSupplier, deleteSupplier } from '../server/suppliers';
 import { saveQuadroSafra, deleteQuadroSafra } from '../server/quadro-safra';
+import { saveCultura, deleteCultura } from '../server/culturas';
 import { saveContratoBancario, deleteContratoBancario } from '../server/contratos-bancarios';
 import { saveAquisicao, deleteAquisicao } from '../server/aquisicoes';
 import { saveArrendamento, deleteArrendamento } from '../server/arrendamentos';
@@ -67,6 +69,7 @@ interface TabViewProps {
   contaNome?: string;
   contaRazaoSocial?: string;
   contaCnpj?: string;
+  initialCulturas?: Cultura[];
   initialCulturaSafras?: CulturaSafraAno[];
   initialLancamentosMensais?: LancamentoMensal[];
   initialContratosBancarios?: ContratoBancario[];
@@ -96,6 +99,7 @@ export const TabView: React.FC<TabViewProps> = ({
   contaNome,
   contaRazaoSocial,
   contaCnpj,
+  initialCulturas = [],
   initialCulturaSafras = [],
   initialLancamentosMensais = [],
   initialContratosBancarios = [],
@@ -113,6 +117,9 @@ export const TabView: React.FC<TabViewProps> = ({
   const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+
+  // Culturas — persistido via src/server/culturas.ts (catálogo padrão + personalizadas)
+  const [culturas, setCulturas] = useState<Cultura[]>(initialCulturas);
 
   // Quadro de Safra (usado também no Resumo) — persistido via src/server/quadro-safra.ts
   const [culturaSafras, setCulturaSafras] = useState<CulturaSafraAno[]>(initialCulturaSafras);
@@ -172,6 +179,25 @@ export const TabView: React.FC<TabViewProps> = ({
   const handleOpenNewSupplier = () => {
     setEditingSupplier(null);
     setIsDrawerOpen(true);
+  };
+
+  const handleSaveCultura = async (input: { nome: string; unidadeMedida: string }): Promise<Cultura> => {
+    try {
+      const saved = await saveCultura(input);
+      setCulturas((prev) => [...prev, saved]);
+      return saved;
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  const handleDeleteCultura = async (id: string) => {
+    try {
+      await deleteCultura(id);
+      setCulturas((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      throw err;
+    }
   };
 
   const handleSaveSafra = async (data: Partial<CulturaSafraAno>) => {
@@ -413,7 +439,14 @@ export const TabView: React.FC<TabViewProps> = ({
         />
       )}
       {tab === 'quadro_safra' && (
-        <QuadroSafraView culturaSafras={culturaSafras} onSave={handleSaveSafra} onDelete={handleDeleteSafra} />
+        <QuadroSafraView
+          culturaSafras={culturaSafras}
+          culturas={culturas}
+          onSave={handleSaveSafra}
+          onDelete={handleDeleteSafra}
+          onSaveCultura={handleSaveCultura}
+          onDeleteCultura={handleDeleteCultura}
+        />
       )}
       {tab === 'bancos' && (
         <BancosView

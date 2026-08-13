@@ -9,6 +9,7 @@ import { listGarantias } from '@/server/garantias';
 import { listDividasPf } from '@/server/dividas-pf';
 import { listCapex } from '@/server/capex';
 import { getPerfilGrupo } from '@/server/perfil-grupo';
+import { listCulturas } from '@/server/culturas';
 import { listQuadroSafra } from '@/server/quadro-safra';
 import { listLancamentosMensais } from '@/server/lancamentos';
 import { listContratosBancarios, listCronogramaConsolidado, listFluxoDetalhado } from '@/server/contratos-bancarios';
@@ -44,6 +45,7 @@ export default async function TabPage({ params }: TabPageProps) {
     initialDividasPf,
     initialCapex,
     initialPerfilGrupo,
+    initialCulturas,
     initialCulturaSafras,
     initialContratosBancarios,
     initialAquisicoes,
@@ -57,6 +59,7 @@ export default async function TabPage({ params }: TabPageProps) {
     listDividasPf(),
     listCapex(),
     getPerfilGrupo(),
+    listCulturas(),
     listQuadroSafra(),
     listContratosBancarios(),
     listAquisicoes(),
@@ -86,6 +89,7 @@ export default async function TabPage({ params }: TabPageProps) {
       contaNome={ctx.conta.nome}
       contaRazaoSocial={ctx.conta.razaoSocial ?? undefined}
       contaCnpj={ctx.conta.cnpj ?? undefined}
+      initialCulturas={initialCulturas}
       initialCulturaSafras={initialCulturaSafras}
       initialLancamentosMensais={initialLancamentosMensais}
       initialContratosBancarios={initialContratosBancarios}

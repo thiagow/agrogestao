@@ -11,6 +11,15 @@ export type Currency = 'BRL' | 'USD';
 
 export type Status = 'PENDENTE' | 'PAGO' | 'VENCIDO';
 
+export type UnidadeMedida = 'sc' | '@' | 'kg' | 't' | 'm³';
+
+export interface Cultura {
+  id: string;
+  nome: string;
+  unidadeMedida: UnidadeMedida;
+  contaId: string | null; // null = padrão (global, não editável)
+}
+
 export type TermClassification = 'CP' | 'LP';
 
 export interface CompraFornecedor {

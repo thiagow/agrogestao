@@ -4,6 +4,11 @@ import { z } from 'zod';
 // Os forms de client continuam com useState + `required` HTML nativo — este
 // arquivo não introduz nenhuma lib de formulário no client.
 
+export const culturaSchema = z.object({
+  nome: z.string().trim().min(1, 'Informe o nome da cultura'),
+  unidadeMedida: z.enum(['sc', '@', 'kg', 't', 'm³']).default('sc')
+});
+
 export const contaSchema = z.object({
   nome: z.string().trim().min(2, 'Informe o nome da conta'),
   razaoSocial: z.string().trim().optional().or(z.literal('')),
