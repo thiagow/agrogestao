@@ -1,26 +1,15 @@
 'use client';
 
-import React, { useEffect, useMemo, useState, useTransition } from 'react';
+import React, { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Edit2, Trash2, Landmark, RefreshCw, BarChart3, AlertTriangle } from 'lucide-react';
 import { ContratoBancario } from '../../types';
 import { formatCurrency, formatDateBR, isCurtoPrazo } from '../../data/initialData';
-import { Card, Tabs, Button, Badge, KpiCard, Select } from '../ui';
+import { Card, Tabs, Button, Badge, KpiCard } from '../ui';
 import { ContratoBancarioDrawer } from '../ContratoBancarioDrawer';
-import { listParcelas, type CronogramaConsolidado } from '../../server/contratos-bancarios';
+import type { CronogramaConsolidado } from '../../server/contratos-bancarios';
 import { atualizarIndices } from '../../server/indices';
 import { INDICES_VAZIOS, type IndicesVigentes } from '../../lib/taxa-efetiva';
-
-interface ParcelaRow {
-  id: string;
-  numero: number;
-  dataPagamento: string;
-  valorPrincipal: number;
-  valorJuros: number;
-  valorTotal: number;
-  saldoDevedor: number;
-  pago: boolean;
-}
 
 /** Faixa de índices vigentes + gatilho de atualização das fontes externas. */
 const FaixaIndices: React.FC<{ indices: IndicesVigentes; contratosSemIndice: number }> = ({
@@ -162,89 +151,6 @@ const TabelaConsolidada: React.FC<{ cronograma: CronogramaConsolidado }> = ({ cr
   </div>
 );
 
-/** Detalhamento parcela a parcela de um contrato específico. */
-const DetalhePorContrato: React.FC<{ contratos: ContratoBancario[] }> = ({ contratos }) => {
-  const [contratoId, setContratoId] = useState(contratos[0]?.id ?? '');
-  const [parcelas, setParcelas] = useState<ParcelaRow[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!contratoId) {
-      setParcelas([]);
-      return;
-    }
-    setLoading(true);
-    listParcelas(contratoId)
-      .then(setParcelas)
-      .finally(() => setLoading(false));
-  }, [contratoId]);
-
-  const selecionado = contratos.find((c) => c.id === contratoId);
-
-  return (
-    <div className="space-y-4 pt-6 border-t border-slate-200">
-      <div>
-        <h3 className="text-sm font-bold text-slate-900 mb-1">Detalhar por contrato</h3>
-        <p className="text-xs text-slate-500">Parcela a parcela, com saldo devedor após cada pagamento.</p>
-      </div>
-
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="max-w-xs flex-1 min-w-[240px]">
-          <Select label="Contrato" value={contratoId} onChange={(e) => setContratoId(e.target.value)}>
-            {contratos.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.banco} — {c.sistemaAmortizacao} ({formatCurrency(c.saldoAtual)})
-              </option>
-            ))}
-          </Select>
-        </div>
-        {selecionado?.taxaEfetivaAplicada != null && (
-          <p className="text-xs text-slate-500 pb-2.5">
-            Projetado a{' '}
-            <span className="font-mono font-bold text-slate-800">
-              {selecionado.taxaEfetivaAplicada.toFixed(2)}% a.a.
-            </span>
-            {selecionado.indiceAtualizadoEm && ` · índice de ${formatDateBR(selecionado.indiceAtualizadoEm)}`}
-          </p>
-        )}
-      </div>
-
-      {loading ? (
-        <p className="text-xs text-slate-400 py-8 text-center">Carregando…</p>
-      ) : parcelas.length === 0 ? (
-        <p className="text-xs text-slate-400 py-8 text-center">Nenhuma parcela gerada.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] uppercase tracking-wider text-slate-600 font-bold">
-                <th className="py-2.5 px-4">#</th>
-                <th className="py-2.5 px-4">Vencimento</th>
-                <th className="py-2.5 px-4 text-right">Principal</th>
-                <th className="py-2.5 px-4 text-right">Juros</th>
-                <th className="py-2.5 px-4 text-right">Total</th>
-                <th className="py-2.5 px-4 text-right">Saldo Devedor</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-              {parcelas.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50/60">
-                  <td className="py-2.5 px-4 font-semibold text-slate-800">{p.numero}</td>
-                  <td className="py-2.5 px-4 text-slate-600">{formatDateBR(p.dataPagamento)}</td>
-                  <td className="py-2.5 px-4 text-right text-slate-700">{formatCurrency(p.valorPrincipal)}</td>
-                  <td className="py-2.5 px-4 text-right text-slate-700">{formatCurrency(p.valorJuros)}</td>
-                  <td className="py-2.5 px-4 text-right font-bold text-slate-900">{formatCurrency(p.valorTotal)}</td>
-                  <td className="py-2.5 px-4 text-right text-slate-600">{formatCurrency(p.saldoDevedor)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-};
-
 interface CronogramaTabProps {
   contratos: ContratoBancario[];
   cronograma: CronogramaConsolidado;
@@ -270,8 +176,6 @@ const CronogramaTab: React.FC<CronogramaTabProps> = ({ contratos, cronograma, in
       ) : (
         <p className="text-xs text-slate-400 py-8 text-center">Nenhuma parcela projetada.</p>
       )}
-
-      <DetalhePorContrato contratos={contratos} />
     </div>
   );
 };
