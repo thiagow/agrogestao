@@ -3,8 +3,7 @@ import { CulturaSafraAno } from '../types';
 import { calcularSafra, formatCurrency } from '../data/initialData';
 import { Drawer, Input, Select, Button } from './ui';
 import { GerenciarCulturasModal } from './GerenciarCulturasModal';
-import type { Cultura, UnidadeMedida } from '../types';
-import { saveCultura, deleteCultura } from '../server/culturas';
+import type { Cultura } from '../types';
 
 interface SafraDrawerProps {
   isOpen: boolean;
