@@ -20,6 +20,10 @@
 //
 // A taxa recebida em `taxaJurosAnual` é a taxa EFETIVA — indexador e spread já
 // somados. Quem resolve CDI/IPCA/dólar é src/lib/taxa-efetiva.ts.
+//
+// BULLET emite uma linha por período (parcela zero, saldo capitalizando) até a
+// liquidação total no vencimento — não uma única parcela — para a aba "Fluxo
+// Detalhado" poder mostrar a evolução da dívida. Ver gerarBullet() abaixo.
 
 export type SistemaAmortizacao = 'SAC' | 'PRICE' | 'BULLET' | 'JUROS_PERIODICOS';
 export type PeriodicidadePagamento = 'Mensal' | 'Trimestral' | 'Semestral' | 'Anual';
@@ -107,28 +111,22 @@ export function gerarCronograma(params: GerarCronogramaParams): ParcelaCalculada
     : [];
   const numeroInicial = parcelasCarencia.length;
 
+  const mesesRestantes = Math.max(1, Math.round(diasEntre(inicioPagto, fim) / 30.44));
+
   if (params.sistemaAmortizacao === 'BULLET') {
-    // Pagamento único no vencimento: principal + juros acumulados desde o início do
-    // pagamento (ou da contratação, se não houver carência) até o vencimento.
+    // Os juros totais são calculados sobre o prazo real (dias corridos do início
+    // do pagamento ao vencimento), não pela composição das aproximações de
+    // período — o valor total não muda em relação à versão anterior, que gerava
+    // uma única parcela.
     const diasTotais = diasEntre(inicioPagto, fim);
     const taxaTotal = taxaDoPeriodo(params.taxaJurosAnual, diasTotais, params.baseCalculo, params.capitalizacao);
-    const principal = round2(params.saldoInicial);
-    const juros = round2(principal * taxaTotal);
+    const numParcelas = Math.max(1, Math.round(mesesRestantes / mesesPorPeriodo));
 
     return [
       ...parcelasCarencia,
-      {
-        numero: numeroInicial + 1,
-        dataPagamento: toDateStr(fim),
-        valorPrincipal: principal,
-        valorJuros: juros,
-        valorTotal: round2(principal + juros),
-        saldoDevedor: 0
-      }
+      ...gerarBullet(params.saldoInicial, taxaPeriodo, taxaTotal, numParcelas, inicioPagto, fim, mesesPorPeriodo, numeroInicial)
     ];
   }
-
-  const mesesRestantes = Math.max(1, Math.round(diasEntre(inicioPagto, fim) / 30.44));
 
   if (params.sistemaAmortizacao === 'JUROS_PERIODICOS') {
     const numParcelas = Math.max(1, Math.round(mesesRestantes / mesesPorPeriodo));
@@ -173,6 +171,56 @@ function gerarCarencia(
       saldoDevedor: saldoBase
     });
   }
+
+  return parcelas;
+}
+
+/**
+ * BULLET: nenhum pagamento intermediário — a dívida capitaliza (os juros não
+ * pagos se acumulam no saldo devedor) e tudo é liquidado de uma vez no
+ * vencimento. As linhas intermediárias mostram essa evolução (parcela zero,
+ * saldo crescendo); a última reconhece o total de juros do prazo inteiro.
+ *
+ * O saldo intermediário cresce por `taxaPeriodo` (a mesma taxa por período
+ * usada nos demais sistemas), enquanto o total de juros da última parcela vem
+ * de `taxaTotal`, calculada sobre os dias corridos reais do prazo — as duas
+ * podem divergir de centavos por causa da aproximação de dias por período
+ * (30.44 dias/mês, ver cabeçalho do arquivo), mas o saldo sempre fecha em
+ * zero porque a última parcela liquida o que falta.
+ */
+function gerarBullet(
+  saldoInicial: number,
+  taxaPeriodo: number,
+  taxaTotal: number,
+  numParcelas: number,
+  inicio: Date,
+  fim: Date,
+  mesesPorPeriodo: number,
+  numeroInicial: number
+): ParcelaCalculada[] {
+  const principal = round2(saldoInicial);
+  const jurosTotal = round2(principal * taxaTotal);
+  const parcelas: ParcelaCalculada[] = [];
+
+  for (let i = 1; i < numParcelas; i++) {
+    parcelas.push({
+      numero: numeroInicial + i,
+      dataPagamento: toDateStr(addMonths(inicio, Math.round(i * mesesPorPeriodo))),
+      valorPrincipal: 0,
+      valorJuros: 0,
+      valorTotal: 0,
+      saldoDevedor: round2(principal * Math.pow(1 + taxaPeriodo, i))
+    });
+  }
+
+  parcelas.push({
+    numero: numeroInicial + numParcelas,
+    dataPagamento: toDateStr(fim),
+    valorPrincipal: principal,
+    valorJuros: jurosTotal,
+    valorTotal: round2(principal + jurosTotal),
+    saldoDevedor: 0
+  });
 
   return parcelas;
 }

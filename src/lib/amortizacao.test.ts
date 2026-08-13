@@ -99,13 +99,64 @@ describe('PRICE', () => {
 });
 
 describe('BULLET', () => {
-  it('gera uma única parcela no vencimento com todo o principal', () => {
+  it('emite uma linha por período, com parcela zero até o vencimento', () => {
     const parcelas = gerarCronograma({ ...BASE, sistemaAmortizacao: 'BULLET' });
 
+    // BASE é Anual, 5 anos — 5 linhas: 4 intermediárias + a liquidação final.
+    expect(parcelas).toHaveLength(5);
+    for (const p of parcelas.slice(0, -1)) {
+      expect(p.valorPrincipal).toBe(0);
+      expect(p.valorJuros).toBe(0);
+      expect(p.valorTotal).toBe(0);
+    }
+  });
+
+  it('concentra principal e todos os juros na última parcela, na data de vencimento', () => {
+    const parcelas = gerarCronograma({ ...BASE, sistemaAmortizacao: 'BULLET' });
+    const ultima = parcelas[parcelas.length - 1];
+
+    expect(ultima.dataPagamento).toBe(BASE.dataVencimento);
+    expect(ultima.valorPrincipal).toBeCloseTo(BASE.saldoInicial, 2);
+    expect(ultima.valorJuros).toBeGreaterThan(0);
+  });
+
+  it('capitaliza o saldo devedor geometricamente entre os períodos intermediários', () => {
+    const parcelas = gerarCronograma({ ...BASE, sistemaAmortizacao: 'BULLET' });
+    const saldos = parcelas.slice(0, -1).map((p) => p.saldoDevedor);
+
+    // Cada saldo cresce em relação ao anterior (o primeiro, em relação ao principal).
+    let anterior = BASE.saldoInicial;
+    for (const saldo of saldos) {
+      expect(saldo).toBeGreaterThan(anterior);
+      anterior = saldo;
+    }
+
+    // A razão de crescimento é constante — capitalização geométrica, não linear.
+    const razoes = saldos.map((s, i) => s / (i === 0 ? BASE.saldoInicial : saldos[i - 1]));
+    for (const r of razoes.slice(1)) {
+      expect(r).toBeCloseTo(razoes[0], 3);
+    }
+  });
+
+  it('com Simples em vez de Composta, cobra menos juros totais no mesmo prazo', () => {
+    // Mesma relação de amortizacao.ts: para f > 1 (períodos anuais, base 360),
+    // Composta > Simples — ver describe('capitalização') abaixo.
+    const composta = gerarCronograma({ ...BASE, sistemaAmortizacao: 'BULLET', capitalizacao: 'Composta' });
+    const simples = gerarCronograma({ ...BASE, sistemaAmortizacao: 'BULLET', capitalizacao: 'Simples' });
+
+    expect(somaJuros(simples)).toBeLessThan(somaJuros(composta));
+  });
+
+  it('gera uma única linha quando o prazo cabe num só período', () => {
+    const parcelas = gerarCronograma({
+      ...BASE,
+      sistemaAmortizacao: 'BULLET',
+      dataVencimento: '2026-06-01'
+    });
+
     expect(parcelas).toHaveLength(1);
-    expect(parcelas[0].dataPagamento).toBe(BASE.dataVencimento);
     expect(parcelas[0].valorPrincipal).toBeCloseTo(BASE.saldoInicial, 2);
-    expect(parcelas[0].valorJuros).toBeGreaterThan(0);
+    expect(parcelas[0].saldoDevedor).toBe(0);
   });
 });
 

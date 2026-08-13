@@ -2,12 +2,22 @@
 
 import React, { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Edit2, Trash2, Landmark, RefreshCw, BarChart3, AlertTriangle } from 'lucide-react';
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  Landmark,
+  RefreshCw,
+  BarChart3,
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight
+} from 'lucide-react';
 import { ContratoBancario } from '../../types';
 import { formatCurrency, formatDateBR, isCurtoPrazo } from '../../data/initialData';
 import { Card, Tabs, Button, Badge, KpiCard } from '../ui';
 import { ContratoBancarioDrawer } from '../ContratoBancarioDrawer';
-import type { CronogramaConsolidado } from '../../server/contratos-bancarios';
+import type { CronogramaConsolidado, FluxoContrato, FluxoDetalhado, AnoFluxo } from '../../server/contratos-bancarios';
 import { atualizarIndices } from '../../server/indices';
 import { INDICES_VAZIOS, type IndicesVigentes } from '../../lib/taxa-efetiva';
 
@@ -180,6 +190,201 @@ const CronogramaTab: React.FC<CronogramaTabProps> = ({ contratos, cronograma, in
   );
 };
 
+/** Tabela período a período de um contrato — flat quando cada ano tem uma única
+ *  parcela (ex: periodicidade Anual), agrupada com expansão por ano quando não. */
+const TabelaFluxo: React.FC<{ fluxo: FluxoContrato }> = ({ fluxo }) => {
+  const [anosAbertos, setAnosAbertos] = useState<Set<number>>(() => new Set());
+
+  const toggleAno = (ano: number) =>
+    setAnosAbertos((prev) => {
+      const next = new Set(prev);
+      if (next.has(ano)) next.delete(ano);
+      else next.add(ano);
+      return next;
+    });
+
+  const linhaParcela = (numero: number, data: string, p: AnoFluxo['parcelas'][number], indentada: boolean) => (
+    <tr key={numero} className={indentada ? 'bg-slate-50/40 text-slate-600' : 'hover:bg-slate-50/60 text-slate-700'}>
+      <td className={`py-2.5 px-4 font-semibold ${indentada ? 'pl-9 text-slate-600 font-medium' : 'text-slate-800'}`}>
+        {numero}
+      </td>
+      <td className="py-2.5 px-4 text-slate-600">{formatDateBR(data)}</td>
+      <td className="py-2.5 px-4 text-right">{formatCurrency(p.saldoInicial)}</td>
+      <td className="py-2.5 px-4 text-right text-amber-700">{formatCurrency(p.juros)}</td>
+      <td className="py-2.5 px-4 text-right text-blue-700">{formatCurrency(p.amortizacao)}</td>
+      <td className="py-2.5 px-4 text-right font-bold text-slate-900">{formatCurrency(p.parcela)}</td>
+      <td className="py-2.5 px-4 text-right text-rose-700">{formatCurrency(p.saldoFinal)}</td>
+    </tr>
+  );
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] uppercase tracking-wider text-slate-600 font-bold">
+            <th className="py-2.5 px-4">{fluxo.agrupadoPorAno ? 'Ano' : 'Período'}</th>
+            <th className="py-2.5 px-4">Data</th>
+            <th className="py-2.5 px-4 text-right">Saldo Inicial</th>
+            <th className="py-2.5 px-4 text-right">Juros</th>
+            <th className="py-2.5 px-4 text-right">Amortização</th>
+            <th className="py-2.5 px-4 text-right">Parcela</th>
+            <th className="py-2.5 px-4 text-right">Saldo Final</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 text-xs">
+          {fluxo.agrupadoPorAno
+            ? fluxo.anos.map((a) => (
+                <React.Fragment key={a.ano}>
+                  <tr
+                    className="hover:bg-slate-50/60 cursor-pointer"
+                    onClick={() => toggleAno(a.ano)}
+                  >
+                    <td className="py-2.5 px-4 font-semibold text-slate-800">
+                      <span className="flex items-center gap-1.5">
+                        <ChevronRight
+                          className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
+                            anosAbertos.has(a.ano) ? 'rotate-90' : ''
+                          }`}
+                        />
+                        {a.ano}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4" />
+                    <td className="py-2.5 px-4 text-right text-slate-700">{formatCurrency(a.saldoInicial)}</td>
+                    <td className="py-2.5 px-4 text-right text-amber-700">{formatCurrency(a.juros)}</td>
+                    <td className="py-2.5 px-4 text-right text-blue-700">{formatCurrency(a.amortizacao)}</td>
+                    <td className="py-2.5 px-4 text-right font-bold text-slate-900">{formatCurrency(a.parcela)}</td>
+                    <td className="py-2.5 px-4 text-right text-rose-700">{formatCurrency(a.saldoFinal)}</td>
+                  </tr>
+                  {anosAbertos.has(a.ano) &&
+                    a.parcelas.map((p) => linhaParcela(p.numero, p.data, p, true))}
+                </React.Fragment>
+              ))
+            : fluxo.anos
+                .flatMap((a) => a.parcelas)
+                .map((p) => linhaParcela(p.numero, p.data, p, false))}
+        </tbody>
+        <tfoot>
+          <tr className="bg-slate-50 border-t border-slate-200 text-xs font-bold">
+            <td className="py-2.5 px-4 text-slate-900" colSpan={2}>
+              Total
+            </td>
+            <td />
+            <td className="py-2.5 px-4 text-right text-amber-700">{formatCurrency(fluxo.totalJuros)}</td>
+            <td className="py-2.5 px-4 text-right text-blue-700">{formatCurrency(fluxo.totalAmortizacao)}</td>
+            <td className="py-2.5 px-4 text-right text-slate-900">{formatCurrency(fluxo.totalParcelas)}</td>
+            <td />
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+};
+
+/** Card recolhível de um contrato — cabeçalho sempre visível, tabela expande ao clicar. */
+const CardContratoFluxo: React.FC<{ fluxo: FluxoContrato; aberto: boolean; onToggle: () => void }> = ({
+  fluxo,
+  aberto,
+  onToggle
+}) => (
+  <Card className="overflow-hidden p-0">
+    <button
+      type="button"
+      onClick={onToggle}
+      className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-slate-50/60 transition-colors"
+    >
+      <div className="flex items-start gap-3 min-w-0">
+        <Landmark className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-bold text-slate-900">{fluxo.banco}</p>
+            <Badge tone="slate">{fluxo.tipoOperacao}</Badge>
+            <Badge tone="blue">
+              {fluxo.sistemaAmortizacao} / {fluxo.periodicidade}
+            </Badge>
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Saldo: <span className="font-semibold text-slate-700">{formatCurrency(fluxo.saldoAtual)}</span>
+            {'   ·   '}Taxa: <span className="font-semibold text-slate-700">{fluxo.memoriaTaxa}</span>
+            {'   ·   '}Venc.: <span className="font-semibold text-slate-700">{formatDateBR(fluxo.dataVencimento)}</span>
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4 shrink-0">
+        <div className="text-right hidden sm:block">
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Total Juros</p>
+          <p className="text-sm font-bold text-amber-700">{formatCurrency(fluxo.totalJuros)}</p>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${aberto ? 'rotate-180' : ''}`} />
+      </div>
+    </button>
+
+    {aberto && (
+      <div className="border-t border-slate-200 px-4 pb-4 pt-3">
+        {fluxo.sistemaAmortizacao === 'BULLET' && (
+          <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">
+            Juros capitalizados no saldo devedor, liquidados integralmente no vencimento.
+          </p>
+        )}
+        {fluxo.anos.length === 0 ? (
+          <p className="text-xs text-slate-400 py-6 text-center">Nenhuma parcela projetada.</p>
+        ) : (
+          <TabelaFluxo fluxo={fluxo} />
+        )}
+      </div>
+    )}
+  </Card>
+);
+
+const FluxoDetalhadoTab: React.FC<{ fluxo: FluxoDetalhado }> = ({ fluxo }) => {
+  const [abertos, setAbertos] = useState<Set<string>>(
+    () => new Set(fluxo.contratos[0] ? [fluxo.contratos[0].contratoId] : [])
+  );
+
+  const toggle = (id: string) =>
+    setAbertos((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  if (fluxo.contratos.length === 0) {
+    return (
+      <div className="py-16 text-center text-slate-400">
+        <p className="text-sm font-semibold">Fluxo Detalhado</p>
+        <p className="text-xs mt-1">Cadastre um contrato para ver o fluxo período a período.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {fluxo.contratos.map((f) => (
+        <CardContratoFluxo
+          key={f.contratoId}
+          fluxo={f}
+          aberto={abertos.has(f.contratoId)}
+          onToggle={() => toggle(f.contratoId)}
+        />
+      ))}
+
+      <div className="flex flex-wrap items-center justify-end gap-x-6 gap-y-1 px-2 pt-2 text-xs text-slate-600">
+        <span>
+          Juros: <span className="font-bold text-amber-700">{formatCurrency(fluxo.totalJuros)}</span>
+        </span>
+        <span>
+          Amortização: <span className="font-bold text-blue-700">{formatCurrency(fluxo.totalAmortizacao)}</span>
+        </span>
+        <span>
+          Desembolso total: <span className="font-bold text-rose-700">{formatCurrency(fluxo.totalParcelas)}</span>
+        </span>
+      </div>
+    </div>
+  );
+};
+
 interface CredorGroup {
   banco: string;
   saldoAtualTotal: number;
@@ -269,6 +474,7 @@ interface BancosViewProps {
   contratos: ContratoBancario[];
   cronograma?: CronogramaConsolidado;
   indices?: IndicesVigentes;
+  fluxoDetalhado?: FluxoDetalhado;
   onSave: (data: Partial<ContratoBancario>) => void;
   onDelete: (id: string) => void;
 }
@@ -283,10 +489,18 @@ const CRONOGRAMA_VAZIO: CronogramaConsolidado = {
   contratosSemIndice: 0
 };
 
+const FLUXO_DETALHADO_VAZIO: FluxoDetalhado = {
+  contratos: [],
+  totalJuros: 0,
+  totalAmortizacao: 0,
+  totalParcelas: 0
+};
+
 export const BancosView: React.FC<BancosViewProps> = ({
   contratos,
   cronograma = CRONOGRAMA_VAZIO,
   indices = INDICES_VAZIOS,
+  fluxoDetalhado = FLUXO_DETALHADO_VAZIO,
   onSave,
   onDelete
 }) => {
@@ -389,11 +603,15 @@ export const BancosView: React.FC<BancosViewProps> = ({
               return <PorCredorTab contratos={contratos} />;
             }
 
+            if (activeTabId === 'fluxo') {
+              return <FluxoDetalhadoTab fluxo={fluxoDetalhado} />;
+            }
+
             if (activeTabId !== 'contratos') {
               return (
                 <div className="py-16 text-center text-slate-400">
-                  <p className="text-sm font-semibold">Fluxo Detalhado</p>
-                  <p className="text-xs mt-1">Em construção — aguardando especificação detalhada desta aba.</p>
+                  <p className="text-sm font-semibold">Em construção</p>
+                  <p className="text-xs mt-1">Aguardando especificação detalhada desta aba.</p>
                 </div>
               );
             }

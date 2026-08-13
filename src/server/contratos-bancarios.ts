@@ -17,6 +17,7 @@ import {
   PERIODICIDADE_FROM_DB
 } from '@/lib/enum-maps';
 import { carregarIndicesVigentes, regerarCronograma } from './cronograma-engine';
+import { calcularTaxaEfetiva } from '@/lib/taxa-efetiva';
 import type { ContratoBancario } from '@/types';
 
 export async function listContratosBancarios(): Promise<ContratoBancario[]> {
@@ -131,6 +132,10 @@ export async function listCronogramaConsolidado(): Promise<CronogramaConsolidado
         .map(([tipoOperacao, total]) => ({ tipoOperacao, total }))
         .sort((a, b) => b.total - a.total)
     }))
+    // BULLET agora gera uma linha por período com parcela zero até o
+    // vencimento (ver src/lib/amortizacao.ts) — sem este filtro, cada ano
+    // intermediário de um contrato BULLET apareceria como uma linha de R$ 0.
+    .filter((a) => a.juros !== 0 || a.amortizacao !== 0)
     .sort((a, b) => a.ano - b.ano);
 
   if (anos.length === 0) return vazio();
@@ -162,6 +167,158 @@ function vazio(): CronogramaConsolidado {
     anoInicial: 0,
     anoFinal: 0,
     contratosSemIndice: 0
+  };
+}
+
+export interface ParcelaFluxo {
+  numero: number;
+  data: string;
+  saldoInicial: number;
+  juros: number;
+  amortizacao: number;
+  parcela: number;
+  saldoFinal: number;
+}
+
+export interface AnoFluxo {
+  ano: number;
+  saldoInicial: number;
+  juros: number;
+  amortizacao: number;
+  parcela: number;
+  saldoFinal: number;
+  parcelas: ParcelaFluxo[];
+}
+
+export interface FluxoContrato {
+  contratoId: string;
+  banco: string;
+  tipoOperacao: string;
+  sistemaAmortizacao: string;
+  periodicidade: string;
+  moeda: string;
+  saldoContratado: number;
+  saldoAtual: number;
+  dataVencimento: string;
+  tipoTaxa: string;
+  taxaCadastrada: number;
+  taxaEfetiva: number | null;
+  /** "CDI 13,90% + 4,00% = 17,90% a.a." — construída a partir do que foi
+   *  efetivamente aplicado no contrato, não dos índices vigentes agora. */
+  memoriaTaxa: string;
+  /** true quando algum ano tem mais de uma parcela — a UI agrupa por ano nesse caso. */
+  agrupadoPorAno: boolean;
+  anos: AnoFluxo[];
+  totalJuros: number;
+  totalAmortizacao: number;
+  totalParcelas: number;
+}
+
+export interface FluxoDetalhado {
+  contratos: FluxoContrato[];
+  totalJuros: number;
+  totalAmortizacao: number;
+  totalParcelas: number;
+}
+
+/**
+ * Fluxo período a período de cada contrato ativo — a visão de auditoria da aba
+ * "Fluxo Detalhado", complementar ao consolidado por ano da aba "Cronograma".
+ *
+ * `saldoInicial` não é persistido em `Parcela`: é derivado do saldo contratado
+ * (1ª parcela) ou do saldo devedor da parcela anterior (demais).
+ */
+export async function listFluxoDetalhado(): Promise<FluxoDetalhado> {
+  const ctx = await requireContext();
+  if (!ctx.propriedade) return { contratos: [], totalJuros: 0, totalAmortizacao: 0, totalParcelas: 0 };
+
+  const contratos = await db.contratoBancario.findMany({
+    where: { propriedadeId: ctx.propriedade.id, ativo: true },
+    orderBy: { createdAt: 'desc' },
+    include: { parcelas: { orderBy: { numero: 'asc' } } }
+  });
+
+  const fluxos: FluxoContrato[] = contratos.map((c) => {
+    const tipoTaxa = TIPO_TAXA_FROM_DB[c.tipoTaxa as keyof typeof TIPO_TAXA_FROM_DB];
+    const taxaCadastrada = Number(c.taxaJuros);
+    const taxaEfetivaAplicada = c.taxaEfetivaAplicada != null ? Number(c.taxaEfetivaAplicada) : null;
+
+    // A memória usa os índices REALMENTE aplicados na geração do cronograma
+    // (persistidos no contrato), não os índices vigentes agora — senão a
+    // explicação divergiria da tabela se o usuário não clicou "Atualizar
+    // Índices" depois de uma mudança de CDI/IPCA/dólar.
+    const indiceRef = c.indiceReferencia != null ? Number(c.indiceReferencia) : null;
+    const indicesDoContrato = {
+      cdiAA: c.tipoTaxa === 'CDI_SPREAD' ? indiceRef : null,
+      ipcaAA: c.tipoTaxa === 'IPCA_SPREAD' ? indiceRef : null,
+      usdBrl: c.tipoTaxa === 'DOLAR_JUROS' ? indiceRef : null
+    };
+    const memoriaTaxa = calcularTaxaEfetiva(tipoTaxa, taxaCadastrada, indicesDoContrato).memoria;
+
+    let saldoAnterior = Number(c.saldoInicial);
+    const parcelas: ParcelaFluxo[] = c.parcelas.map((p) => {
+      const linha: ParcelaFluxo = {
+        numero: p.numero,
+        data: p.dataPagamento.toISOString().slice(0, 10),
+        saldoInicial: saldoAnterior,
+        juros: Number(p.valorJuros),
+        amortizacao: Number(p.valorPrincipal),
+        parcela: Number(p.valorTotal),
+        saldoFinal: Number(p.saldoDevedor)
+      };
+      saldoAnterior = linha.saldoFinal;
+      return linha;
+    });
+
+    const porAno = new Map<number, ParcelaFluxo[]>();
+    for (const p of parcelas) {
+      // getUTCFullYear: mesmo critério de listCronogramaConsolidado — as datas
+      // são gravadas à meia-noite UTC.
+      const ano = new Date(p.data).getUTCFullYear();
+      const grupo = porAno.get(ano) ?? [];
+      grupo.push(p);
+      porAno.set(ano, grupo);
+    }
+
+    const anos: AnoFluxo[] = Array.from(porAno.entries())
+      .map(([ano, ps]) => ({
+        ano,
+        saldoInicial: ps[0].saldoInicial,
+        juros: ps.reduce((s, p) => s + p.juros, 0),
+        amortizacao: ps.reduce((s, p) => s + p.amortizacao, 0),
+        parcela: ps.reduce((s, p) => s + p.parcela, 0),
+        saldoFinal: ps[ps.length - 1].saldoFinal,
+        parcelas: ps
+      }))
+      .sort((a, b) => a.ano - b.ano);
+
+    return {
+      contratoId: c.id,
+      banco: c.banco,
+      tipoOperacao: TIPO_OPERACAO_FROM_DB[c.tipoOperacao as keyof typeof TIPO_OPERACAO_FROM_DB],
+      sistemaAmortizacao: c.sistemaAmortizacao,
+      periodicidade: PERIODICIDADE_FROM_DB[c.periodicidade as keyof typeof PERIODICIDADE_FROM_DB],
+      moeda: c.moeda,
+      saldoContratado: Number(c.saldoInicial),
+      saldoAtual: Number(c.saldoAtual),
+      dataVencimento: c.dataVencimento.toISOString().slice(0, 10),
+      tipoTaxa,
+      taxaCadastrada,
+      taxaEfetiva: taxaEfetivaAplicada,
+      memoriaTaxa,
+      agrupadoPorAno: anos.some((a) => a.parcelas.length > 1),
+      anos,
+      totalJuros: parcelas.reduce((s, p) => s + p.juros, 0),
+      totalAmortizacao: parcelas.reduce((s, p) => s + p.amortizacao, 0),
+      totalParcelas: parcelas.reduce((s, p) => s + p.parcela, 0)
+    };
+  });
+
+  return {
+    contratos: fluxos,
+    totalJuros: fluxos.reduce((s, f) => s + f.totalJuros, 0),
+    totalAmortizacao: fluxos.reduce((s, f) => s + f.totalAmortizacao, 0),
+    totalParcelas: fluxos.reduce((s, f) => s + f.totalParcelas, 0)
   };
 }
 

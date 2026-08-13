@@ -41,7 +41,7 @@ import { SupplierDrawer } from './SupplierDrawer';
 import { Button } from './ui';
 import { ResumoView } from './views/ResumoView';
 import { BancosView } from './views/BancosView';
-import type { CronogramaConsolidado } from '../server/contratos-bancarios';
+import type { CronogramaConsolidado, FluxoDetalhado } from '../server/contratos-bancarios';
 import type { IndicesVigentes } from '../lib/taxa-efetiva';
 import { QuadroSafraView } from './views/QuadroSafraView';
 import { CotacoesView } from './views/CotacoesView';
@@ -74,6 +74,8 @@ interface TabViewProps {
   cronogramaConsolidado?: CronogramaConsolidado;
   /** CDI/IPCA/dólar vigentes, usados no cálculo de juros dos contratos indexados. */
   indices?: IndicesVigentes;
+  /** Fluxo período a período por contrato da aba Fluxo Detalhado — computado no servidor. */
+  fluxoDetalhado?: FluxoDetalhado;
   initialAquisicoes?: Aquisicao[];
   initialArrendamentos?: ContratoArrendamento[];
   initialContratosComerciais?: ContratoComercial[];
@@ -99,6 +101,7 @@ export const TabView: React.FC<TabViewProps> = ({
   initialContratosBancarios = [],
   cronogramaConsolidado,
   indices,
+  fluxoDetalhado,
   initialAquisicoes = [],
   initialArrendamentos = [],
   initialContratosComerciais = [],
@@ -417,6 +420,7 @@ export const TabView: React.FC<TabViewProps> = ({
           contratos={contratosBancarios}
           cronograma={cronogramaConsolidado}
           indices={indices}
+          fluxoDetalhado={fluxoDetalhado}
           onSave={handleSaveContrato}
           onDelete={handleDeleteContrato}
         />

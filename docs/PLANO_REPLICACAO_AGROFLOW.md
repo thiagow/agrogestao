@@ -38,7 +38,7 @@ Escopo: só frontend, sem persistência real (Prisma/Postgres seguem scaffolded 
 ### Decisões e recortes desta etapa
 
 - **Cadastro Mestre**: Sócios, Bens e Direitos, Garantias, CAPEX e Grupo Econômico têm grid/formulário completo e persistência real (Prisma). Só "Sócios" tinha spec de campos na doc de engenharia reversa — as outras 4 usam estrutura de dados desenhada por julgamento de engenharia (não é réplica confirmada da tela original do AgroFlow), decisão explícita do usuário em 05/08/2026. Histórico do Grupo segue "em construção" — sem spec e sem decisão ainda se deve ser audit log automático (Fase 6) ou linha do tempo manual.
-- **Bancos**: só a aba "Contratos" tem grid completo. Por Credor, Cronograma e Fluxo Detalhado mostram "em construção". Cronograma de amortização por parcela (`Parcela`) não foi implementado — fica para quando houver persistência real.
+- **Bancos** *(desatualizado — snapshot da Etapa 1/mock; as 4 abas estão implementadas e persistidas desde 13/08/2026, ver `docs/PLANO_BANCOS_JUROS_INDEXADOS.md` e `docs/PLANO_BANCOS_FLUXO_DETALHADO.md`)*: originalmente só "Contratos" tinha grid completo; Por Credor, Cronograma e Fluxo Detalhado ficaram "em construção" até então.
 - **Análise Financeira**: só a aba "Índices" tem conteúdo completo. O **Grupo 3 — Rentabilidade e Lucratividade** não foi implementado — mesmo a doc expandida lista as fórmulas (ROA, ROE, margens) mas não os valores/status, então os cards ficariam sem dado real para mostrar.
 - **Fornecedores**: campos `cnpjCpf`, `contatoNome`, `contatoTelefone`, `contatoEmail`; sub-lista "Compras/Faturas" mockada (somente leitura no Drawer).
 - **Login**: mock visual sem integração real, a partir dos tokens do `DESIGN.md` (auth segue adiada).
