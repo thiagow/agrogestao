@@ -251,11 +251,13 @@ export const TabView: React.FC<TabViewProps> = ({
         inicioPagamento: data.inicioPagamento,
         dataVencimento: data.dataVencimento || new Date().toISOString().split('T')[0],
         sistemaAmortizacao: data.sistemaAmortizacao || 'SAC',
-        periodicidade: data.periodicidade || 'Mensal',
+        periodicidadePrincipal: data.periodicidadePrincipal || 'Mensal',
+        periodicidadeJuros: data.periodicidadeJuros || 'Mensal',
         possuiCarencia: data.possuiCarencia || false,
         tipoGarantia: data.tipoGarantia,
         valorGarantia: data.valorGarantia,
         moeda: data.moeda || 'BRL',
+        ptaxInicial: data.ptaxInicial,
         observacoes: data.observacoes
       });
       setContratosBancarios((prev) =>

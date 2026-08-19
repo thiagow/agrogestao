@@ -10,12 +10,19 @@
 
 import { db } from '@/lib/db';
 import { gerarCronograma } from '@/lib/amortizacao';
-import { calcularTaxaEfetiva, converterParcelasParaBrl, type IndicesVigentes } from '@/lib/taxa-efetiva';
+import {
+  calcularTaxaEfetiva,
+  converterParcelasParaBrl,
+  criarTaxaPorData,
+  type IndicesVigentes,
+  type IndicesSerieTemporal,
+  type SerieIndice
+} from '@/lib/taxa-efetiva';
 import {
   TIPO_TAXA_FROM_DB,
   BASE_CALCULO_FROM_DB,
   TIPO_CAPITALIZACAO_FROM_DB,
-  PERIODICIDADE_FROM_DB
+  PERIODICIDADE_LIQUIDACAO_FROM_DB
 } from '@/lib/enum-maps';
 import type { ContratoBancario } from '@/types';
 
@@ -28,12 +35,14 @@ export interface ContratoParaCronograma {
   baseCalculo: string;
   capitalizacao: string;
   sistemaAmortizacao: string;
-  periodicidade: string;
+  periodicidadePrincipal: string;
+  periodicidadeJuros: string;
   possuiCarencia: boolean;
   dataContratacao: Date;
   inicioPagamento: Date | null;
   dataVencimento: Date;
   moeda: string;
+  ptaxInicial: unknown; // Prisma.Decimal | null
 }
 
 /** Colunas que `regerarCronograma` precisa ler — use em `select` do Prisma. */
@@ -45,12 +54,14 @@ export const SELECT_CRONOGRAMA = {
   baseCalculo: true,
   capitalizacao: true,
   sistemaAmortizacao: true,
-  periodicidade: true,
+  periodicidadePrincipal: true,
+  periodicidadeJuros: true,
   possuiCarencia: true,
   dataContratacao: true,
   inicioPagamento: true,
   dataVencimento: true,
-  moeda: true
+  moeda: true,
+  ptaxInicial: true
 } as const;
 
 /** Lê os índices vigentes do banco. Sem auth — quem chama já autorizou. */
@@ -75,6 +86,29 @@ export async function carregarIndicesVigentes(): Promise<IndicesVigentes> {
 }
 
 /**
+ * Lê a série temporal completa de CDI/IPCA (realizado + projeção Focus) —
+ * Fase 5 (19/08/2026). Usada por `regerarCronograma` pra aplicar a taxa
+ * correta em cada sub-período do cronograma, não uma taxa única.
+ */
+export async function carregarSerieIndices(): Promise<IndicesSerieTemporal> {
+  const rows = await db.indiceMercado.findMany({
+    where: { tipo: { in: ['CDI', 'IPCA'] } },
+    orderBy: { dataReferencia: 'asc' }
+  });
+
+  const serieDe = (tipo: 'CDI' | 'IPCA'): SerieIndice => ({
+    realizados: rows
+      .filter((r) => r.tipo === tipo && r.origem === 'REALIZADO')
+      .map((r) => ({ valor: Number(r.valor), dataReferencia: r.dataReferencia.toISOString().slice(0, 10) })),
+    projetados: rows
+      .filter((r) => r.tipo === tipo && r.origem === 'PROJETADO')
+      .map((r) => ({ valor: Number(r.valor), dataReferencia: r.dataReferencia.toISOString().slice(0, 10) }))
+  });
+
+  return { cdi: serieDe('CDI'), ipca: serieDe('IPCA') };
+}
+
+/**
  * Recalcula e regrava as parcelas de um contrato, e registra no contrato a
  * memória de cálculo usada (taxa efetiva, índice e sua data).
  *
@@ -83,27 +117,46 @@ export async function carregarIndicesVigentes(): Promise<IndicesVigentes> {
  */
 export async function regerarCronograma(
   contrato: ContratoParaCronograma,
-  indices: IndicesVigentes
+  indices: IndicesVigentes,
+  series?: IndicesSerieTemporal
 ): Promise<void> {
   const tipoTaxa = TIPO_TAXA_FROM_DB[contrato.tipoTaxa as keyof typeof TIPO_TAXA_FROM_DB];
   const taxaCadastrada = Number(contrato.taxaJuros);
   const saldoInicial = Number(contrato.saldoInicial);
+  const dataContratacaoStr = toDateStr(contrato.dataContratacao);
+  const hojeStr = toDateStr(new Date());
 
-  const efetiva = calcularTaxaEfetiva(tipoTaxa, taxaCadastrada, indices);
+  const efetiva = calcularTaxaEfetiva(tipoTaxa, taxaCadastrada, indices, {
+    moeda: contrato.moeda as ContratoBancario['moeda'],
+    ptaxInicial: contrato.ptaxInicial != null ? Number(contrato.ptaxInicial) : null,
+    dataContratacao: dataContratacaoStr
+  });
 
   // "Início de Pagamento" só entra no cronograma quando a carência está marcada
   // — o campo é persistido de qualquer forma (ver contratos-bancarios.ts).
   const temCarencia = contrato.possuiCarencia && !!contrato.inicioPagamento;
 
+  // Fase 5: CDI+spread/IPCA+spread aplicam o índice REALIZADO nas parcelas já
+  // vencidas e a PROJEÇÃO (BCB Focus) nas futuras, em vez de uma taxa única
+  // pro cronograma inteiro. `efetiva.taxaAnual` (a taxa "atual") segue sendo
+  // usada pra moldar a curva de Principal e como memória de cálculo exibida.
+  const taxaJurosAnualPorData = series
+    ? criarTaxaPorData(tipoTaxa, taxaCadastrada, series, hojeStr, efetiva.taxaAnual)
+    : undefined;
+
   const parcelasMoedaOrigem = gerarCronograma({
     saldoInicial,
     taxaJurosAnual: efetiva.taxaAnual,
+    taxaJurosAnualPorData,
     sistemaAmortizacao: contrato.sistemaAmortizacao as ContratoBancario['sistemaAmortizacao'],
-    periodicidade: PERIODICIDADE_FROM_DB[contrato.periodicidade as keyof typeof PERIODICIDADE_FROM_DB],
+    periodicidadePrincipal:
+      PERIODICIDADE_LIQUIDACAO_FROM_DB[contrato.periodicidadePrincipal as keyof typeof PERIODICIDADE_LIQUIDACAO_FROM_DB],
+    periodicidadeJuros:
+      PERIODICIDADE_LIQUIDACAO_FROM_DB[contrato.periodicidadeJuros as keyof typeof PERIODICIDADE_LIQUIDACAO_FROM_DB],
     baseCalculo: BASE_CALCULO_FROM_DB[contrato.baseCalculo as keyof typeof BASE_CALCULO_FROM_DB],
     capitalizacao:
       TIPO_CAPITALIZACAO_FROM_DB[contrato.capitalizacao as keyof typeof TIPO_CAPITALIZACAO_FROM_DB],
-    dataContratacao: toDateStr(contrato.dataContratacao),
+    dataContratacao: dataContratacaoStr,
     dataVencimento: toDateStr(contrato.dataVencimento),
     possuiCarencia: temCarencia,
     inicioPagamento: temCarencia ? toDateStr(contrato.inicioPagamento as Date) : undefined

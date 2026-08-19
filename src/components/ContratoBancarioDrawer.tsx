@@ -6,7 +6,7 @@ import {
   TipoOperacaoBancaria,
   TipoTaxaBancaria,
   SistemaAmortizacao,
-  PeriodicidadePagamento,
+  PeriodicidadeLiquidacao,
   BaseCalculoJuros,
   TipoCapitalizacao,
   Currency
@@ -32,7 +32,18 @@ const LABEL_TAXA: Record<TipoTaxaBancaria, string> = {
   'Pré-fixado (% a.a.)': 'Taxa (% a.a.) *',
   'CDI + spread': 'Spread sobre o CDI (% a.a.) *',
   'IPCA + spread': 'Spread sobre o IPCA (% a.a.) *',
-  'Dólar + juros': 'Juros em USD (% a.a.) *'
+  'Dólar + juros': 'Spread sobre a Variação Cambial (% a.a.) *'
+};
+
+// 'Dólar + juros' é a chave interna (mesma do banco, sem migração de dado) —
+// na tela vira "Variação Cambial (VC)" (Cenário 2, moeda BRL). O Cenário 1
+// (Dólar Puro) não é um Tipo de Taxa à parte: é Moeda=USD + Pré-fixado.
+// Exportado porque BancosView.tsx também exibe o Tipo de Taxa (badge da tabela).
+export const LABEL_TIPO_TAXA: Record<TipoTaxaBancaria, string> = {
+  'Pré-fixado (% a.a.)': 'Pré-fixado (% a.a.)',
+  'CDI + spread': 'CDI + spread',
+  'IPCA + spread': 'IPCA + spread',
+  'Dólar + juros': 'Variação Cambial (VC)'
 };
 
 // Lista fechada de bancos do print "Cadastrar Contrato Bancário" (fotografado pelo
@@ -78,11 +89,21 @@ const TIPOS_OPERACAO: TipoOperacaoBancaria[] = [
 
 const TIPOS_TAXA: TipoTaxaBancaria[] = ['Pré-fixado (% a.a.)', 'CDI + spread', 'IPCA + spread', 'Dólar + juros'];
 
+// Limitado a SAC/PRICE (19/08/2026) — o antigo Bullet e Juros Periódicos se
+// obtêm com periodicidadePrincipal/periodicidadeJuros = 'Final'.
 const TIPOS_AMORTIZACAO: { value: SistemaAmortizacao; label: string }[] = [
   { value: 'SAC', label: 'SAC (amortização constante)' },
-  { value: 'PRICE', label: 'PRICE (parcela fixa)' },
-  { value: 'BULLET', label: 'Bullet (principal no vencimento)' },
-  { value: 'JUROS_PERIODICOS', label: 'Juros periódicos + principal no final' }
+  { value: 'PRICE', label: 'PRICE (parcela fixa)' }
+];
+
+const PERIODICIDADES: PeriodicidadeLiquidacao[] = [
+  'Mensal',
+  'Bimestral',
+  'Trimestral',
+  'Quadrimestral',
+  'Semestral',
+  'Anual',
+  'Final'
 ];
 
 const BASES_CALCULO: BaseCalculoJuros[] = ['252 dias úteis', '360 dias corridos', '365 dias corridos'];
@@ -120,14 +141,24 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
 
   const [saldoInicial, setSaldoInicial] = useState('');
   const [saldoAtual, setSaldoAtual] = useState('');
+  // Saldo Devedor Atual pode ser sugerido a partir do Valor Contratado, mas
+  // permanece sempre editável — só para de "seguir" o Valor Contratado depois
+  // que o usuário mexe nele manualmente (mesmo critério de custoProducao/despesa
+  // não se aplica aqui: este é um valor que o usuário pode legitimamente digitar
+  // diferente do contratado, ex: contrato já parcialmente amortizado).
+  const [saldoAtualTocado, setSaldoAtualTocado] = useState(false);
   const [tipoTaxa, setTipoTaxa] = useState<TipoTaxaBancaria>('Pré-fixado (% a.a.)');
   const [taxaJuros, setTaxaJuros] = useState('');
   const [baseCalculo, setBaseCalculo] = useState<BaseCalculoJuros>('360 dias corridos');
   const [capitalizacao, setCapitalizacao] = useState<TipoCapitalizacao>('Composta');
 
   const [sistemaAmortizacao, setSistemaAmortizacao] = useState<SistemaAmortizacao>('SAC');
-  const [periodicidade, setPeriodicidade] = useState<PeriodicidadePagamento>('Mensal');
+  const [periodicidadePrincipal, setPeriodicidadePrincipal] = useState<PeriodicidadeLiquidacao>('Mensal');
+  const [periodicidadeJuros, setPeriodicidadeJuros] = useState<PeriodicidadeLiquidacao>('Mensal');
   const [possuiCarencia, setPossuiCarencia] = useState(false);
+  // Cenário Dólar Puro (moeda=USD) e Cenário Variação Cambial (tipoTaxa='Dólar
+  // + juros'): PTAX na data de contratação, referência pra medir a variação.
+  const [ptaxInicial, setPtaxInicial] = useState('');
 
   const [dataContratacao, setDataContratacao] = useState('');
   const [inicioPagamento, setInicioPagamento] = useState('');
@@ -151,18 +182,21 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
       setCulturaVinculadaId(editingContrato.culturaVinculadaId ?? '');
       setSaldoInicial(editingContrato.saldoInicial.toString());
       setSaldoAtual(editingContrato.saldoAtual.toString());
+      setSaldoAtualTocado(true);
       setTipoTaxa(editingContrato.tipoTaxa);
       setTaxaJuros(editingContrato.taxaJuros.toString());
       setBaseCalculo(editingContrato.baseCalculo);
       setCapitalizacao(editingContrato.capitalizacao);
       setSistemaAmortizacao(editingContrato.sistemaAmortizacao);
-      setPeriodicidade(editingContrato.periodicidade);
+      setPeriodicidadePrincipal(editingContrato.periodicidadePrincipal);
+      setPeriodicidadeJuros(editingContrato.periodicidadeJuros);
       setPossuiCarencia(editingContrato.possuiCarencia);
       setDataContratacao(editingContrato.dataContratacao);
       setInicioPagamento(editingContrato.inicioPagamento ?? '');
       setDataVencimento(editingContrato.dataVencimento);
       setTipoGarantia(editingContrato.tipoGarantia ?? '');
       setValorGarantia(editingContrato.valorGarantia?.toString() ?? '');
+      setPtaxInicial(editingContrato.ptaxInicial?.toString() ?? '');
       setObservacoes(editingContrato.observacoes ?? '');
     } else {
       setBancoSelecionado(BANCOS[0]);
@@ -175,18 +209,21 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
       setCulturaVinculadaId('');
       setSaldoInicial('');
       setSaldoAtual('');
+      setSaldoAtualTocado(false);
       setTipoTaxa('Pré-fixado (% a.a.)');
       setTaxaJuros('');
       setBaseCalculo('360 dias corridos');
       setCapitalizacao('Composta');
       setSistemaAmortizacao('SAC');
-      setPeriodicidade('Mensal');
+      setPeriodicidadePrincipal('Mensal');
+      setPeriodicidadeJuros('Mensal');
       setPossuiCarencia(false);
       setDataContratacao(new Date().toISOString().split('T')[0]);
       setInicioPagamento('');
       setDataVencimento('');
       setTipoGarantia('');
       setValorGarantia('');
+      setPtaxInicial('');
       setObservacoes('');
     }
   }, [editingContrato, isOpen]);
@@ -196,7 +233,13 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
 
   // Memória de cálculo ao vivo: a mesma função pura que o servidor usa para
   // gerar o cronograma, então o que o usuário lê aqui é o que vai ser projetado.
-  const taxaEfetiva = calcularTaxaEfetiva(tipoTaxa, parseFloat(taxaJuros) || 0, indices);
+  const taxaEfetiva = calcularTaxaEfetiva(tipoTaxa, parseFloat(taxaJuros) || 0, indices, {
+    moeda,
+    ptaxInicial: parseFloat(ptaxInicial) || null,
+    dataContratacao: dataContratacao || undefined
+  });
+
+  const exigePtax = moeda === 'USD' || tipoTaxa === 'Dólar + juros';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,7 +254,7 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
       safraVinculadaId: safraVinculadaId || undefined,
       culturaVinculadaId: culturaVinculadaId || undefined,
       saldoInicial: parseFloat(saldoInicial) || 0,
-      saldoAtual: editingContrato ? parseFloat(saldoAtual) || 0 : parseFloat(saldoInicial) || 0,
+      saldoAtual: parseFloat(saldoAtual) || 0,
       taxaJuros: parseFloat(taxaJuros) || 0,
       tipoTaxa,
       baseCalculo,
@@ -220,11 +263,13 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
       inicioPagamento: inicioPagamento || undefined,
       dataVencimento,
       sistemaAmortizacao,
-      periodicidade,
+      periodicidadePrincipal,
+      periodicidadeJuros,
       possuiCarencia,
       tipoGarantia: tipoGarantia.trim() || undefined,
       valorGarantia: valorGarantia ? parseFloat(valorGarantia) || 0 : undefined,
       moeda,
+      ptaxInicial: exigePtax ? parseFloat(ptaxInicial) || undefined : undefined,
       observacoes: observacoes.trim() || undefined
     });
 
@@ -297,9 +342,18 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Select label="Moeda" value={moeda} onChange={(e) => setMoeda(e.target.value as Currency)}>
+            <Select
+              label="Moeda"
+              value={moeda}
+              onChange={(e) => {
+                const novaMoeda = e.target.value as Currency;
+                setMoeda(novaMoeda);
+                // Cenário Dólar Puro exige Pré-fixado — trava o Tipo de Taxa junto.
+                if (novaMoeda === 'USD') setTipoTaxa('Pré-fixado (% a.a.)');
+              }}
+            >
               <option value="BRL">BRL (Real)</option>
-              <option value="USD">USD (Dólar)</option>
+              <option value="USD">USD (Dólar) — Cenário Dólar Puro</option>
             </Select>
             <Select
               label="Safra Vinculada"
@@ -340,7 +394,12 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
               min={0}
               step="0.01"
               value={saldoInicial}
-              onChange={(e) => setSaldoInicial(e.target.value)}
+              onChange={(e) => {
+                setSaldoInicial(e.target.value);
+                // Sugere o mesmo valor no Saldo Devedor Atual só enquanto o
+                // usuário ainda não editou esse campo manualmente.
+                if (!saldoAtualTocado) setSaldoAtual(e.target.value);
+              }}
             />
             <Input
               label={`Saldo Devedor Atual (${simboloMoeda}) *`}
@@ -348,17 +407,25 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
               required
               min={0}
               step="0.01"
-              value={editingContrato ? saldoAtual : saldoInicial}
-              disabled={!editingContrato}
-              onChange={(e) => setSaldoAtual(e.target.value)}
+              value={saldoAtual}
+              onChange={(e) => {
+                setSaldoAtual(e.target.value);
+                setSaldoAtualTocado(true);
+              }}
+              hint="Sugerido a partir do Valor Contratado — edite se o saldo já foi parcialmente amortizado."
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Select label="Tipo de Taxa" value={tipoTaxa} onChange={(e) => setTipoTaxa(e.target.value as TipoTaxaBancaria)}>
+            <Select
+              label="Tipo de Taxa"
+              value={tipoTaxa}
+              disabled={moeda === 'USD'}
+              onChange={(e) => setTipoTaxa(e.target.value as TipoTaxaBancaria)}
+            >
               {TIPOS_TAXA.map((t) => (
                 <option key={t} value={t}>
-                  {t}
+                  {LABEL_TIPO_TAXA[t]}
                 </option>
               ))}
             </Select>
@@ -373,6 +440,24 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
               onChange={(e) => setTaxaJuros(e.target.value)}
             />
           </div>
+
+          {exigePtax && (
+            <Input
+              label="PTAX Inicial (R$/US$)"
+              type="number"
+              required
+              min={0}
+              step="0.0001"
+              placeholder="Ex: 5.4200"
+              value={ptaxInicial}
+              onChange={(e) => setPtaxInicial(e.target.value)}
+              hint={
+                moeda === 'USD'
+                  ? 'Cotação na data de contratação — referência do Cenário Dólar Puro. Renovada a cada aniversário do contrato só para a conversão de exibição.'
+                  : 'Cotação na data de contratação — referência da Variação Cambial (VC). Só a alta do dólar desde essa referência entra no cálculo.'
+              }
+            />
+          )}
 
           <div
             className={`rounded-lg px-3 py-2.5 text-xs border ${
@@ -421,30 +506,46 @@ export const ContratoBancarioDrawer: React.FC<ContratoBancarioDrawerProps> = ({
         <div className="space-y-4 pt-4 border-t border-slate-200">
           <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Estrutura de Pagamento</h4>
 
+          <Select
+            label="Tipo de Amortização"
+            value={sistemaAmortizacao}
+            onChange={(e) => setSistemaAmortizacao(e.target.value as SistemaAmortizacao)}
+          >
+            {TIPOS_AMORTIZACAO.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </Select>
+
           <div className="grid grid-cols-2 gap-3">
             <Select
-              label="Tipo de Amortização"
-              value={sistemaAmortizacao}
-              onChange={(e) => setSistemaAmortizacao(e.target.value as SistemaAmortizacao)}
+              label="Periodicidade — Principal"
+              value={periodicidadePrincipal}
+              onChange={(e) => setPeriodicidadePrincipal(e.target.value as PeriodicidadeLiquidacao)}
             >
-              {TIPOS_AMORTIZACAO.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
+              {PERIODICIDADES.map((p) => (
+                <option key={p} value={p}>
+                  {p}
                 </option>
               ))}
             </Select>
             <Select
-              label="Periodicidade"
-              disabled={sistemaAmortizacao === 'BULLET'}
-              value={sistemaAmortizacao === 'BULLET' ? 'Anual' : periodicidade}
-              onChange={(e) => setPeriodicidade(e.target.value as PeriodicidadePagamento)}
+              label="Periodicidade — Juros"
+              value={periodicidadeJuros}
+              onChange={(e) => setPeriodicidadeJuros(e.target.value as PeriodicidadeLiquidacao)}
             >
-              <option value="Mensal">Mensal</option>
-              <option value="Trimestral">Trimestral</option>
-              <option value="Semestral">Semestral</option>
-              <option value="Anual">Anual</option>
+              {PERIODICIDADES.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
             </Select>
           </div>
+          <p className="text-[11px] text-slate-500">
+            &quot;Final&quot; = pagamento único na data de Vencimento Final, sem eventos intermediários. Principal e
+            Juros com periodicidades diferentes geram uma timeline única, mesclando as duas.
+          </p>
 
           <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
             <input

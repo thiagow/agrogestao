@@ -4,7 +4,8 @@ import { gerarCronograma, type ParcelaCalculada } from './amortizacao';
 const BASE = {
   saldoInicial: 1_000_000,
   taxaJurosAnual: 12,
-  periodicidade: 'Anual' as const,
+  periodicidadePrincipal: 'Anual' as const,
+  periodicidadeJuros: 'Anual' as const,
   baseCalculo: '360 dias corridos' as const,
   capitalizacao: 'Composta' as const,
   dataContratacao: '2026-01-01',
@@ -15,8 +16,8 @@ const BASE = {
 const somaPrincipal = (p: ParcelaCalculada[]) => p.reduce((s, x) => s + x.valorPrincipal, 0);
 const somaJuros = (p: ParcelaCalculada[]) => p.reduce((s, x) => s + x.valorJuros, 0);
 
-describe('gerarCronograma — invariantes comuns a todos os sistemas', () => {
-  const sistemas = ['SAC', 'PRICE', 'BULLET', 'JUROS_PERIODICOS'] as const;
+describe('gerarCronograma — invariantes comuns a SAC e PRICE, periodicidades coincidentes', () => {
+  const sistemas = ['SAC', 'PRICE'] as const;
 
   it.each(sistemas)('%s amortiza exatamente o principal contratado', (sistemaAmortizacao) => {
     const parcelas = gerarCronograma({ ...BASE, sistemaAmortizacao });
@@ -49,6 +50,12 @@ describe('gerarCronograma — invariantes comuns a todos os sistemas', () => {
     const datas = parcelas.map((p) => p.dataPagamento);
 
     expect(datas).toEqual([...datas].sort());
+  });
+
+  it.each(sistemas)('%s: última parcela cai exatamente na data de vencimento', (sistemaAmortizacao) => {
+    const parcelas = gerarCronograma({ ...BASE, sistemaAmortizacao });
+
+    expect(parcelas[parcelas.length - 1].dataPagamento).toBe(BASE.dataVencimento);
   });
 });
 
@@ -98,71 +105,39 @@ describe('PRICE', () => {
   });
 });
 
-describe('BULLET', () => {
-  it('emite uma linha por período, com parcela zero até o vencimento', () => {
-    const parcelas = gerarCronograma({ ...BASE, sistemaAmortizacao: 'BULLET' });
-
-    // BASE é Anual, 5 anos — 5 linhas: 4 intermediárias + a liquidação final.
-    expect(parcelas).toHaveLength(5);
-    for (const p of parcelas.slice(0, -1)) {
-      expect(p.valorPrincipal).toBe(0);
-      expect(p.valorJuros).toBe(0);
-      expect(p.valorTotal).toBe(0);
-    }
-  });
-
-  it('concentra principal e todos os juros na última parcela, na data de vencimento', () => {
-    const parcelas = gerarCronograma({ ...BASE, sistemaAmortizacao: 'BULLET' });
-    const ultima = parcelas[parcelas.length - 1];
-
-    expect(ultima.dataPagamento).toBe(BASE.dataVencimento);
-    expect(ultima.valorPrincipal).toBeCloseTo(BASE.saldoInicial, 2);
-    expect(ultima.valorJuros).toBeGreaterThan(0);
-  });
-
-  it('capitaliza o saldo devedor geometricamente entre os períodos intermediários', () => {
-    const parcelas = gerarCronograma({ ...BASE, sistemaAmortizacao: 'BULLET' });
-    const saldos = parcelas.slice(0, -1).map((p) => p.saldoDevedor);
-
-    // Cada saldo cresce em relação ao anterior (o primeiro, em relação ao principal).
-    let anterior = BASE.saldoInicial;
-    for (const saldo of saldos) {
-      expect(saldo).toBeGreaterThan(anterior);
-      anterior = saldo;
-    }
-
-    // A razão de crescimento é constante — capitalização geométrica, não linear.
-    const razoes = saldos.map((s, i) => s / (i === 0 ? BASE.saldoInicial : saldos[i - 1]));
-    for (const r of razoes.slice(1)) {
-      expect(r).toBeCloseTo(razoes[0], 3);
-    }
-  });
-
-  it('com Simples em vez de Composta, cobra menos juros totais no mesmo prazo', () => {
-    // Mesma relação de amortizacao.ts: para f > 1 (períodos anuais, base 360),
-    // Composta > Simples — ver describe('capitalização') abaixo.
-    const composta = gerarCronograma({ ...BASE, sistemaAmortizacao: 'BULLET', capitalizacao: 'Composta' });
-    const simples = gerarCronograma({ ...BASE, sistemaAmortizacao: 'BULLET', capitalizacao: 'Simples' });
-
-    expect(somaJuros(simples)).toBeLessThan(somaJuros(composta));
-  });
-
-  it('gera uma única linha quando o prazo cabe num só período', () => {
+describe('periodicidade Final (substitui o antigo BULLET — principal e juros no vencimento)', () => {
+  it('emite uma única parcela, na data de vencimento, com principal e todos os juros', () => {
     const parcelas = gerarCronograma({
       ...BASE,
-      sistemaAmortizacao: 'BULLET',
-      dataVencimento: '2026-06-01'
+      sistemaAmortizacao: 'PRICE',
+      periodicidadePrincipal: 'Final',
+      periodicidadeJuros: 'Final'
     });
 
     expect(parcelas).toHaveLength(1);
+    expect(parcelas[0].dataPagamento).toBe(BASE.dataVencimento);
     expect(parcelas[0].valorPrincipal).toBeCloseTo(BASE.saldoInicial, 2);
+    expect(parcelas[0].valorJuros).toBeGreaterThan(0);
     expect(parcelas[0].saldoDevedor).toBe(0);
+  });
+
+  it('SAC ou PRICE dão o mesmo resultado quando as duas pernas são Final (n=1, a distinção não se aplica)', () => {
+    const sac = gerarCronograma({ ...BASE, sistemaAmortizacao: 'SAC', periodicidadePrincipal: 'Final', periodicidadeJuros: 'Final' });
+    const price = gerarCronograma({ ...BASE, sistemaAmortizacao: 'PRICE', periodicidadePrincipal: 'Final', periodicidadeJuros: 'Final' });
+
+    expect(sac[0].valorPrincipal).toBeCloseTo(price[0].valorPrincipal, 2);
+    expect(sac[0].valorJuros).toBeCloseTo(price[0].valorJuros, 2);
   });
 });
 
-describe('JUROS_PERIODICOS', () => {
-  it('paga só juros até a última parcela, que carrega o principal inteiro', () => {
-    const parcelas = gerarCronograma({ ...BASE, sistemaAmortizacao: 'JUROS_PERIODICOS' });
+describe('periodicidades desacopladas (Principal ≠ Juros)', () => {
+  it('substitui o antigo JUROS_PERIODICOS: juros pagos periodicamente, principal só no final', () => {
+    const parcelas = gerarCronograma({
+      ...BASE,
+      sistemaAmortizacao: 'SAC',
+      periodicidadePrincipal: 'Final',
+      periodicidadeJuros: 'Anual'
+    });
     const ultima = parcelas[parcelas.length - 1];
 
     for (const p of parcelas.slice(0, -1)) {
@@ -170,19 +145,94 @@ describe('JUROS_PERIODICOS', () => {
       expect(p.valorJuros).toBeGreaterThan(0);
     }
     expect(ultima.valorPrincipal).toBeCloseTo(BASE.saldoInicial, 2);
-  });
-
-  it('cobra juros iguais em todo período — o saldo nunca diminui', () => {
-    const parcelas = gerarCronograma({ ...BASE, sistemaAmortizacao: 'JUROS_PERIODICOS' });
-
+    // Juros são iguais em todo período — o saldo de principal nunca diminui antes do final.
     for (const p of parcelas) {
       expect(p.valorJuros).toBeCloseTo(parcelas[0].valorJuros, 2);
     }
   });
+
+  it('Principal Anual + Juros Semestral: 5 datas de principal e 10 de juros, mescladas numa timeline única', () => {
+    const parcelas = gerarCronograma({
+      ...BASE,
+      sistemaAmortizacao: 'SAC',
+      periodicidadePrincipal: 'Anual',
+      periodicidadeJuros: 'Semestral'
+    });
+
+    const comPrincipal = parcelas.filter((p) => p.valorPrincipal > 0);
+    const comJuros = parcelas.filter((p) => p.valorJuros > 0);
+    expect(comPrincipal).toHaveLength(5);
+    expect(comJuros).toHaveLength(10);
+    // Datas de juros e principal se misturam na mesma timeline (10 eventos de juros,
+    // 5 dos quais coincidem com uma data de principal) — no total, 10 parcelas únicas.
+    expect(parcelas.length).toBe(10);
+    expect(somaPrincipal(parcelas)).toBeCloseTo(BASE.saldoInicial, 2);
+  });
+
+  it('juros continuam incorrendo sobre o saldo real, mesmo quando pagos numa cadência mais espaçada que o principal', () => {
+    // Principal Mensal (saldo cai rápido) + Juros Anual (só desembolsa 1x/ano) —
+    // os juros acumulados no desembolso anual devem refletir o saldo já
+    // reduzido pelos pagamentos mensais de principal, não o saldo inicial fixo.
+    const decoupled = gerarCronograma({
+      ...BASE,
+      sistemaAmortizacao: 'SAC',
+      periodicidadePrincipal: 'Mensal',
+      periodicidadeJuros: 'Anual'
+    });
+    const coupled = gerarCronograma({
+      ...BASE,
+      sistemaAmortizacao: 'SAC',
+      periodicidadePrincipal: 'Anual',
+      periodicidadeJuros: 'Anual'
+    });
+
+    // Com o principal amortizando mensalmente, o saldo médio ao longo do ano é
+    // menor do que quando o principal só cai uma vez por ano — logo, menos juros
+    // acumulados no total.
+    expect(somaJuros(decoupled)).toBeLessThan(somaJuros(coupled));
+    expect(somaPrincipal(decoupled)).toBeCloseTo(BASE.saldoInicial, 2);
+  });
+});
+
+describe('taxaJurosAnualPorData (Fase 5 — taxa por período)', () => {
+  it('sem a função informada, usa taxaJurosAnual uniformemente (comportamento anterior preservado)', () => {
+    const semFuncao = gerarCronograma({ ...BASE, sistemaAmortizacao: 'SAC' });
+    const comFuncaoConstante = gerarCronograma({
+      ...BASE,
+      sistemaAmortizacao: 'SAC',
+      taxaJurosAnualPorData: () => BASE.taxaJurosAnual
+    });
+
+    expect(comFuncaoConstante).toEqual(semFuncao);
+  });
+
+  it('aplica uma taxa diferente por sub-período — juros refletem a taxa vigente em cada data', () => {
+    // Taxa baixa nos 2 primeiros anos, alta nos 3 últimos — simula "realizado
+    // baixo, projeção futura mais alta".
+    const parcelas = gerarCronograma({
+      ...BASE,
+      sistemaAmortizacao: 'SAC',
+      taxaJurosAnualPorData: (data) => (data <= '2028-01-01' ? 5 : 20)
+    });
+
+    // 5 parcelas anuais: 2026, 2027, 2028 (baixa) / 2029, 2030 (alta, taxa 4x maior).
+    expect(parcelas[0].valorJuros).toBeLessThan(parcelas[3].valorJuros);
+  });
+
+  it('a curva de Principal (SAC/PRICE) não muda com taxaJurosAnualPorData — só os Juros', () => {
+    const semPorData = gerarCronograma({ ...BASE, sistemaAmortizacao: 'PRICE' });
+    const comPorData = gerarCronograma({
+      ...BASE,
+      sistemaAmortizacao: 'PRICE',
+      taxaJurosAnualPorData: (data) => (data <= '2028-01-01' ? 5 : 20)
+    });
+
+    expect(comPorData.map((p) => p.valorPrincipal)).toEqual(semPorData.map((p) => p.valorPrincipal));
+  });
 });
 
 describe('carência', () => {
-  it('gera parcelas só de juros antes do início do pagamento, sem tocar no principal', () => {
+  it('atrasa só a perna de Principal — Juros continuam sendo pagos desde o início', () => {
     const parcelas = gerarCronograma({
       ...BASE,
       sistemaAmortizacao: 'SAC',
@@ -190,9 +240,9 @@ describe('carência', () => {
       inicioPagamento: '2028-01-01'
     });
 
-    const carencia = parcelas.filter((p) => p.valorPrincipal === 0);
-    expect(carencia.length).toBeGreaterThan(0);
-    for (const p of carencia) {
+    const semPrincipal = parcelas.filter((p) => p.valorPrincipal === 0);
+    expect(semPrincipal.length).toBeGreaterThan(0);
+    for (const p of semPrincipal) {
       expect(p.valorJuros).toBeGreaterThan(0);
       expect(p.saldoDevedor).toBeCloseTo(BASE.saldoInicial, 2);
     }
@@ -224,7 +274,12 @@ describe('capitalização', () => {
   // direção única — é a matemática das duas convenções, e testar as duas pontas
   // impede que alguém "corrija" uma delas achando que é bug.
   it('em períodos mensais (f < 1), Simples cobra mais juros que Composta', () => {
-    const comum = { ...BASE, sistemaAmortizacao: 'SAC' as const, periodicidade: 'Mensal' as const };
+    const comum = {
+      ...BASE,
+      sistemaAmortizacao: 'SAC' as const,
+      periodicidadePrincipal: 'Mensal' as const,
+      periodicidadeJuros: 'Mensal' as const
+    };
     const simples = gerarCronograma({ ...comum, capitalizacao: 'Simples' });
     const composta = gerarCronograma({ ...comum, capitalizacao: 'Composta' });
 
@@ -232,7 +287,7 @@ describe('capitalização', () => {
   });
 
   it('em períodos anuais sobre base 360 (f > 1), Composta cobra mais que Simples', () => {
-    const comum = { ...BASE, sistemaAmortizacao: 'SAC' as const, periodicidade: 'Anual' as const };
+    const comum = { ...BASE, sistemaAmortizacao: 'SAC' as const };
     const simples = gerarCronograma({ ...comum, capitalizacao: 'Simples' });
     const composta = gerarCronograma({ ...comum, capitalizacao: 'Composta' });
 
@@ -252,14 +307,21 @@ describe('base de cálculo', () => {
   });
 });
 
-describe('periodicidade', () => {
+describe('periodicidade (Principal e Juros coincidentes)', () => {
   it.each([
     ['Mensal', 60],
+    ['Bimestral', 30],
     ['Trimestral', 20],
+    ['Quadrimestral', 15],
     ['Semestral', 10],
     ['Anual', 5]
   ] as const)('%s gera aproximadamente %i parcelas em 5 anos', (periodicidade, esperado) => {
-    const parcelas = gerarCronograma({ ...BASE, sistemaAmortizacao: 'SAC', periodicidade });
+    const parcelas = gerarCronograma({
+      ...BASE,
+      sistemaAmortizacao: 'SAC',
+      periodicidadePrincipal: periodicidade,
+      periodicidadeJuros: periodicidade
+    });
 
     expect(parcelas.length).toBe(esperado);
   });

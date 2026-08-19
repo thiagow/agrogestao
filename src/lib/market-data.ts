@@ -131,3 +131,99 @@ function parseDataBcb(data: unknown): string | null {
   if (!m) return null;
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
+
+/**
+ * Série histórica (realizada) do SGS num intervalo de datas — usado pra
+ * backfill de "índice realizado" em períodos passados (Fase 5, 19/08/2026).
+ * Formato de resposta idêntico a `fetchSerieBcb`, só que com N pontos.
+ */
+export async function fetchSerieBcbIntervalo(
+  codigo: number,
+  dataInicial: string, // YYYY-MM-DD
+  dataFinal: string // YYYY-MM-DD
+): Promise<IndiceResult[] | null> {
+  try {
+    const fmt = (iso: string) => {
+      const [y, m, d] = iso.split('-');
+      return `${d}/${m}/${y}`;
+    };
+    const res = await fetch(
+      `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${codigo}/dados?formato=json&dataInicial=${fmt(dataInicial)}&dataFinal=${fmt(dataFinal)}`,
+      { next: { revalidate: 0 }, signal: AbortSignal.timeout(15000) }
+    );
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    if (!Array.isArray(data)) return null;
+
+    const pontos: IndiceResult[] = [];
+    for (const item of data) {
+      const valor = Number(item.valor);
+      const dataReferencia = parseDataBcb(item.data);
+      if (Number.isFinite(valor) && dataReferencia) pontos.push({ valor, dataReferencia });
+    }
+    return pontos.length > 0 ? pontos : null;
+  } catch {
+    return null;
+  }
+}
+
+// ------------------------------------------------------------------
+// Banco Central — API de Expectativas de Mercado (Focus)
+// ------------------------------------------------------------------
+//
+// Fonte oficial de PROJEÇÃO (não realizado) — pesquisa diária com analistas
+// de mercado. Confirmado por consulta direta em 19/08/2026 (Olinda/OData):
+//   https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/ExpectativasMercadoAnuais
+// Indicadores confirmados com dado real: 'Selic', 'IPCA', 'Câmbio'.
+//
+// IMPORTANTE — não existe indicador "CDI" na Focus. A prática padrão de
+// mercado é usar a projeção de Selic como proxy do CDI (o CDI acompanha a
+// Selic com spread mínimo e estável) — isso precisa ficar visível na UI e no
+// relatório ao cliente, nunca apresentado como "CDI projetado" sem essa nota.
+//
+// Granularidade: só o endpoint ANUAL (`ExpectativasMercadoAnuais`) é usado —
+// um ponto de projeção por ano-calendário, mesmo critério de precisão "meses
+// aproximados" já adotado no resto do projeto (ver amortizacao.ts). Existe
+// também um endpoint mensal (`ExpectativasMercadoMensais`) para granularidade
+// fina, fora de escopo por ora.
+export type IndicadorFocus = 'Selic' | 'IPCA' | 'Câmbio';
+
+export interface ProjecaoAnual {
+  ano: number;
+  valor: number; // % a.a. (Selic/IPCA) ou BRL/USD (Câmbio) — média das respostas
+}
+
+/**
+ * Projeções anuais mais recentes de um indicador Focus, uma por ano-calendário
+ * (a API devolve o histórico de todas as pesquisas diárias — filtra só a
+ * pesquisa mais recente disponível).
+ */
+export async function fetchExpectativasFocusAnuais(indicador: IndicadorFocus): Promise<ProjecaoAnual[] | null> {
+  try {
+    const filtro = encodeURIComponent(`Indicador eq '${indicador}'`);
+    const url = `https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/ExpectativasMercadoAnuais?$filter=${filtro}&$orderby=Data desc&$top=500&$format=json`;
+    const res = await fetch(url, { next: { revalidate: 0 }, signal: AbortSignal.timeout(12000) });
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const rows: Array<{ Data: string; DataReferencia: string; Media: number }> = data?.value ?? [];
+    if (rows.length === 0) return null;
+
+    // A pesquisa mais recente é publicada no mesmo dia pra todos os anos —
+    // filtra só as linhas do dia de pesquisa mais recente presente no resultado.
+    const dataMaisRecente = rows.reduce((max, r) => (r.Data > max ? r.Data : max), rows[0].Data);
+    const doDiaMaisRecente = rows.filter((r) => r.Data === dataMaisRecente);
+
+    const projecoes: ProjecaoAnual[] = [];
+    for (const r of doDiaMaisRecente) {
+      const ano = Number(r.DataReferencia);
+      const valor = Number(r.Media);
+      if (Number.isFinite(ano) && Number.isFinite(valor)) projecoes.push({ ano, valor });
+    }
+    projecoes.sort((a, b) => a.ano - b.ano);
+    return projecoes.length > 0 ? projecoes : null;
+  } catch {
+    return null;
+  }
+}

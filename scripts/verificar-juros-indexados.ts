@@ -5,9 +5,14 @@
 // script de conferência manual do caminho que depende de rede e de Postgres.
 
 import { db } from '../src/lib/db';
-import { fetchSerieBcb, fetchDolarBRL, SERIE_BCB } from '../src/lib/market-data';
+import { fetchSerieBcb, fetchDolarBRL, fetchExpectativasFocusAnuais, SERIE_BCB } from '../src/lib/market-data';
 import { calcularTaxaEfetiva } from '../src/lib/taxa-efetiva';
-import { carregarIndicesVigentes, regerarCronograma, SELECT_CRONOGRAMA } from '../src/server/cronograma-engine';
+import {
+  carregarIndicesVigentes,
+  carregarSerieIndices,
+  regerarCronograma,
+  SELECT_CRONOGRAMA
+} from '../src/server/cronograma-engine';
 import { TIPO_TAXA_FROM_DB } from '../src/lib/enum-maps';
 
 async function main() {
@@ -19,9 +24,18 @@ async function main() {
   console.log('IPCA', ipca ? `${ipca.valor}% (${ipca.dataReferencia})` : 'INDISPONÍVEL');
   console.log('USD ', usd ? `R$ ${usd.precoBrl}` : 'INDISPONÍVEL');
 
+  console.log('\n=== 1b. Projeções BCB Focus (Fase 5) ===');
+  const focusSelic = await fetchExpectativasFocusAnuais('Selic');
+  const focusIpca = await fetchExpectativasFocusAnuais('IPCA');
+  console.log('Selic (proxy CDI):', focusSelic ?? 'INDISPONÍVEL');
+  console.log('IPCA             :', focusIpca ?? 'INDISPONÍVEL');
+
   console.log('\n=== 2. Índices persistidos ===');
   const indices = await carregarIndicesVigentes();
   console.log(indices);
+  const series = await carregarSerieIndices();
+  console.log('Série CDI :', series.cdi);
+  console.log('Série IPCA:', series.ipca);
 
   console.log('\n=== 3. Taxa efetiva por tipo de contrato (spread de 4%) ===');
   for (const tipo of ['Pré-fixado (% a.a.)', 'CDI + spread', 'IPCA + spread', 'Dólar + juros'] as const) {
@@ -37,7 +51,7 @@ async function main() {
 
   for (const c of contratos) {
     const tipoTaxa = TIPO_TAXA_FROM_DB[c.tipoTaxa as keyof typeof TIPO_TAXA_FROM_DB];
-    await regerarCronograma(c, indices);
+    await regerarCronograma(c, indices, series);
 
     const parcelas = await db.parcela.findMany({ where: { contratoId: c.id }, orderBy: { numero: 'asc' } });
     const somaPrincipal = parcelas.reduce((s, p) => s + Number(p.valorPrincipal), 0);
@@ -45,7 +59,9 @@ async function main() {
     const saldoFinal = parcelas.length ? Number(parcelas[parcelas.length - 1].saldoDevedor) : 0;
     const depois = await db.contratoBancario.findUniqueOrThrow({ where: { id: c.id } });
 
-    console.log(`\n${c.banco} — ${tipoTaxa} — ${c.sistemaAmortizacao} ${c.periodicidade} ${c.moeda}`);
+    console.log(
+      `\n${c.banco} — ${tipoTaxa} — ${c.sistemaAmortizacao} P:${c.periodicidadePrincipal}/J:${c.periodicidadeJuros} ${c.moeda}`
+    );
     console.log(`  taxa cadastrada : ${Number(c.taxaJuros).toFixed(2)}%`);
     console.log(`  taxa efetiva    : ${Number(depois.taxaEfetivaAplicada).toFixed(2)}%`);
     console.log(`  índice aplicado : ${depois.indiceReferencia ?? '—'}`);

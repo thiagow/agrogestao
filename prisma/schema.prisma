@@ -577,6 +577,10 @@ enum TipoOperacaoBancaria {
   OUTROS
 }
 
+// DOLAR_JUROS é o Cenário "Variação Cambial (VC)" na UI (relabeled em
+// 19/08/2026 — chave do enum mantida para não exigir migração de dado).
+// Cenário "Dólar Puro" não é um tipoTaxa novo: é moeda=USD + PRE_FIXADO
+// (ver ContratoBancario.ptaxInicial e src/lib/taxa-efetiva.ts).
 enum TipoTaxaBancaria {
   PRE_FIXADO  @map("PRÉ_FIXADO")
   CDI_SPREAD
@@ -584,18 +588,27 @@ enum TipoTaxaBancaria {
   DOLAR_JUROS @map("DÓLAR_JUROS")
 }
 
+// BULLET e JUROS_PERIODICOS saíram do enum em 19/08/2026 — o mesmo
+// comportamento se obtém via periodicidadePrincipal/periodicidadeJuros =
+// FINAL, com SAC ou PRICE. Contratos legados foram migrados na mesma
+// migration (ver prisma/migrations/*_sac_price_periodicidade_desacoplada).
 enum SistemaAmortizacao {
   SAC
   PRICE
-  BULLET // pagamento único no vencimento (principal + todos os juros acumulados)
-  JUROS_PERIODICOS // juros pagos a cada período, principal integral só na última parcela
 }
 
-enum PeriodicidadePagamento {
-  MENSAL     @map("Mensal")
-  TRIMESTRAL @map("Trimestral")
-  SEMESTRAL  @map("Semestral")
-  ANUAL      @map("Anual")
+// Periodicidade de liquidação, usada separadamente para Principal e Juros.
+// FINAL = pagamento único na data de "Vencimento Final" do contrato, sem
+// nenhum evento intermediário — substitui o antigo BULLET quando usado nas
+// duas pernas. Ver src/lib/amortizacao.ts.
+enum PeriodicidadeLiquidacao {
+  MENSAL       @map("Mensal")
+  BIMESTRAL    @map("Bimestral")
+  TRIMESTRAL   @map("Trimestral")
+  QUADRIMESTRAL @map("Quadrimestral")
+  SEMESTRAL    @map("Semestral")
+  ANUAL        @map("Anual")
+  FINAL        @map("Final")
 }
 
 // Convenção de contagem de dias para converter a taxa anual em taxa do período —
@@ -630,7 +643,8 @@ model ContratoBancario {
   baseCalculo        BaseCalculoJuros       @default(DIAS_CORRIDOS_360)
   capitalizacao      TipoCapitalizacao      @default(COMPOSTA)
   sistemaAmortizacao SistemaAmortizacao
-  periodicidade      PeriodicidadePagamento
+  periodicidadePrincipal PeriodicidadeLiquidacao
+  periodicidadeJuros     PeriodicidadeLiquidacao
   possuiCarencia     Boolean                @default(false)
   dataContratacao    DateTime
   inicioPagamento    DateTime?
@@ -638,6 +652,11 @@ model ContratoBancario {
   tipoGarantia       String?
   valorGarantia      Decimal?               @db.Decimal(18, 2)
   moeda              Currency
+  // Cenário USD Puro (moeda=USD) e Cenário VC (tipoTaxa=DOLAR_JUROS): cotação
+  // R$/US$ na data de contratação — referência pra medir variação cambial.
+  // Renovado a cada aniversário do contrato só para fins de CONVERSÃO/exibição
+  // (o saldo em USD não é re-marcado) — ver src/lib/taxa-efetiva.ts.
+  ptaxInicial        Decimal?               @db.Decimal(10, 4)
   observacoes        String?
   ativo              Boolean                @default(true)
 
@@ -879,13 +898,21 @@ model Cotacao {
 // bancários indexados (src/lib/taxa-efetiva.ts).
 //
 // Fontes, todas públicas e sem chave (src/lib/market-data.ts):
-//  - CDI:  BCB SGS 4389  (CDI anualizado base 252, % a.a.)
-//  - IPCA: BCB SGS 13522 (IPCA acumulado em 12 meses, %)
-//  - USD:  AwesomeAPI USD-BRL (mesma fonte já usada pelas cotações)
+//  - CDI:  BCB SGS 4389  (CDI anualizado base 252, % a.a.) — REALIZADO
+//  - IPCA: BCB SGS 13522 (IPCA acumulado em 12 meses, %) — REALIZADO
+//  - USD:  AwesomeAPI USD-BRL (mesma fonte já usada pelas cotações) — REALIZADO
+//  - Projeções (PROJETADO): API de Expectativas de Mercado (Focus) do BACEN,
+//    indicadores 'Selic' (proxy de CDI — não existe indicador CDI na Focus),
+//    'IPCA' e 'Câmbio', um ponto por ano-calendário.
 //
-// Snapshot, não série histórica: guarda só o valor vigente, com a data de
-// referência da fonte. Atualizado sob demanda pelo botão "Atualizar Índices"
-// da aba Cronograma, que em seguida regrava os cronogramas indexados.
+// Série temporal (19/08/2026) — deixou de ser snapshot único (1 linha por
+// tipo, sempre sobrescrita) pra guardar 1 linha por (tipo, origem,
+// dataReferencia), nunca sobrescrita. Isso permite reconstituir "qual era o
+// realizado/a projeção em cada data", pré-requisito pra aplicar o índice
+// correto por período no cronograma (ver src/server/cronograma-engine.ts) —
+// realizado nas parcelas já vencidas, projeção nas parcelas futuras.
+// `dataReferencia`: pra REALIZADO, a data do dado na fonte; pra PROJETADO, o
+// ano-calendário alvo da projeção (1º de janeiro daquele ano).
 // ============================================================
 
 enum TipoIndice {
@@ -894,14 +921,22 @@ enum TipoIndice {
   USD
 }
 
-model IndiceMercado {
-  id             String     @id @default(cuid())
-  tipo           TipoIndice @unique
-  valor          Decimal    @db.Decimal(10, 4) // CDI/IPCA: % a.a. | USD: BRL por USD
-  unidade        String // "% a.a." | "BRL/USD"
-  fonte          String // "BCB SGS 4389" | "AwesomeAPI USD-BRL"
-  dataReferencia DateTime // data do dado na fonte, não a do fetch
-  atualizadoEm   DateTime   @default(now())
+enum OrigemIndice {
+  REALIZADO
+  PROJETADO
+}
 
+model IndiceMercado {
+  id             String       @id @default(cuid())
+  tipo           TipoIndice
+  origem         OrigemIndice @default(REALIZADO)
+  valor          Decimal      @db.Decimal(10, 4) // CDI/IPCA: % a.a. | USD: BRL por USD
+  unidade        String // "% a.a." | "BRL/USD"
+  fonte          String // "BCB SGS 4389" | "AwesomeAPI USD-BRL" | "BCB Focus (Selic)"
+  dataReferencia DateTime // ver nota acima — significado difere por origem
+  atualizadoEm   DateTime     @default(now())
+
+  @@unique([tipo, origem, dataReferencia])
+  @@index([tipo, origem])
   @@map("indices_mercado")
 }

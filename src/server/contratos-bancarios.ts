@@ -13,10 +13,10 @@ import {
   BASE_CALCULO_FROM_DB,
   TIPO_CAPITALIZACAO_TO_DB,
   TIPO_CAPITALIZACAO_FROM_DB,
-  PERIODICIDADE_TO_DB,
-  PERIODICIDADE_FROM_DB
+  PERIODICIDADE_LIQUIDACAO_TO_DB,
+  PERIODICIDADE_LIQUIDACAO_FROM_DB
 } from '@/lib/enum-maps';
-import { carregarIndicesVigentes, regerarCronograma } from './cronograma-engine';
+import { carregarIndicesVigentes, carregarSerieIndices, regerarCronograma } from './cronograma-engine';
 import { calcularTaxaEfetiva } from '@/lib/taxa-efetiva';
 import type { ContratoBancario } from '@/types';
 
@@ -195,7 +195,8 @@ export interface FluxoContrato {
   banco: string;
   tipoOperacao: string;
   sistemaAmortizacao: string;
-  periodicidade: string;
+  periodicidadePrincipal: string;
+  periodicidadeJuros: string;
   moeda: string;
   saldoContratado: number;
   saldoAtual: number;
@@ -297,7 +298,10 @@ export async function listFluxoDetalhado(): Promise<FluxoDetalhado> {
       banco: c.banco,
       tipoOperacao: TIPO_OPERACAO_FROM_DB[c.tipoOperacao as keyof typeof TIPO_OPERACAO_FROM_DB],
       sistemaAmortizacao: c.sistemaAmortizacao,
-      periodicidade: PERIODICIDADE_FROM_DB[c.periodicidade as keyof typeof PERIODICIDADE_FROM_DB],
+      periodicidadePrincipal:
+        PERIODICIDADE_LIQUIDACAO_FROM_DB[c.periodicidadePrincipal as keyof typeof PERIODICIDADE_LIQUIDACAO_FROM_DB],
+      periodicidadeJuros:
+        PERIODICIDADE_LIQUIDACAO_FROM_DB[c.periodicidadeJuros as keyof typeof PERIODICIDADE_LIQUIDACAO_FROM_DB],
       moeda: c.moeda,
       saldoContratado: Number(c.saldoInicial),
       saldoAtual: Number(c.saldoAtual),
@@ -340,11 +344,13 @@ interface SaveContratoInput {
   inicioPagamento?: string;
   dataVencimento: string;
   sistemaAmortizacao: ContratoBancario['sistemaAmortizacao'];
-  periodicidade: ContratoBancario['periodicidade'];
+  periodicidadePrincipal: ContratoBancario['periodicidadePrincipal'];
+  periodicidadeJuros: ContratoBancario['periodicidadeJuros'];
   possuiCarencia: boolean;
   tipoGarantia?: string;
   valorGarantia?: number;
   moeda: ContratoBancario['moeda'];
+  ptaxInicial?: number;
   observacoes?: string;
 }
 
@@ -375,11 +381,13 @@ export async function saveContratoBancario(input: SaveContratoInput): Promise<Co
     inicioPagamento: parsed.inicioPagamento ? new Date(parsed.inicioPagamento) : null,
     dataVencimento: new Date(parsed.dataVencimento),
     sistemaAmortizacao: parsed.sistemaAmortizacao,
-    periodicidade: PERIODICIDADE_TO_DB[parsed.periodicidade],
+    periodicidadePrincipal: PERIODICIDADE_LIQUIDACAO_TO_DB[parsed.periodicidadePrincipal],
+    periodicidadeJuros: PERIODICIDADE_LIQUIDACAO_TO_DB[parsed.periodicidadeJuros],
     possuiCarencia: parsed.possuiCarencia,
     tipoGarantia: parsed.tipoGarantia || null,
     valorGarantia: parsed.valorGarantia ?? null,
     moeda: parsed.moeda,
+    ptaxInicial: parsed.ptaxInicial ?? null,
     observacoes: parsed.observacoes || null
   };
 
@@ -393,9 +401,11 @@ export async function saveContratoBancario(input: SaveContratoInput): Promise<Co
       });
 
   // Cronograma sempre recriado do zero, já com a taxa efetiva do indexador
-  // vigente (CDI/IPCA/dólar) — ver src/server/cronograma-engine.ts.
-  const indices = await carregarIndicesVigentes();
-  await regerarCronograma(row, indices);
+  // vigente (CDI/IPCA/dólar) — ver src/server/cronograma-engine.ts. A série
+  // temporal (Fase 5) aplica realizado/projeção por período em vez de uma
+  // taxa única pro cronograma inteiro.
+  const [indices, series] = await Promise.all([carregarIndicesVigentes(), carregarSerieIndices()]);
+  await regerarCronograma(row, indices, series);
 
   revalidatePath('/bancos');
   revalidatePath('/resumo');
@@ -439,11 +449,13 @@ type ContratoRow = {
   inicioPagamento: Date | null;
   dataVencimento: Date;
   sistemaAmortizacao: string;
-  periodicidade: string;
+  periodicidadePrincipal: string;
+  periodicidadeJuros: string;
   possuiCarencia: boolean;
   tipoGarantia: string | null;
   valorGarantia: unknown;
   moeda: string;
+  ptaxInicial: unknown;
   observacoes: string | null;
   taxaEfetivaAplicada: unknown;
   indiceReferencia: unknown;
@@ -469,11 +481,15 @@ function toContratoDTO(row: ContratoRow): ContratoBancario {
     inicioPagamento: row.inicioPagamento ? row.inicioPagamento.toISOString().slice(0, 10) : undefined,
     dataVencimento: row.dataVencimento.toISOString().slice(0, 10),
     sistemaAmortizacao: row.sistemaAmortizacao as ContratoBancario['sistemaAmortizacao'],
-    periodicidade: PERIODICIDADE_FROM_DB[row.periodicidade as keyof typeof PERIODICIDADE_FROM_DB],
+    periodicidadePrincipal:
+      PERIODICIDADE_LIQUIDACAO_FROM_DB[row.periodicidadePrincipal as keyof typeof PERIODICIDADE_LIQUIDACAO_FROM_DB],
+    periodicidadeJuros:
+      PERIODICIDADE_LIQUIDACAO_FROM_DB[row.periodicidadeJuros as keyof typeof PERIODICIDADE_LIQUIDACAO_FROM_DB],
     possuiCarencia: row.possuiCarencia,
     tipoGarantia: row.tipoGarantia ?? undefined,
     valorGarantia: row.valorGarantia != null ? Number(row.valorGarantia) : undefined,
     moeda: row.moeda as ContratoBancario['moeda'],
+    ptaxInicial: row.ptaxInicial != null ? Number(row.ptaxInicial) : undefined,
     observacoes: row.observacoes ?? undefined,
     taxaEfetivaAplicada: row.taxaEfetivaAplicada != null ? Number(row.taxaEfetivaAplicada) : undefined,
     indiceReferencia: row.indiceReferencia != null ? Number(row.indiceReferencia) : undefined,

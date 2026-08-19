@@ -193,11 +193,20 @@ export type TipoOperacaoBancaria =
   | 'FINAME'
   | 'OUTROS';
 
+// 'Dólar + juros' é o rótulo interno (chave do enum no banco); a UI mostra
+// "Variação Cambial (VC)" — ver LABEL_TIPO_TAXA em ContratoBancarioDrawer.tsx.
 export type TipoTaxaBancaria = 'Pré-fixado (% a.a.)' | 'CDI + spread' | 'IPCA + spread' | 'Dólar + juros';
 
-export type SistemaAmortizacao = 'SAC' | 'PRICE' | 'BULLET' | 'JUROS_PERIODICOS';
+// BULLET e JUROS_PERIODICOS saíram do sistema — o mesmo comportamento (tudo no
+// vencimento, ou juros periódicos + principal no final) agora se obtém via
+// periodicidadePrincipal/periodicidadeJuros = 'Final', com SAC ou PRICE.
+export type SistemaAmortizacao = 'SAC' | 'PRICE';
 
-export type PeriodicidadePagamento = 'Mensal' | 'Trimestral' | 'Semestral' | 'Anual';
+// Periodicidade de liquidação — usada separadamente para Principal e Juros
+// (desacoplamento pedido pelo cliente em 19/08/2026). 'Final' = pagamento
+// único na data de "Vencimento Final" do contrato, sem nenhum evento
+// intermediário (substitui o antigo BULLET quando usado em ambas as pernas).
+export type PeriodicidadeLiquidacao = 'Mensal' | 'Bimestral' | 'Trimestral' | 'Quadrimestral' | 'Semestral' | 'Anual' | 'Final';
 
 export type BaseCalculoJuros = '252 dias úteis' | '360 dias corridos' | '365 dias corridos';
 
@@ -220,7 +229,8 @@ export interface ContratoBancario {
   baseCalculo: BaseCalculoJuros;
   capitalizacao: TipoCapitalizacao;
   sistemaAmortizacao: SistemaAmortizacao;
-  periodicidade: PeriodicidadePagamento;
+  periodicidadePrincipal: PeriodicidadeLiquidacao;
+  periodicidadeJuros: PeriodicidadeLiquidacao;
   possuiCarencia: boolean;
   dataContratacao: string; // YYYY-MM-DD
   inicioPagamento?: string; // YYYY-MM-DD
@@ -228,6 +238,10 @@ export interface ContratoBancario {
   tipoGarantia?: string;
   valorGarantia?: number;
   moeda: Currency;
+  // Cenário USD Puro (moeda=USD) e Cenário VC (tipoTaxa='Dólar + juros'):
+  // cotação R$/US$ na data de contratação, referência pra medir variação
+  // cambial. Obrigatório nesses dois cenários (validação em src/lib/validation.ts).
+  ptaxInicial?: number;
   observacoes?: string;
   // Memória de cálculo do último cronograma gerado (ver src/lib/taxa-efetiva.ts).
   taxaEfetivaAplicada?: number; // % a.a. efetivamente usada

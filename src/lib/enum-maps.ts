@@ -8,7 +8,7 @@ import type {
   Category,
   EstadoCivil,
   TipoTaxaBancaria,
-  PeriodicidadePagamento,
+  PeriodicidadeLiquidacao,
   PeriodicidadeArrendamento,
   GrupoIrpfBem,
   LiquidezBem,
@@ -20,7 +20,7 @@ import {
   Category as PrismaCategory,
   EstadoCivil as PrismaEstadoCivil,
   TipoTaxaBancaria as PrismaTipoTaxaBancaria,
-  PeriodicidadePagamento as PrismaPeriodicidadePagamento,
+  PeriodicidadeLiquidacao as PrismaPeriodicidadeLiquidacao,
   PeriodicidadeArrendamento as PrismaPeriodicidadeArrendamento,
   GrupoIrpfBem as PrismaGrupoIrpfBem,
   LiquidezBem as PrismaLiquidezBem,
@@ -131,18 +131,24 @@ export const TIPO_CAPITALIZACAO_FROM_DB: Record<PrismaTipoCapitalizacao, TipoCap
   COMPOSTA: 'Composta'
 };
 
-export const PERIODICIDADE_TO_DB: Record<PeriodicidadePagamento, PrismaPeriodicidadePagamento> = {
-  Mensal: PrismaPeriodicidadePagamento.MENSAL,
-  Trimestral: PrismaPeriodicidadePagamento.TRIMESTRAL,
-  Semestral: PrismaPeriodicidadePagamento.SEMESTRAL,
-  Anual: PrismaPeriodicidadePagamento.ANUAL
+export const PERIODICIDADE_LIQUIDACAO_TO_DB: Record<PeriodicidadeLiquidacao, PrismaPeriodicidadeLiquidacao> = {
+  Mensal: PrismaPeriodicidadeLiquidacao.MENSAL,
+  Bimestral: PrismaPeriodicidadeLiquidacao.BIMESTRAL,
+  Trimestral: PrismaPeriodicidadeLiquidacao.TRIMESTRAL,
+  Quadrimestral: PrismaPeriodicidadeLiquidacao.QUADRIMESTRAL,
+  Semestral: PrismaPeriodicidadeLiquidacao.SEMESTRAL,
+  Anual: PrismaPeriodicidadeLiquidacao.ANUAL,
+  Final: PrismaPeriodicidadeLiquidacao.FINAL
 };
 
-export const PERIODICIDADE_FROM_DB: Record<PrismaPeriodicidadePagamento, PeriodicidadePagamento> = {
+export const PERIODICIDADE_LIQUIDACAO_FROM_DB: Record<PrismaPeriodicidadeLiquidacao, PeriodicidadeLiquidacao> = {
   MENSAL: 'Mensal',
+  BIMESTRAL: 'Bimestral',
   TRIMESTRAL: 'Trimestral',
+  QUADRIMESTRAL: 'Quadrimestral',
   SEMESTRAL: 'Semestral',
-  ANUAL: 'Anual'
+  ANUAL: 'Anual',
+  FINAL: 'Final'
 };
 
 export const PERIODICIDADE_ARRENDAMENTO_TO_DB: Record<PeriodicidadeArrendamento, PrismaPeriodicidadeArrendamento> = {

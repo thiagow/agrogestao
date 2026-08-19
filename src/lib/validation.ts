@@ -146,45 +146,63 @@ export const quadroSafraSchema = z.object({
   producaoFixadaPercent: z.coerce.number().min(0).max(100).optional()
 });
 
-export const contratoBancarioSchema = z.object({
-  banco: z.string().trim().min(1, 'Informe o banco/credor'),
-  nomeTomador: z.string().trim().optional().or(z.literal('')),
-  numeroContrato: z.string().trim().optional().or(z.literal('')),
-  tipoOperacao: z.enum([
-    'CUSTEIO AGRICOLA',
-    'CUSTEIO PECUARIO',
-    'INVESTIMENTO',
-    'CAPITAL DE GIRO',
-    'CPR',
-    'BARTER',
-    'PRONAF',
-    'PRONAMP',
-    'FCO',
-    'FNO',
-    'FINAME',
-    'OUTROS'
-  ]),
-  safraVinculadaId: z.string().trim().optional().or(z.literal('')),
-  culturaVinculadaId: z.string().trim().optional().or(z.literal('')),
-  saldoInicial: z.coerce.number().nonnegative(),
-  saldoAtual: z.coerce.number().nonnegative(),
-  // Taxa cheia no pré-fixado; spread sobre o indexador nos demais tipos de taxa
-  // (ver src/lib/taxa-efetiva.ts). Campo único — não há spread separado.
-  taxaJuros: z.coerce.number().nonnegative(),
-  tipoTaxa: z.enum(['Pré-fixado (% a.a.)', 'CDI + spread', 'IPCA + spread', 'Dólar + juros']),
-  baseCalculo: z.enum(['252 dias úteis', '360 dias corridos', '365 dias corridos']).default('360 dias corridos'),
-  capitalizacao: z.enum(['Composta', 'Simples']).default('Composta'),
-  dataContratacao: z.string().min(1, 'Informe a data de contratação'),
-  inicioPagamento: z.string().trim().optional().or(z.literal('')),
-  dataVencimento: z.string().min(1, 'Informe o vencimento'),
-  sistemaAmortizacao: z.enum(['SAC', 'PRICE', 'BULLET', 'JUROS_PERIODICOS']),
-  periodicidade: z.enum(['Mensal', 'Trimestral', 'Semestral', 'Anual']),
-  possuiCarencia: z.coerce.boolean().default(false),
-  tipoGarantia: z.string().trim().optional().or(z.literal('')),
-  valorGarantia: z.coerce.number().nonnegative('Valor não pode ser negativo').optional(),
-  moeda: z.enum(['BRL', 'USD']),
-  observacoes: z.string().trim().optional().or(z.literal(''))
-});
+const PERIODICIDADE_LIQUIDACAO_VALUES = ['Mensal', 'Bimestral', 'Trimestral', 'Quadrimestral', 'Semestral', 'Anual', 'Final'] as const;
+
+export const contratoBancarioSchema = z
+  .object({
+    banco: z.string().trim().min(1, 'Informe o banco/credor'),
+    nomeTomador: z.string().trim().optional().or(z.literal('')),
+    numeroContrato: z.string().trim().optional().or(z.literal('')),
+    tipoOperacao: z.enum([
+      'CUSTEIO AGRICOLA',
+      'CUSTEIO PECUARIO',
+      'INVESTIMENTO',
+      'CAPITAL DE GIRO',
+      'CPR',
+      'BARTER',
+      'PRONAF',
+      'PRONAMP',
+      'FCO',
+      'FNO',
+      'FINAME',
+      'OUTROS'
+    ]),
+    safraVinculadaId: z.string().trim().optional().or(z.literal('')),
+    culturaVinculadaId: z.string().trim().optional().or(z.literal('')),
+    saldoInicial: z.coerce.number().nonnegative(),
+    saldoAtual: z.coerce.number().nonnegative(),
+    // Taxa cheia no pré-fixado; spread sobre o indexador nos demais tipos de taxa
+    // (ver src/lib/taxa-efetiva.ts). Campo único — não há spread separado.
+    taxaJuros: z.coerce.number().nonnegative(),
+    // 'Dólar + juros' é o Cenário "Variação Cambial (VC)" na UI — chave interna
+    // mantida para não exigir migração de dado (ver ContratoBancarioDrawer.tsx).
+    tipoTaxa: z.enum(['Pré-fixado (% a.a.)', 'CDI + spread', 'IPCA + spread', 'Dólar + juros']),
+    baseCalculo: z.enum(['252 dias úteis', '360 dias corridos', '365 dias corridos']).default('360 dias corridos'),
+    capitalizacao: z.enum(['Composta', 'Simples']).default('Composta'),
+    dataContratacao: z.string().min(1, 'Informe a data de contratação'),
+    inicioPagamento: z.string().trim().optional().or(z.literal('')),
+    dataVencimento: z.string().min(1, 'Informe o vencimento'),
+    sistemaAmortizacao: z.enum(['SAC', 'PRICE']),
+    periodicidadePrincipal: z.enum(PERIODICIDADE_LIQUIDACAO_VALUES),
+    periodicidadeJuros: z.enum(PERIODICIDADE_LIQUIDACAO_VALUES),
+    possuiCarencia: z.coerce.boolean().default(false),
+    tipoGarantia: z.string().trim().optional().or(z.literal('')),
+    valorGarantia: z.coerce.number().nonnegative('Valor não pode ser negativo').optional(),
+    moeda: z.enum(['BRL', 'USD']),
+    // Cenário USD Puro (moeda=USD) e Cenário VC (tipoTaxa='Dólar + juros'):
+    // cotação R$/US$ na data de contratação — obrigatória nesses dois cenários
+    // (ver .refine() abaixo). Ver src/lib/taxa-efetiva.ts.
+    ptaxInicial: z.coerce.number().positive().optional(),
+    observacoes: z.string().trim().optional().or(z.literal(''))
+  })
+  .refine((data) => data.moeda !== 'USD' || data.tipoTaxa === 'Pré-fixado (% a.a.)', {
+    message: 'Contrato em USD (Cenário Dólar Puro) exige Tipo de Taxa Pré-fixado.',
+    path: ['tipoTaxa']
+  })
+  .refine((data) => (data.moeda !== 'USD' && data.tipoTaxa !== 'Dólar + juros') || !!data.ptaxInicial, {
+    message: 'Informe a PTAX Inicial (R$/US$) para contratos em USD ou com Variação Cambial (VC).',
+    path: ['ptaxInicial']
+  });
 
 export const aquisicaoSchema = z.object({
   nomeFazenda: z.string().trim().min(1, 'Informe o nome da fazenda'),

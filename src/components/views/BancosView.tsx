@@ -16,7 +16,7 @@ import {
 import { ContratoBancario } from '../../types';
 import { formatCurrency, formatDateBR, isCurtoPrazo } from '../../data/initialData';
 import { Card, Tabs, Button, Badge, KpiCard } from '../ui';
-import { ContratoBancarioDrawer } from '../ContratoBancarioDrawer';
+import { ContratoBancarioDrawer, LABEL_TIPO_TAXA } from '../ContratoBancarioDrawer';
 import type { CronogramaConsolidado, FluxoContrato, FluxoDetalhado, AnoFluxo } from '../../server/contratos-bancarios';
 import { atualizarIndices } from '../../server/indices';
 import { INDICES_VAZIOS, type IndicesVigentes } from '../../lib/taxa-efetiva';
@@ -300,7 +300,8 @@ const CardContratoFluxo: React.FC<{ fluxo: FluxoContrato; aberto: boolean; onTog
             <p className="font-bold text-slate-900">{fluxo.banco}</p>
             <Badge tone="slate">{fluxo.tipoOperacao}</Badge>
             <Badge tone="blue">
-              {fluxo.sistemaAmortizacao} / {fluxo.periodicidade}
+              {fluxo.sistemaAmortizacao} / Principal {fluxo.periodicidadePrincipal}
+              {fluxo.periodicidadeJuros !== fluxo.periodicidadePrincipal ? ` · Juros ${fluxo.periodicidadeJuros}` : ''}
             </Badge>
           </div>
           <p className="text-xs text-slate-500 mt-1">
@@ -651,13 +652,23 @@ export const BancosView: React.FC<BancosViewProps> = ({
                           )}
                         </td>
                         <td className="py-3 px-4">
-                          <Badge tone="blue">{c.tipoTaxa}</Badge>
+                          <Badge tone="blue">{LABEL_TIPO_TAXA[c.tipoTaxa]}</Badge>
                         </td>
                         <td className="py-3 px-4 font-medium text-slate-600 whitespace-nowrap">
                           {formatDateBR(c.dataVencimento)}
                         </td>
                         <td className="py-3 px-4 text-slate-600">{c.sistemaAmortizacao}</td>
-                        <td className="py-3 px-4 text-slate-600">{c.periodicidade}</td>
+                        <td className="py-3 px-4 text-slate-600">
+                          {c.periodicidadePrincipal === c.periodicidadeJuros ? (
+                            c.periodicidadePrincipal
+                          ) : (
+                            <>
+                              P: {c.periodicidadePrincipal}
+                              <br />
+                              J: {c.periodicidadeJuros}
+                            </>
+                          )}
+                        </td>
                         <td className="py-3 px-4 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2">
                             <button

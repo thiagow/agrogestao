@@ -85,11 +85,12 @@ async function seedIndices() {
       console.log(`⚠️  ${f.tipo} indisponível na fonte — atualize pela aba Cronograma de Bancos.`);
       continue;
     }
-    const dados = { valor: r.valor, unidade: f.unidade, fonte: f.fonte, dataReferencia: new Date(r.dataReferencia) };
+    const dataReferencia = new Date(r.dataReferencia);
+    const dados = { valor: r.valor, unidade: f.unidade, fonte: f.fonte, dataReferencia };
     await db.indiceMercado.upsert({
-      where: { tipo: f.tipo },
+      where: { tipo_origem_dataReferencia: { tipo: f.tipo, origem: 'REALIZADO', dataReferencia } },
       update: { ...dados, atualizadoEm: new Date() },
-      create: { tipo: f.tipo, ...dados }
+      create: { tipo: f.tipo, origem: 'REALIZADO', ...dados }
     });
     console.log(`✔ ${f.tipo}: ${r.valor} (${r.dataReferencia})`);
   }
