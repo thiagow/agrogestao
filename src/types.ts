@@ -170,7 +170,7 @@ export interface CulturaSafraAno {
   rendimento: number; // unidade/ha (sc, kg, @ conforme a cultura)
   unidadeProducao: string; // "sc", "kg", "@", "ton"
   precoMedio: number; // R$ por unidade de produção
-  despesa: number; // R$
+  custoProducao: number; // R$ por hectare — Despesa total é derivada (custoProducao * hectares)
   producaoFixadaPercent?: number; // % da produção já fixada em contrato
 }
 

@@ -149,7 +149,7 @@ function gerarCulturaSafras(): CulturaSafraAno[] {
         rendimento: Math.round(base.rendimento * fatorRendimento * 100) / 100,
         unidadeProducao: base.unidadeProducao,
         precoMedio: base.precoMedio,
-        despesa: Math.round(hectares * base.despesaPorHa),
+        custoProducao: base.despesaPorHa,
         producaoFixadaPercent: anoSafra === '2026/2027' ? base.producaoFixadaPercent : undefined
       });
     });
@@ -163,10 +163,11 @@ export const initialCulturaSafras: CulturaSafraAno[] = gerarCulturaSafras();
 export function calcularSafra(registro: CulturaSafraAno) {
   const totalProducao = Math.round(registro.hectares * registro.rendimento);
   const receitaBruta = Math.round(totalProducao * registro.precoMedio);
-  const receitaLiquida = receitaBruta - registro.despesa;
+  const despesa = Math.round(registro.hectares * registro.custoProducao);
+  const receitaLiquida = receitaBruta - despesa;
   const margem = receitaBruta > 0 ? (receitaLiquida / receitaBruta) * 100 : 0;
 
-  return { totalProducao, receitaBruta, receitaLiquida, margem };
+  return { totalProducao, receitaBruta, despesa, receitaLiquida, margem };
 }
 
 // ---- Bancos e Financiamentos ----

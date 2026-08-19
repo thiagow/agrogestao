@@ -142,7 +142,7 @@ export const quadroSafraSchema = z.object({
   rendimento: z.coerce.number().nonnegative(),
   unidadeProducao: z.string().trim().min(1),
   precoMedio: z.coerce.number().nonnegative(),
-  despesa: z.coerce.number().nonnegative(),
+  custoProducao: z.coerce.number().nonnegative(),
   producaoFixadaPercent: z.coerce.number().min(0).max(100).optional()
 });
 

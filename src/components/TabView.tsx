@@ -212,7 +212,7 @@ export const TabView: React.FC<TabViewProps> = ({
         rendimento: data.rendimento || 0,
         unidadeProducao: data.unidadeProducao || 'sc',
         precoMedio: data.precoMedio || 0,
-        despesa: data.despesa || 0,
+        custoProducao: data.custoProducao || 0,
         producaoFixadaPercent: data.producaoFixadaPercent
       });
       setCulturaSafras((prev) => (data.id ? prev.map((s) => (s.id === saved.id ? saved : s)) : [saved, ...prev]));

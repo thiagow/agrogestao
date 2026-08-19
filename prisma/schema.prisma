@@ -238,7 +238,7 @@ model QuadroSafra {
   rendimento            Decimal  @db.Decimal(12, 4) // unidade/ha
   unidadeProducao       String // "sc", "kg", "@", "ton", "m³"
   precoMedio            Decimal  @db.Decimal(18, 2)
-  despesa               Decimal  @db.Decimal(18, 2)
+  custoProducao         Decimal  @db.Decimal(12, 2) // R$ por hectare — despesa total é derivada (custoProducao * hectares)
   producaoFixadaPercent Decimal? @db.Decimal(5, 2)
   ativo                 Boolean  @default(true)
 

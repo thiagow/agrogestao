@@ -30,8 +30,7 @@ export async function listLancamentosMensais(): Promise<LancamentoMensal[]> {
     const hectares = r.hectares;
     const rendimento = Number(r.rendimento);
     const precoMedio = Number(r.precoMedio);
-    const despesa = Number(r.despesa);
-    const despesaPorHa = hectares > 0 ? despesa / hectares : 0;
+    const despesaPorHa = Number(r.custoProducao);
 
     for (let mes = 1; mes <= 12; mes++) {
       const fatorSazonal = 1 + Math.sin((mes / 12) * Math.PI * 2) * 0.6;

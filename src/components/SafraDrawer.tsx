@@ -34,7 +34,7 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
   const [rendimento, setRendimento] = useState('');
   const [unidadeProducao, setUnidadeProducao] = useState('sc');
   const [precoMedio, setPrecoMedio] = useState('');
-  const [despesa, setDespesa] = useState('');
+  const [custoProducao, setCustoProducao] = useState('');
   const [isGerenciarOpen, setIsGerenciarOpen] = useState(false);
   const [culturasState, setCulturas] = useState<Cultura[]>(culturas);
 
@@ -52,7 +52,7 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
       setRendimento(editingSafra.rendimento.toString());
       setUnidadeProducao(editingSafra.unidadeProducao);
       setPrecoMedio(editingSafra.precoMedio.toString());
-      setDespesa(editingSafra.despesa.toString());
+      setCustoProducao(editingSafra.custoProducao.toString());
     } else {
       const primeiraCultura = culturasState[0];
       setCultura(primeiraCultura?.nome ?? '');
@@ -63,7 +63,7 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
       setHaArrendada('0');
       setRendimento('');
       setPrecoMedio('');
-      setDespesa('');
+      setCustoProducao('');
     }
   }, [editingSafra, isOpen, culturasState, anosSafraDisponiveis]);
 
@@ -97,7 +97,7 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
     rendimento: parseFloat(rendimento) || 0,
     unidadeProducao,
     precoMedio: parseFloat(precoMedio) || 0,
-    despesa: parseFloat(despesa) || 0
+    custoProducao: parseFloat(custoProducao) || 0
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -114,7 +114,7 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
       rendimento: parseFloat(rendimento) || 0,
       unidadeProducao,
       precoMedio: parseFloat(precoMedio) || 0,
-      despesa: parseFloat(despesa) || 0
+      custoProducao: parseFloat(custoProducao) || 0
     });
 
     onClose();
@@ -222,12 +222,13 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
         />
 
         <Input
-          label="Despesa (R$)"
+          label="Custo de Produção (R$/Há)"
           type="number"
           required
           min={0}
-          value={despesa}
-          onChange={(e) => setDespesa(e.target.value)}
+          step="0.01"
+          value={custoProducao}
+          onChange={(e) => setCustoProducao(e.target.value)}
         />
 
         <div className="pt-3 border-t border-slate-200 space-y-1.5 text-xs">
@@ -241,6 +242,10 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
           <div className="flex justify-between text-slate-600">
             <span>Receita Bruta</span>
             <span className="font-semibold text-slate-800">{formatCurrency(preview.receitaBruta)}</span>
+          </div>
+          <div className="flex justify-between text-slate-600">
+            <span>Despesa</span>
+            <span className="font-semibold text-slate-800">{formatCurrency(preview.despesa)}</span>
           </div>
           <div className="flex justify-between text-slate-600">
             <span>Receita Líquida</span>

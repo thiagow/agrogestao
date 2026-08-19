@@ -57,7 +57,10 @@ export const ResumoView: React.FC<ResumoViewProps> = ({ suppliers, culturaSafras
     const calc = l.referencia ? calcularSafra(l.referencia) : null;
     return sum + (calc?.receitaBruta ?? 0);
   }, 0);
-  const despesaTotal = linhas.reduce((sum, l) => sum + (l.referencia?.despesa ?? 0), 0);
+  const despesaTotal = linhas.reduce((sum, l) => {
+    const calc = l.referencia ? calcularSafra(l.referencia) : null;
+    return sum + (calc?.despesa ?? 0);
+  }, 0);
   const receitaLiquidaTotal = receitaBrutaTotal - despesaTotal;
 
   const endividamentoBancos = contratosBancarios.reduce((sum, c) => sum + c.saldoAtual, 0);

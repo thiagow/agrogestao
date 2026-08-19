@@ -103,11 +103,12 @@ async function seedDemo() {
     return;
   }
 
-  const email = 'demo@grupopereira.com.br';
+  const email = process.env.DEMO_ACCOUNT_EMAIL || 'demo@grupopereira.com.br';
+  const senha = process.env.DEMO_ACCOUNT_PASSWORD || 'Demo12345678!';
   const created = await auth.api.createUser({
     body: {
       email,
-      password: 'Demo12345678!',
+      password: senha,
       name: 'Roberto Pereira',
       data: { mustChangePassword: true }
     }
@@ -160,7 +161,7 @@ async function seedDemo() {
     });
   }
 
-  console.log(`✔ Conta demo criada: ${nomeConta} (login: ${email} / senha: Demo12345678!)`);
+  console.log(`✔ Conta demo criada: ${nomeConta} (login: ${email} / senha: ${senha})`);
 }
 
 async function main() {

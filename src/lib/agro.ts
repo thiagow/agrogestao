@@ -20,14 +20,15 @@ export interface CulturaSafraCalculavel {
   hectares: number;
   rendimento: number;
   precoMedio: number;
-  despesa: number;
+  custoProducao: number; // R$ por hectare — Despesa total é derivada (custoProducao * hectares)
 }
 
 export function calcularSafra(registro: CulturaSafraCalculavel) {
   const totalProducao = Math.round(registro.hectares * registro.rendimento);
   const receitaBruta = Math.round(totalProducao * registro.precoMedio);
-  const receitaLiquida = receitaBruta - registro.despesa;
+  const despesa = Math.round(registro.hectares * registro.custoProducao);
+  const receitaLiquida = receitaBruta - despesa;
   const margem = receitaBruta > 0 ? (receitaLiquida / receitaBruta) * 100 : 0;
 
-  return { totalProducao, receitaBruta, receitaLiquida, margem };
+  return { totalProducao, receitaBruta, despesa, receitaLiquida, margem };
 }

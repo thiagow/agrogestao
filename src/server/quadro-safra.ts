@@ -28,7 +28,7 @@ interface SaveQuadroSafraInput {
   rendimento: number;
   unidadeProducao: string;
   precoMedio: number;
-  despesa: number;
+  custoProducao: number;
   producaoFixadaPercent?: number;
 }
 
@@ -58,7 +58,7 @@ export async function saveQuadroSafra(input: SaveQuadroSafraInput): Promise<Cult
     rendimento: parsed.rendimento,
     unidadeProducao: parsed.unidadeProducao,
     precoMedio: parsed.precoMedio,
-    despesa: parsed.despesa,
+    custoProducao: parsed.custoProducao,
     producaoFixadaPercent: parsed.producaoFixadaPercent ?? null
   };
 
@@ -99,7 +99,7 @@ type QuadroSafraRow = {
   rendimento: unknown;
   unidadeProducao: string;
   precoMedio: unknown;
-  despesa: unknown;
+  custoProducao: unknown;
   producaoFixadaPercent: unknown;
 };
 
@@ -114,7 +114,7 @@ function toQuadroSafraDTO(row: QuadroSafraRow): CulturaSafraAno {
     rendimento: Number(row.rendimento),
     unidadeProducao: row.unidadeProducao,
     precoMedio: Number(row.precoMedio),
-    despesa: Number(row.despesa),
+    custoProducao: Number(row.custoProducao),
     producaoFixadaPercent: row.producaoFixadaPercent != null ? Number(row.producaoFixadaPercent) : undefined
   };
 }
