@@ -5,7 +5,6 @@ import {
   BalancoPatrimonial,
   IndicadorFinanceiro,
   IndicadorSaudeFinanceira,
-  FluxoSafraItem,
   Cotacao,
   LancamentoMensal,
   CalendarioAgricolaEtapa
@@ -178,19 +177,12 @@ export const initialSaudeFinanceira: IndicadorSaudeFinanceira[] = [
 // Safra/Cotações (src/server/contratos-comerciais.ts, src/lib/comercializacao.ts)
 // — sem mock aqui, mesmo critério de Aquisição de Fazendas e Arrendamentos.
 
-// ---- Fluxo de Safra Projetado ----
-
-export const initialFluxoSafra: FluxoSafraItem[] = [
-  { id: 'fluxo-1', tipo: 'SAIDA', categoria: 'Custo de Produção', descricao: 'Custo de Produção da Safra', valor: 170958647 },
-  { id: 'fluxo-2', tipo: 'SAIDA', categoria: 'Fornecedores', descricao: 'Fornecedores (insumos e serviços)', valor: 0 },
-  { id: 'fluxo-3', tipo: 'SAIDA', categoria: 'Bancos', descricao: 'Amortização Programada (Bancos)', valor: 45531491 },
-  { id: 'fluxo-4', tipo: 'SAIDA', categoria: 'Bancos', descricao: 'Juros Programados (Bancos)', valor: 6219828 },
-  { id: 'fluxo-5', tipo: 'SAIDA', categoria: 'Arrendamentos', descricao: 'Arrendamentos', valor: 2014656 },
-  { id: 'fluxo-6', tipo: 'SAIDA', categoria: 'Comercial', descricao: 'Despesa Comercial (3 sc/ha soja)', valor: 1900000 },
-  { id: 'fluxo-7', tipo: 'SAIDA', categoria: 'Aquisições', descricao: 'Parcelas de Aquisição de Fazenda', valor: 115000000 }
-];
-
-export const RECEITA_PROJETADA_SAFRA = 438003709;
+// Fluxo de Safra migrou para agregação ao vivo (Quadro Safra + Fornecedores +
+// Bancos + Arrendamentos + Aquisição de Fazenda), montada no client a partir
+// dos dados já carregados por page.tsx — src/lib/fluxo-safra-calc.ts. A única
+// escrita própria (itens manuais extraordinários) persiste via
+// src/server/fluxo-safra.ts — sem mock aqui, mesmo critério dos demais módulos
+// já migrados.
 
 // ---- Cotações de Mercado ----
 

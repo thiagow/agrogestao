@@ -169,6 +169,7 @@ model Propriedade {
   aquisicoes          Aquisicao[]
   arrendamentos       ContratoArrendamento[]
   contratosComerciais ContratoComercial[]
+  itensFluxoManual    ItemFluxoManual[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1092,10 +1093,11 @@ model ContratoComercial {
   status         StatusContratoComercial @default(ATIVO)
   compradorNome  String?
   // R$/USD no momento da contratação — só relevante pra contratos em dólar
-  // (CBOT/NDF). Data em que o pagamento é esperado — registrada aqui, mas
-  // NÃO integrada ao Fluxo de Caixa nesta fase (mesmo critério já aplicado a
-  // Aquisição/Arrendamento: Fluxo Mensal/Fluxo de Safra são só projeção do
-  // Quadro de Safra, nenhum contrato lança lá ainda).
+  // (CBOT/NDF). Data em que o pagamento é esperado — registrada aqui.
+  // NÃO integrada ao Fluxo de Caixa MENSAL (que segue sendo só projeção do
+  // Quadro de Safra). O Fluxo de SAFRA (ItemFluxoManual/fluxo-safra.ts) lê
+  // contratos com status LIQUIDADO só para a "Receita Realizada" (subtexto
+  // do KPI Receita Projetada) — cruzamento confirmado pela spec do AgroFlow.
   cambioUsd                Decimal?  @db.Decimal(10, 4)
   dataLiquidacaoFinanceira DateTime?
   observacoes    String?
@@ -1110,6 +1112,49 @@ model ContratoComercial {
 
   @@index([propriedadeId, ativo])
   @@map("contratos_comerciais")
+}
+
+// ============================================================
+// Fluxo de Safra — itens manuais extraordinários
+// ============================================================
+
+// Única escrita própria da tela "Fluxo de Safra" (spec seção 7/9): itens que
+// não são capturados automaticamente pelos módulos de origem (Quadro Safra,
+// Fornecedores, Bancos, Arrendamentos, Aquisição de Fazenda) — dividendos,
+// estoques, retiradas, manutenções etc. `tipo` (ENTRADA/SAIDA) é DERIVADO da
+// categoria em código (src/server/fluxo-safra.ts), nunca persistido — evita
+// os dois campos divergirem.
+enum CategoriaItemFluxoManual {
+  RECEITA_VENDA_FAZENDA
+  ESTOQUE_GRAOS_ENTRADA
+  ESTOQUE_ALGODAO_ENTRADA
+  ESTOQUE_GADO_ENTRADA
+  OUTRAS_ENTRADAS
+  DIVIDENDOS_RETIRADAS
+  MANUTENCAO_MAQUINAS
+  CORRECAO_SOLO
+  OUTRAS_SAIDAS
+}
+
+model ItemFluxoManual {
+  id            String                   @id @default(cuid())
+  propriedadeId String
+  safra         String
+  categoria     CategoriaItemFluxoManual
+  descricao     String
+  valor         Decimal                  @db.Decimal(18, 2)
+  observacoes   String?
+  ativo         Boolean                  @default(true)
+
+  propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([propriedadeId, safra, ativo])
+  @@map("itens_fluxo_manual")
 }
 
 // ============================================================

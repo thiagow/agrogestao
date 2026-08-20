@@ -9,3 +9,4 @@ export { Modal } from './Modal';
 export { Tabs } from './Tabs';
 export type { TabItem } from './Tabs';
 export { KpiCard } from './KpiCard';
+export { Tooltip } from './Tooltip';

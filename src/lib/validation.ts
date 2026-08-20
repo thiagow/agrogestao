@@ -397,6 +397,24 @@ export const contratoComercialSchema = z.object({
   observacoes: z.string().trim().optional().or(z.literal(''))
 });
 
+export const itemFluxoManualSchema = z.object({
+  safra: z.string().trim().regex(/^\d{4}\/\d{4}$/, 'Formato esperado: AAAA/AAAA'),
+  categoria: z.enum([
+    'RECEITA_VENDA_FAZENDA',
+    'ESTOQUE_GRAOS_ENTRADA',
+    'ESTOQUE_ALGODAO_ENTRADA',
+    'ESTOQUE_GADO_ENTRADA',
+    'OUTRAS_ENTRADAS',
+    'DIVIDENDOS_RETIRADAS',
+    'MANUTENCAO_MAQUINAS',
+    'CORRECAO_SOLO',
+    'OUTRAS_SAIDAS'
+  ]),
+  descricao: z.string().trim().min(1, 'Descreva o item'),
+  valor: z.coerce.number().positive('Valor deve ser maior que zero'),
+  observacoes: z.string().trim().optional().or(z.literal(''))
+});
+
 export const balancoPatrimonialSchema = z.object({
   safra: z.string().trim().regex(/^\d{4}\/\d{4}$/, 'Formato esperado: AAAA/AAAA'),
   ativoCirculante: z.coerce.number().nonnegative(),

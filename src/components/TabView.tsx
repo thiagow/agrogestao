@@ -19,7 +19,8 @@ import {
   ContratoComercial,
   LancamentoMensal,
   BalancoPatrimonial,
-  Cotacao
+  Cotacao,
+  ItemFluxoManual
 } from '../types';
 import { saveSupplier, deleteSupplier } from '../server/suppliers';
 import { saveQuadroSafra, deleteQuadroSafra } from '../server/quadro-safra';
@@ -29,12 +30,8 @@ import { saveAquisicao, deleteAquisicao } from '../server/aquisicoes';
 import { saveArrendamento, deleteArrendamento } from '../server/arrendamentos';
 import { saveContratoComercial, deleteContratoComercial } from '../server/contratos-comerciais';
 import { saveBalanco } from '../server/balanco';
-import {
-  initialSaudeFinanceira,
-  initialFluxoSafra,
-  RECEITA_PROJETADA_SAFRA,
-  initialCalendarioAgricola
-} from '../data/initialData';
+import { saveItemFluxoManual, deleteItemFluxoManual } from '../server/fluxo-safra';
+import { initialSaudeFinanceira, initialCalendarioAgricola } from '../data/initialData';
 import { Header } from './Header';
 import { MetricCards } from './MetricCards';
 import { SupplierTable } from './SupplierTable';
@@ -94,6 +91,8 @@ interface TabViewProps {
   initialBalanco?: BalancoPatrimonial | null;
   initialCotacaoDolar?: Cotacao | null;
   initialCotacoesCommodities?: Cotacao[];
+  /** Itens manuais extraordinários do Fluxo de Safra — persistidos via src/server/fluxo-safra.ts. */
+  initialItensFluxoManual?: ItemFluxoManual[];
 }
 
 export const TabView: React.FC<TabViewProps> = ({
@@ -124,7 +123,8 @@ export const TabView: React.FC<TabViewProps> = ({
   initialContratosComerciais = [],
   initialBalanco = null,
   initialCotacaoDolar = null,
-  initialCotacoesCommodities = []
+  initialCotacoesCommodities = [],
+  initialItensFluxoManual = []
 }) => {
   // Fornecedores — persistido via src/server/suppliers.ts
   const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
@@ -151,6 +151,10 @@ export const TabView: React.FC<TabViewProps> = ({
 
   // Análise Financeira — persistido via src/server/balanco.ts (indicadores computados ao vivo)
   const [balanco, setBalanco] = useState<BalancoPatrimonial | null>(initialBalanco);
+
+  // Fluxo de Safra — itens manuais extraordinários, persistido via src/server/fluxo-safra.ts
+  // (o demonstrativo em si é agregado no client, ver src/lib/fluxo-safra-calc.ts)
+  const [itensFluxoManual, setItensFluxoManual] = useState<ItemFluxoManual[]>(initialItensFluxoManual);
 
   const handleSaveSupplier = async (supplierData: Partial<Supplier>) => {
     try {
@@ -424,6 +428,32 @@ export const TabView: React.FC<TabViewProps> = ({
     }
   };
 
+  const handleSaveItemFluxoManual = async (data: Partial<ItemFluxoManual>) => {
+    try {
+      const saved = await saveItemFluxoManual({
+        id: data.id,
+        safra: data.safra || '',
+        categoria: data.categoria || 'OUTRAS_SAIDAS',
+        descricao: data.descricao || '',
+        valor: data.valor || 0,
+        observacoes: data.observacoes
+      });
+      setItensFluxoManual((prev) => (data.id ? prev.map((i) => (i.id === saved.id ? saved : i)) : [...prev, saved]));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar item do fluxo.');
+    }
+  };
+
+  const handleDeleteItemFluxoManual = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este item?')) return;
+    try {
+      await deleteItemFluxoManual(id);
+      setItensFluxoManual((prev) => prev.filter((i) => i.id !== id));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao excluir item do fluxo.');
+    }
+  };
+
   return (
     <>
       <Header
@@ -531,9 +561,17 @@ export const TabView: React.FC<TabViewProps> = ({
       )}
       {tab === 'fluxo_safra' && (
         <FluxoSafraView
-          itens={initialFluxoSafra}
-          receitaProjetada={RECEITA_PROJETADA_SAFRA}
-          saldoDevedorBancos={contratosBancarios.reduce((sum, c) => sum + c.saldoAtual, 0)}
+          culturaSafras={culturaSafras}
+          suppliers={suppliers}
+          contratosBancarios={contratosBancarios}
+          cronograma={cronogramaConsolidado}
+          linhasArrendamento={fluxoConsolidadoArrendamentos}
+          linhasAquisicao={fluxoConsolidadoAquisicoes}
+          contratosComerciais={contratosComerciais}
+          cotacoesCommodities={initialCotacoesCommodities}
+          itensManuais={itensFluxoManual}
+          onSaveItem={handleSaveItemFluxoManual}
+          onDeleteItem={handleDeleteItemFluxoManual}
         />
       )}
       {tab === 'cotacoes' && <CotacoesView dolar={initialCotacaoDolar} commodities={initialCotacoesCommodities} />}

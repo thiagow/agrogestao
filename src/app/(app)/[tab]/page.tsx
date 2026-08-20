@@ -19,6 +19,7 @@ import { listArrendamentos, listFluxoConsolidadoArrendamentos, listImpactoPorSaf
 import { listContratosComerciais } from '@/server/contratos-comerciais';
 import { getBalancoAtual } from '@/server/balanco';
 import { listCotacoes } from '@/server/cotacoes';
+import { listItensFluxoManual } from '@/server/fluxo-safra';
 
 interface TabPageProps {
   params: Promise<{ tab: string }>;
@@ -72,19 +73,33 @@ export default async function TabPage({ params }: TabPageProps) {
   const initialBalanco = tab === 'analise_financeira' ? await getBalancoAtual() : undefined;
   // Comercialização também precisa das cotações (Cotacao.precoDefinidoSafra
   // alimenta a coluna "Cotação" da Posição por Cultura, src/lib/comercializacao.ts).
-  const cotacoes = tab === 'cotacoes' || tab === 'comercializacao' ? await listCotacoes() : undefined;
+  // Fluxo de Safra usa a cotação de Soja pra estimar a Despesa Comercial (3 sc/ha).
+  const cotacoes =
+    tab === 'cotacoes' || tab === 'comercializacao' || tab === 'fluxo_safra' ? await listCotacoes() : undefined;
   const [cronogramaConsolidado, indices, fluxoDetalhado] =
     tab === 'bancos'
       ? await Promise.all([listCronogramaConsolidado(), listIndices(), listFluxoDetalhado()])
       : [undefined, undefined, undefined];
+  // Fluxo de Safra também consome o cronograma consolidado (linhas "Amortização"/"Juros" do demonstrativo).
+  const cronogramaBancario =
+    tab === 'fluxo_safra' && !cronogramaConsolidado ? await listCronogramaConsolidado() : cronogramaConsolidado;
   const [fluxoConsolidadoAquisicoes, impactoPorSafraAquisicoes] =
     tab === 'aquisicao_fazenda'
       ? await Promise.all([listFluxoConsolidadoAquisicoes(), listImpactoPorSafra()])
       : [undefined, undefined];
+  // Fluxo de Safra também consome a linha "Parcelas de Aquisição de Fazenda".
+  const fluxoAquisicoesSafra =
+    tab === 'fluxo_safra' && !fluxoConsolidadoAquisicoes ? await listFluxoConsolidadoAquisicoes() : fluxoConsolidadoAquisicoes;
   const [fluxoConsolidadoArrendamentos, impactoPorSafraArrendamentos] =
     tab === 'arrendamentos'
       ? await Promise.all([listFluxoConsolidadoArrendamentos(), listImpactoPorSafraArrendamentos()])
       : [undefined, undefined];
+  // Fluxo de Safra também consome a linha "Arrendamentos".
+  const fluxoArrendamentosSafra =
+    tab === 'fluxo_safra' && !fluxoConsolidadoArrendamentos
+      ? await listFluxoConsolidadoArrendamentos()
+      : fluxoConsolidadoArrendamentos;
+  const initialItensFluxoManual = tab === 'fluxo_safra' ? await listItensFluxoManual() : undefined;
 
   return (
     <TabView
@@ -103,19 +118,20 @@ export default async function TabPage({ params }: TabPageProps) {
       initialCulturaSafras={initialCulturaSafras}
       initialLancamentosMensais={initialLancamentosMensais}
       initialContratosBancarios={initialContratosBancarios}
-      cronogramaConsolidado={cronogramaConsolidado}
+      cronogramaConsolidado={cronogramaBancario}
       indices={indices}
       fluxoDetalhado={fluxoDetalhado}
       initialAquisicoes={initialAquisicoes}
-      fluxoConsolidadoAquisicoes={fluxoConsolidadoAquisicoes}
+      fluxoConsolidadoAquisicoes={fluxoAquisicoesSafra}
       impactoPorSafraAquisicoes={impactoPorSafraAquisicoes}
       initialArrendamentos={initialArrendamentos}
-      fluxoConsolidadoArrendamentos={fluxoConsolidadoArrendamentos}
+      fluxoConsolidadoArrendamentos={fluxoArrendamentosSafra}
       impactoPorSafraArrendamentos={impactoPorSafraArrendamentos}
       initialContratosComerciais={initialContratosComerciais}
       initialBalanco={initialBalanco}
       initialCotacaoDolar={cotacoes?.dolar}
       initialCotacoesCommodities={cotacoes?.commodities}
+      initialItensFluxoManual={initialItensFluxoManual}
     />
   );
 }

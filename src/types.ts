@@ -494,18 +494,76 @@ export interface ContratoComercial {
   status: StatusContratoComercial;
   compradorNome?: string;
   cambioUsd?: number; // R$/USD no momento da contratação — só quando aplicável (CBOT/NDF)
-  dataLiquidacaoFinanceira?: string; // registrado, ainda não integrado ao Fluxo de Caixa
+  dataLiquidacaoFinanceira?: string; // status LIQUIDADO + esta data = receita "realizada" no Fluxo de Safra
   observacoes?: string;
 }
 
 // ---- Fluxo de Safra Projetado ----
 
-export interface FluxoSafraItem {
+/** As 9 categorias do modal "Adicionar Item ao Fluxo" — spec seção 7. */
+export type CategoriaItemFluxoManual =
+  | 'RECEITA_VENDA_FAZENDA'
+  | 'ESTOQUE_GRAOS_ENTRADA'
+  | 'ESTOQUE_ALGODAO_ENTRADA'
+  | 'ESTOQUE_GADO_ENTRADA'
+  | 'OUTRAS_ENTRADAS'
+  | 'DIVIDENDOS_RETIRADAS'
+  | 'MANUTENCAO_MAQUINAS'
+  | 'CORRECAO_SOLO'
+  | 'OUTRAS_SAIDAS';
+
+/** Item manual extraordinário lançado na tela Fluxo de Safra (única escrita própria do módulo). */
+export interface ItemFluxoManual {
   id: string;
-  tipo: 'ENTRADA' | 'SAIDA';
-  categoria: string;
+  safra: string;
+  categoria: CategoriaItemFluxoManual;
+  tipo: 'ENTRADA' | 'SAIDA'; // derivado da categoria no servidor, nunca editado diretamente
   descricao: string;
   valor: number;
+  observacoes?: string;
+}
+
+/** Uma linha do demonstrativo "(+) ENTRADAS"/"(-) SAÍDAS", com o texto de origem para o tooltip (ⓘ). */
+export interface FluxoSafraLinha {
+  id: string;
+  label: string;
+  /** null = indisponível (ex.: sem cotação de Soja cadastrada) — nunca um 0 que mente. */
+  valor: number | null;
+  origem: string;
+}
+
+/** Dados brutos agregados das 5+ telas de origem, para uma safra — montado por src/server/fluxo-safra.ts. */
+export interface FluxoSafraDTO {
+  safra: string;
+  receitaProjetada: number;
+  receitaRealizada: number;
+  custoProducao: number;
+  fornecedores: number;
+  amortizacaoBancos: number;
+  jurosBancos: number;
+  arrendamentos: number;
+  /** null quando não há cotação de Soja disponível para estimar a despesa comercial (3 sc/ha). */
+  despesaComercial: number | null;
+  parcelasAquisicao: number;
+  saldoDevedorBancos: number;
+  fornecedoresProximaSafra: number;
+  itensManuais: ItemFluxoManual[];
+}
+
+export type StatusIndiceCobertura = 'Saudável' | 'Atenção' | 'Crítico';
+
+/** Resultado da função pura calcularFluxoSafra() (src/lib/fluxo-safra-calc.ts). */
+export interface FluxoSafraCalculado {
+  entradas: FluxoSafraLinha[];
+  saidas: FluxoSafraLinha[];
+  totalEntradas: number;
+  totalSaidas: number;
+  fluxoLiquido: number;
+  indiceCobertura: number;
+  statusCobertura: StatusIndiceCobertura;
+  totalRecursosEstruturar: number;
+  custoProximaSafra: number;
+  deficitSuperavitProximaSafra: number;
 }
 
 // ---- Cotações de Mercado ----
