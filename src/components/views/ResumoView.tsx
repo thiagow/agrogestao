@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Supplier, CulturaSafraAno, ContratoBancario } from '../../types';
+import { Supplier, CulturaSafraAno, ContratoBancario, Aquisicao } from '../../types';
 import { formatCurrency, calcularSafra } from '../../data/initialData';
 import { Card } from '../ui';
 import { TrendingDown, TrendingUp, Landmark, Scale } from 'lucide-react';
@@ -11,18 +11,20 @@ interface ResumoViewProps {
   suppliers: Supplier[];
   culturaSafras: CulturaSafraAno[];
   contratosBancarios: ContratoBancario[];
+  aquisicoes: Aquisicao[];
 }
 
 const ANO_REFERENCIA = '2026/2027';
 const COLUNAS_ANO = ['2025/2026', '2026/2027', '2027/2028'];
 
-// Aquisição Fazenda e Arrendamentos ainda não têm módulo próprio (Fase futura) —
-// valores ilustrativos até existir uma fonte de dados real.
-const ENDIVIDAMENTO_AQUISICAO_FAZENDA = 32000000;
+// Arrendamentos ainda não tem módulo próprio (Fase futura) — valor ilustrativo
+// até existir uma fonte de dados real. Aquisição Fazenda saiu dessa lista em
+// 20/08/2026 (BUG #4 da spec de Aquisição): passou a somar o saldo real das
+// parcelas futuras não pagas em vez de uma constante fixa.
 const ENDIVIDAMENTO_ARRENDAMENTOS = 6800000;
 const CUSTO_ARRENDAMENTO_HA = 1500;
 
-export const ResumoView: React.FC<ResumoViewProps> = ({ suppliers, culturaSafras, contratosBancarios }) => {
+export const ResumoView: React.FC<ResumoViewProps> = ({ suppliers, culturaSafras, contratosBancarios, aquisicoes }) => {
   const culturas = Array.from(new Set(culturaSafras.map((s) => s.cultura)));
 
   const linhas = culturas.map((cultura) => {
@@ -65,8 +67,16 @@ export const ResumoView: React.FC<ResumoViewProps> = ({ suppliers, culturaSafras
 
   const endividamentoBancos = contratosBancarios.reduce((sum, c) => sum + c.saldoAtual, 0);
   const endividamentoFornecedores = suppliers.reduce((sum, s) => sum + s.dividaTotal, 0);
+  // Soma o valor das parcelas de Aquisição Fazenda ainda não vencidas — mesmo
+  // critério de "saldo devedor" usado em Bancos, corrige o BUG #4 da spec
+  // (o card divergia porque usava uma constante desconectada do dado real).
+  const hoje = new Date().toISOString().slice(0, 10);
+  const endividamentoAquisicaoFazenda = aquisicoes.reduce(
+    (sum, a) => sum + a.parcelas.filter((p) => p.dataPagamento >= hoje).reduce((s, p) => s + p.valorTotal, 0),
+    0
+  );
   const endividamentoTotal =
-    ENDIVIDAMENTO_AQUISICAO_FAZENDA + ENDIVIDAMENTO_ARRENDAMENTOS + endividamentoBancos + endividamentoFornecedores;
+    endividamentoAquisicaoFazenda + ENDIVIDAMENTO_ARRENDAMENTOS + endividamentoBancos + endividamentoFornecedores;
 
   const chartData = [
     { nome: 'Receita Líquida', valor: receitaLiquidaTotal },
@@ -198,7 +208,7 @@ export const ResumoView: React.FC<ResumoViewProps> = ({ suppliers, culturaSafras
               <dt className="text-slate-500 flex items-center gap-1.5">
                 <Landmark className="w-3.5 h-3.5" /> Aquisição Fazenda
               </dt>
-              <dd className="font-bold text-slate-900">{formatCurrency(ENDIVIDAMENTO_AQUISICAO_FAZENDA)}</dd>
+              <dd className="font-bold text-slate-900">{formatCurrency(endividamentoAquisicaoFazenda)}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-slate-500 flex items-center gap-1.5">

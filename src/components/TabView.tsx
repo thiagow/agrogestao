@@ -44,6 +44,7 @@ import { Button } from './ui';
 import { ResumoView } from './views/ResumoView';
 import { BancosView } from './views/BancosView';
 import type { CronogramaConsolidado, FluxoDetalhado } from '../server/contratos-bancarios';
+import type { LinhaFluxoConsolidado, ImpactoSafra } from '../server/aquisicoes';
 import type { IndicesVigentes } from '../lib/taxa-efetiva';
 import { QuadroSafraView } from './views/QuadroSafraView';
 import { CotacoesView } from './views/CotacoesView';
@@ -80,6 +81,10 @@ interface TabViewProps {
   /** Fluxo período a período por contrato da aba Fluxo Detalhado — computado no servidor. */
   fluxoDetalhado?: FluxoDetalhado;
   initialAquisicoes?: Aquisicao[];
+  /** Aba "Fluxo por Safra" de Aquisição Fazenda — computada no servidor. */
+  fluxoConsolidadoAquisicoes?: LinhaFluxoConsolidado[];
+  /** Aba "Análise de Impacto" de Aquisição Fazenda — computada no servidor. */
+  impactoPorSafraAquisicoes?: ImpactoSafra[];
   initialArrendamentos?: ContratoArrendamento[];
   initialContratosComerciais?: ContratoComercial[];
   initialBalanco?: BalancoPatrimonial | null;
@@ -107,6 +112,8 @@ export const TabView: React.FC<TabViewProps> = ({
   indices,
   fluxoDetalhado,
   initialAquisicoes = [],
+  fluxoConsolidadoAquisicoes = [],
+  impactoPorSafraAquisicoes = [],
   initialArrendamentos = [],
   initialContratosComerciais = [],
   initialBalanco = null,
@@ -283,16 +290,29 @@ export const TabView: React.FC<TabViewProps> = ({
       const saved = await saveAquisicao({
         id: data.id,
         nomeFazenda: data.nomeFazenda || '',
-        localizacao: data.localizacao || '',
-        areaHectares: data.areaHectares || 0,
-        valorTotal: data.valorTotal || 0,
+        vendedor: data.vendedor,
+        denominacaoImovel: data.denominacaoImovel,
+        comarca: data.comarca,
+        numeroMatricula: data.numeroMatricula,
+        estado: data.estado || '',
+        municipio: data.municipio || '',
+        areaTotalHa: data.areaTotalHa || 0,
+        areaAgricolaHa: data.areaAgricolaHa || 0,
         dataAquisicao: data.dataAquisicao || new Date().toISOString().split('T')[0],
-        dataOcupacao: data.dataOcupacao,
-        culturaPrincipal: data.culturaPrincipal,
-        safraInicio: data.safraInicio || '',
-        safraFim: data.safraFim || '',
-        valorTotalFluxo: data.valorTotalFluxo || 0,
-        totalSacas: data.totalSacas || 0
+        dataInicioPagamento: data.dataInicioPagamento || new Date().toISOString().split('T')[0],
+        dataVencimento: data.dataVencimento || new Date().toISOString().split('T')[0],
+        prazoFinanciamentoMeses: data.prazoFinanciamentoMeses,
+        tipoPagamento: data.tipoPagamento || 'SACAS',
+        periodicidade: data.periodicidade || 'Anual',
+        culturaReferenciaId: data.culturaReferenciaId,
+        sacasHa: data.sacasHa,
+        precoReferencia: data.precoReferencia,
+        precoHa: data.precoHa,
+        valorTotalManual: data.valorTotalManual,
+        valorFinanciado: data.valorFinanciado,
+        taxaJurosAA: data.taxaJurosAA,
+        valorEntrada: data.valorEntrada,
+        safraEntrada: data.safraEntrada
       });
       setAquisicoes((prev) => (data.id ? prev.map((a) => (a.id === saved.id ? saved : a)) : [saved, ...prev]));
     } catch (err) {
@@ -425,7 +445,12 @@ export const TabView: React.FC<TabViewProps> = ({
       )}
 
       {tab === 'resumo' && (
-        <ResumoView suppliers={suppliers} culturaSafras={culturaSafras} contratosBancarios={contratosBancarios} />
+        <ResumoView
+          suppliers={suppliers}
+          culturaSafras={culturaSafras}
+          contratosBancarios={contratosBancarios}
+          aquisicoes={aquisicoes}
+        />
       )}
       {tab === 'cadastro_mestre' && (
         <CadastroMestreView
@@ -463,6 +488,8 @@ export const TabView: React.FC<TabViewProps> = ({
       {tab === 'aquisicao_fazenda' && (
         <AquisicaoFazendaView
           aquisicoes={aquisicoes}
+          fluxoConsolidado={fluxoConsolidadoAquisicoes}
+          impactoPorSafra={impactoPorSafraAquisicoes}
           onSave={handleSaveAquisicao}
           onDelete={handleDeleteAquisicao}
         />

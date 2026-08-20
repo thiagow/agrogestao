@@ -193,6 +193,7 @@ model Cultura {
 
   conta              Conta?             @relation(fields: [contaId], references: [id], onDelete: Cascade)
   contratosBancarios ContratoBancario[]
+  aquisicoes         Aquisicao[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -709,25 +710,61 @@ model Parcela {
 // Aquisição de Fazendas
 // ============================================================
 
-// `valorTotalFluxo` é um total resumo (sem detalhamento em parcelas na UI/
-// spec atual) — nada de ParcelaAquisicao inventado sem fonte.
+// Réplica confirmada da tela "Aquisição de Fazendas" do AgroFlow — spec
+// fotografada em 21/07/2026 (docs/demandas/SPEC_TELA_AQUISICAO_FAZENDA.md,
+// dataset "Fazenda Pedra"). O modelo raso anterior (só totais agregados, sem
+// parcela) foi substituído: agora `ParcelaAquisicao` guarda o detalhamento
+// linha a linha (Entrada + Parcelas) que a spec documenta nas abas
+// "Contratos" e "Fluxo por Safra", gerado por src/server/aquisicao-engine.ts
+// a cada save — mesmo critério do cronograma de `ContratoBancario`.
 model Aquisicao {
-  id               String    @id @default(cuid())
-  propriedadeId    String
-  nomeFazenda      String
-  localizacao      String
-  areaHectares     Float
-  valorTotal       Decimal   @db.Decimal(18, 2)
-  dataAquisicao    DateTime
-  dataOcupacao     DateTime?
-  culturaPrincipal String?
-  safraInicio      String // "2026/2027"
-  safraFim         String
-  valorTotalFluxo  Decimal   @db.Decimal(18, 2)
-  totalSacas       Float
-  ativo            Boolean   @default(true)
+  id                  String    @id @default(cuid())
+  propriedadeId       String
+  nomeFazenda         String
+  vendedor            String?
+  denominacaoImovel   String?
+  comarca             String?
+  numeroMatricula     String?
+  estado              String // UF
+  municipio           String
+  areaTotalHa         Float
+  areaAgricolaHa      Float
+  dataAquisicao       DateTime
+  dataInicioPagamento DateTime
+  dataVencimento      DateTime
+  // Sugerido automaticamente no client a partir do intervalo entre as duas
+  // datas acima, mas continua editável e é o que fica persistido (corrige o
+  // BUG #2 da spec: no AgroFlow original o campo nunca era pré-preenchido).
+  prazoFinanciamentoMeses Int?
+  tipoPagamento           TipoPagamentoAquisicao
+  // Só "Anual" confirmado pelo print do formulário — texto livre, mesmo
+  // critério de Garantias/CAPEX para enum sem lista fechada confirmada.
+  periodicidade String @default("Anual")
 
-  propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  // Modo SACAS
+  culturaReferenciaId String?
+  sacasHa             Decimal? @db.Decimal(12, 4)
+  precoReferencia     Decimal? @db.Decimal(18, 4) // R$/sc
+
+  // Modo REAIS
+  precoHa          Decimal? @db.Decimal(18, 4)
+  valorTotalManual Decimal? @db.Decimal(18, 2)
+  valorFinanciado  Decimal? @db.Decimal(18, 2)
+  taxaJurosAA      Decimal? @db.Decimal(8, 4) // % a.a.
+
+  // Entrada (Sinal)
+  valorEntrada Decimal? @db.Decimal(18, 2)
+  safraEntrada String? // "2027/2028"
+
+  // Derivados — soma das ParcelaAquisicao geradas, nunca calculado ad-hoc na UI
+  valorTotalFluxo Decimal @db.Decimal(18, 2)
+  totalSacas      Float
+
+  ativo Boolean @default(true)
+
+  propriedade       Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  culturaReferencia Cultura?    @relation(fields: [culturaReferenciaId], references: [id], onDelete: SetNull)
+  parcelas          ParcelaAquisicao[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -735,7 +772,38 @@ model Aquisicao {
   updatedById String?
 
   @@index([propriedadeId, ativo])
+  @@index([culturaReferenciaId])
   @@map("aquisicoes")
+}
+
+// Gerada do zero a cada save de Aquisicao (delete + createMany), mesmo
+// critério de `Parcela`/`ContratoBancario` — sem UI de baixa de parcela.
+model ParcelaAquisicao {
+  id                 String                     @id @default(cuid())
+  aquisicaoId        String
+  safra              String // "2026/2027"
+  tipo               TipoLancamentoAquisicao
+  sacas              Decimal                    @default(0) @db.Decimal(14, 2)
+  precoSc            Decimal?                   @db.Decimal(18, 4)
+  usaPrecoReferencia Boolean                    @default(false)
+  valorTotal         Decimal                    @db.Decimal(18, 2)
+  dataPagamento      DateTime
+  ordem              Int
+
+  aquisicao Aquisicao @relation(fields: [aquisicaoId], references: [id], onDelete: Cascade)
+
+  @@index([aquisicaoId])
+  @@map("parcelas_aquisicao")
+}
+
+enum TipoPagamentoAquisicao {
+  SACAS
+  REAIS
+}
+
+enum TipoLancamentoAquisicao {
+  ENTRADA
+  PARCELA
 }
 
 // ============================================================

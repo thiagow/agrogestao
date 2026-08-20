@@ -281,19 +281,59 @@ export interface IndicadorSaudeFinanceira {
 
 // ---- Aquisição de Fazendas ----
 
+export type TipoPagamentoAquisicao = 'SACAS' | 'REAIS';
+export type TipoLancamentoAquisicao = 'ENTRADA' | 'PARCELA';
+
+export interface ParcelaAquisicao {
+  id: string;
+  safra: string; // "2026/2027"
+  tipo: TipoLancamentoAquisicao;
+  sacas: number;
+  precoSc?: number;
+  usaPrecoReferencia: boolean;
+  valorTotal: number;
+  dataPagamento: string; // YYYY-MM-DD
+}
+
 export interface Aquisicao {
   id: string;
   nomeFazenda: string;
-  localizacao: string;
-  areaHectares: number;
-  valorTotal: number;
+  vendedor?: string;
+  denominacaoImovel?: string;
+  comarca?: string;
+  numeroMatricula?: string;
+  estado: string; // UF
+  municipio: string;
+  areaTotalHa: number;
+  areaAgricolaHa: number;
   dataAquisicao: string; // YYYY-MM-DD
-  dataOcupacao?: string;
-  culturaPrincipal?: string;
-  safraInicio: string; // "2026/2027"
-  safraFim: string; // "2029/2030"
-  valorTotalFluxo: number; // fluxo de pagamento total previsto
-  totalSacas: number; // produção estimada total no período
+  dataInicioPagamento: string;
+  dataVencimento: string;
+  prazoFinanciamentoMeses?: number;
+  tipoPagamento: TipoPagamentoAquisicao;
+  periodicidade: string; // só "Anual" confirmado
+
+  // Modo SACAS
+  culturaReferenciaId?: string;
+  culturaNome?: string; // nome da cultura de referência, para exibição (badge do card)
+  sacasHa?: number;
+  precoReferencia?: number; // R$/sc
+
+  // Modo REAIS
+  precoHa?: number;
+  valorTotalManual?: number;
+  valorFinanciado?: number;
+  taxaJurosAA?: number; // % a.a.
+
+  // Entrada (Sinal)
+  valorEntrada?: number;
+  safraEntrada?: string;
+
+  // Derivados — soma das parcelas geradas no server
+  valorTotalFluxo: number;
+  totalSacas: number;
+
+  parcelas: ParcelaAquisicao[];
 }
 
 // ---- Arrendamentos ----

@@ -6,7 +6,6 @@ import {
   BalancoPatrimonial,
   IndicadorFinanceiro,
   IndicadorSaudeFinanceira,
-  Aquisicao,
   ContratoArrendamento,
   ContratoComercial,
   PosicaoComercializacao,
@@ -209,24 +208,8 @@ export const initialSaudeFinanceira: IndicadorSaudeFinanceira[] = [
   { dimensao: 'Cobertura', valor: 95 }
 ];
 
-// ---- Aquisição de Fazendas ----
-
-export const initialAquisicoes: Aquisicao[] = [
-  {
-    id: 'aquisicao-1',
-    nomeFazenda: 'Fazenda Pedra',
-    localizacao: 'Ofitoma - GO',
-    areaHectares: 5000,
-    valorTotal: 130000000,
-    dataAquisicao: '2025-02-10',
-    dataOcupacao: '2026-07-01',
-    culturaPrincipal: 'Soja',
-    safraInicio: '2026/2027',
-    safraFim: '2029/2030',
-    valorTotalFluxo: 470000000,
-    totalSacas: 4085957
-  }
-];
+// Aquisição de Fazendas migrou para persistência real (src/server/aquisicoes.ts,
+// Fase 4) — sem mock aqui, mesmo critério de Quadro Safra e Contratos Bancários.
 
 // ---- Arrendamentos ----
 

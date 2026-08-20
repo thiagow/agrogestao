@@ -204,19 +204,44 @@ export const contratoBancarioSchema = z
     path: ['ptaxInicial']
   });
 
-export const aquisicaoSchema = z.object({
-  nomeFazenda: z.string().trim().min(1, 'Informe o nome da fazenda'),
-  localizacao: z.string().trim().min(1, 'Informe a localização'),
-  areaHectares: z.coerce.number().nonnegative(),
-  valorTotal: z.coerce.number().nonnegative(),
-  dataAquisicao: z.string().min(1, 'Informe a data de aquisição'),
-  dataOcupacao: z.string().optional().or(z.literal('')),
-  culturaPrincipal: z.string().trim().optional().or(z.literal('')),
-  safraInicio: z.string().trim().min(1, 'Informe a safra de início'),
-  safraFim: z.string().trim().min(1, 'Informe a safra de fim'),
-  valorTotalFluxo: z.coerce.number().nonnegative(),
-  totalSacas: z.coerce.number().nonnegative()
-});
+export const aquisicaoSchema = z
+  .object({
+    nomeFazenda: z.string().trim().min(1, 'Informe o nome da fazenda'),
+    vendedor: z.string().trim().optional().or(z.literal('')),
+    denominacaoImovel: z.string().trim().optional().or(z.literal('')),
+    comarca: z.string().trim().optional().or(z.literal('')),
+    numeroMatricula: z.string().trim().optional().or(z.literal('')),
+    estado: z.string().trim().min(1, 'Informe o estado').max(2),
+    municipio: z.string().trim().min(1, 'Informe o município'),
+    areaTotalHa: z.coerce.number().nonnegative(),
+    areaAgricolaHa: z.coerce.number().nonnegative(),
+    dataAquisicao: z.string().min(1, 'Informe a data de aquisição'),
+    dataInicioPagamento: z.string().min(1, 'Informe a data de início do pagamento'),
+    dataVencimento: z.string().min(1, 'Informe a data de vencimento'),
+    prazoFinanciamentoMeses: z.coerce.number().int().nonnegative().optional(),
+    tipoPagamento: z.enum(['SACAS', 'REAIS']),
+    periodicidade: z.string().trim().min(1).default('Anual'),
+    // Modo SACAS
+    culturaReferenciaId: z.string().trim().optional().or(z.literal('')),
+    sacasHa: z.coerce.number().nonnegative().optional(),
+    precoReferencia: z.coerce.number().nonnegative().optional(),
+    // Modo REAIS
+    precoHa: z.coerce.number().nonnegative().optional(),
+    valorTotalManual: z.coerce.number().nonnegative().optional(),
+    valorFinanciado: z.coerce.number().nonnegative().optional(),
+    taxaJurosAA: z.coerce.number().nonnegative().optional(),
+    // Entrada (Sinal)
+    valorEntrada: z.coerce.number().nonnegative().optional(),
+    safraEntrada: z.string().trim().optional().or(z.literal(''))
+  })
+  .refine((data) => data.tipoPagamento !== 'SACAS' || (data.sacasHa && data.precoReferencia), {
+    message: 'Informe Sacas/ha e Preço de Referência no modo "Em Sacas"',
+    path: ['sacasHa']
+  })
+  .refine((data) => data.tipoPagamento !== 'REAIS' || data.valorFinanciado !== undefined, {
+    message: 'Informe o Valor Financiado no modo "Em Reais"',
+    path: ['valorFinanciado']
+  });
 
 export const arrendamentoSchema = z.object({
   nomePropriedade: z.string().trim().min(1, 'Informe o nome da propriedade'),
