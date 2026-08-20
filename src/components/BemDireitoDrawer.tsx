@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { BemDireito, GrupoIrpfBem, LiquidezBem, Socio } from '../types';
 import { Drawer, Input, Select, Textarea, Button } from './ui';
 import { formatCurrency } from '../lib/format';
+import { GRUPOS_IRPF, ANEXOS_IMOVEL } from '../lib/bens-direitos-constantes';
 
 interface BemDireitoDrawerProps {
   isOpen: boolean;
@@ -13,16 +14,9 @@ interface BemDireitoDrawerProps {
   socios?: Socio[];
 }
 
-const GRUPOS_IRPF: GrupoIrpfBem[] = [
-  'Bens Imóveis',
-  'Bens Móveis',
-  'Participações Societárias',
-  'Aplicações e Investimentos',
-  'Depósitos à Vista e Poupança',
-  'Créditos e Outros Direitos',
-  'Criptoativos',
-  'Outros Bens e Direitos'
-];
+// ANEXO A/B (Imóveis Rurais/Urbanos) têm grid/modal próprio (ImovelRuralModal/
+// ImovelUrbanoModal) — não aparecem aqui pra não duplicar o caminho de cadastro.
+const GRUPOS_IRPF_GENERICOS = GRUPOS_IRPF.filter((g) => !(ANEXOS_IMOVEL as string[]).includes(g));
 
 export const BemDireitoDrawer: React.FC<BemDireitoDrawerProps> = ({
   isOpen,
@@ -135,7 +129,7 @@ export const BemDireitoDrawer: React.FC<BemDireitoDrawerProps> = ({
             value={grupoIrpf}
             onChange={(e) => setGrupoIrpf(e.target.value as GrupoIrpfBem)}
           >
-            {GRUPOS_IRPF.map((g) => (
+            {GRUPOS_IRPF_GENERICOS.map((g) => (
               <option key={g} value={g}>
                 {g}
               </option>

@@ -1,16 +1,19 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, MapPin, Building } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { Socio, BemDireito, Garantia, Capex, PerfilGrupoEconomico, DividaPf } from '../../types';
-import { Card, Tabs, Button, Badge, KpiCard, Textarea } from '../ui';
-import { SocioDrawer } from '../SocioDrawer';
+import { Card, Tabs, Button, Badge, KpiCard, Textarea, Input } from '../ui';
+import { IntegranteDrawer } from '../IntegranteDrawer';
 import { BemDireitoDrawer } from '../BemDireitoDrawer';
+import { ImovelRuralModal } from '../ImovelRuralModal';
+import { ImovelUrbanoModal } from '../ImovelUrbanoModal';
 import { GarantiaDrawer } from '../GarantiaDrawer';
 import { DividaPfDrawer } from '../DividaPfDrawer';
 import { CapexForm } from '../CapexForm';
 import { PerfilGrupoDrawer } from '../PerfilGrupoDrawer';
+import { OrganogramaGrupo } from '../OrganogramaGrupo';
 import { saveSocio, deleteSocio } from '../../server/socios';
 import { saveBemDireito, deleteBemDireito } from '../../server/bens-direitos';
 import { saveGarantia, deleteGarantia } from '../../server/garantias';
@@ -46,11 +49,13 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
   contaCnpj
 }) => {
   const [socios, setSocios] = useState<Socio[]>(initialSocios);
-  const [isSocioDrawerOpen, setIsSocioDrawerOpen] = useState(false);
+  const [isIntegranteDrawerOpen, setIsIntegranteDrawerOpen] = useState(false);
   const [editingSocio, setEditingSocio] = useState<Socio | null>(null);
 
   const [bensDireitos, setBensDireitos] = useState<BemDireito[]>(initialBensDireitos);
   const [isBemDrawerOpen, setIsBemDrawerOpen] = useState(false);
+  const [isImovelRuralOpen, setIsImovelRuralOpen] = useState(false);
+  const [isImovelUrbanoOpen, setIsImovelUrbanoOpen] = useState(false);
   const [editingBem, setEditingBem] = useState<BemDireito | null>(null);
 
   const [garantias, setGarantias] = useState<Garantia[]>(initialGarantias);
@@ -72,11 +77,39 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
 
   const [perfilGrupo, setPerfilGrupo] = useState<PerfilGrupoEconomico | null>(initialPerfilGrupo);
   const [isPerfilDrawerOpen, setIsPerfilDrawerOpen] = useState(false);
-  const [historicoDraft, setHistoricoDraft] = useState(initialPerfilGrupo?.historico ?? '');
-  const [sucessaoDraft, setSucesaoDraft] = useState(initialPerfilGrupo?.sucessao ?? '');
-  const [modusOperandiAgriculturaDraft, setModusOperandiAgriculturaDraft] = useState(initialPerfilGrupo?.modusOperandiAgricultura ?? '');
-  const [modusOperandiPecuariaDraft, setModusOperandiPecuariaDraft] = useState(initialPerfilGrupo?.modusOperandiPecuaria ?? '');
-  const [empresasColigadasDraft, setEmpresasColigadasDraft] = useState(initialPerfilGrupo?.empresasColigadas ?? '');
+
+  // Histórico do Grupo — 7 blocos de questionário (20/08/2026). Um draft por
+  // sub-pergunta, tudo salvo de uma vez no botão "Salvar" (handleSalvarHistorico).
+  const [historicoDraft, setHistoricoDraft] = useState({
+    historicoInicio: initialPerfilGrupo?.historicoInicio ?? '',
+    historicoHerancaOrigem: initialPerfilGrupo?.historicoHerancaOrigem ?? '',
+    historicoEvolucaoNegocio: initialPerfilGrupo?.historicoEvolucaoNegocio ?? '',
+    historicoGestaoCrises: initialPerfilGrupo?.historicoGestaoCrises ?? '',
+    gestaoAdministracao: initialPerfilGrupo?.gestaoAdministracao ?? '',
+    gestaoParceriasSocios: initialPerfilGrupo?.gestaoParceriasSocios ?? '',
+    gestaoDivisaoCustosFaturamento: initialPerfilGrupo?.gestaoDivisaoCustosFaturamento ?? '',
+    gestaoPlanoSucessorioHerdeiros: initialPerfilGrupo?.gestaoPlanoSucessorioHerdeiros ?? '',
+    agriculturaCustos: initialPerfilGrupo?.agriculturaCustos ?? '',
+    agriculturaCronogramaPlantioColheita: initialPerfilGrupo?.agriculturaCronogramaPlantioColheita ?? '',
+    agriculturaCapacidadeArmazenamento: initialPerfilGrupo?.agriculturaCapacidadeArmazenamento ?? '',
+    agriculturaFornecedoresClientes: initialPerfilGrupo?.agriculturaFornecedoresClientes ?? '',
+    agriculturaModalidadesCompra: initialPerfilGrupo?.agriculturaModalidadesCompra ?? '',
+    agriculturaExportacao: initialPerfilGrupo?.agriculturaExportacao ?? '',
+    pecuariaCicloProducao: initialPerfilGrupo?.pecuariaCicloProducao ?? '',
+    pecuariaConfinamento: initialPerfilGrupo?.pecuariaConfinamento ?? '',
+    pecuariaTaxaDesfrutePercent: initialPerfilGrupo?.pecuariaTaxaDesfrutePercent?.toString() ?? '',
+    pecuariaCustosCronogramaCompraAbate: initialPerfilGrupo?.pecuariaCustosCronogramaCompraAbate ?? '',
+    financeiroFinanciamentos: initialPerfilGrupo?.financeiroFinanciamentos ?? '',
+    financeiroPoliticaHedge: initialPerfilGrupo?.financeiroPoliticaHedge ?? '',
+    financeiroPosicaoComercializadaSafraAtual: initialPerfilGrupo?.financeiroPosicaoComercializadaSafraAtual ?? '',
+    empresasColigadas: initialPerfilGrupo?.empresasColigadas ?? '',
+    missao: initialPerfilGrupo?.missao ?? '',
+    visao: initialPerfilGrupo?.visao ?? '',
+    valores: initialPerfilGrupo?.valores ?? ''
+  });
+
+  const setHistoricoCampo = (campo: keyof typeof historicoDraft, valor: string) =>
+    setHistoricoDraft((prev) => ({ ...prev, [campo]: valor }));
 
   // ---- Sócios ----
 
@@ -84,18 +117,22 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
     try {
       const saved = await saveSocio({
         id: data.id,
-        nome: data.nome || 'Novo Sócio',
-        cpf: data.cpf || '',
+        tipoPessoa: data.tipoPessoa || 'PF',
+        nome: data.nome || 'Novo Integrante',
+        cpf: data.cpf,
+        cnpj: data.cnpj,
+        cargoOuAtividade: data.cargoOuAtividade,
         participacao: data.participacao || 0,
         estadoCivil: data.estadoCivil,
         telefone: data.telefone,
         email: data.email,
         nacionalidade: data.nacionalidade,
-        dataNascimento: data.dataNascimento
+        dataNascimento: data.dataNascimento,
+        participacoes: data.participacoes
       });
       setSocios((prev) => (data.id ? prev.map((s) => (s.id === saved.id ? saved : s)) : [saved, ...prev]));
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Erro ao salvar sócio.');
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar integrante.');
     }
   };
 
@@ -163,7 +200,9 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
         ltv: data.ltv,
         elegivelGarantia: data.elegivelGarantia || false,
         geraFluxoCaixa: data.geraFluxoCaixa || false,
-        observacoes: data.observacoes
+        observacoes: data.observacoes,
+        detalheImovelRural: data.detalheImovelRural,
+        detalheImovelUrbano: data.detalheImovelUrbano
       });
       setBensDireitos((prev) => (data.id ? prev.map((b) => (b.id === saved.id ? saved : b)) : [saved, ...prev]));
     } catch (err) {
@@ -319,11 +358,10 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
   const handleSalvarHistorico = async () => {
     try {
       const saved = await savePerfilGrupo({
-        historico: historicoDraft,
-        sucessao: sucessaoDraft,
-        modusOperandiAgricultura: modusOperandiAgriculturaDraft,
-        modusOperandiPecuaria: modusOperandiPecuariaDraft,
-        empresasColigadas: empresasColigadasDraft
+        ...historicoDraft,
+        pecuariaTaxaDesfrutePercent: historicoDraft.pecuariaTaxaDesfrutePercent
+          ? parseFloat(historicoDraft.pecuariaTaxaDesfrutePercent)
+          : undefined
       });
       setPerfilGrupo(saved);
     } catch (err) {
@@ -337,7 +375,7 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
       <Card className="p-5">
         <Tabs
           items={[
-            { id: 'socios', label: 'Sócios', badge: socios.length },
+            { id: 'socios', label: 'Sócios e Empresas', badge: socios.length },
             { id: 'bens', label: 'Bens e Direitos', badge: bensDireitos.length },
             { id: 'garantias', label: 'Garantias', badge: garantias.length },
             { id: 'capex', label: 'CAPEX', badge: capexList.length },
@@ -351,16 +389,16 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
               return (
                 <div>
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-bold text-slate-900">Sócios e Representantes</h3>
+                    <h3 className="text-sm font-bold text-slate-900">Sócios e Empresas</h3>
                     <Button
                       variant="primary"
                       onClick={() => {
                         setEditingSocio(null);
-                        setIsSocioDrawerOpen(true);
+                        setIsIntegranteDrawerOpen(true);
                       }}
                       className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
                     >
-                      <Plus className="w-3.5 h-3.5" /> Adicionar
+                      <Plus className="w-3.5 h-3.5" /> Adicionar Integrante
                     </Button>
                   </div>
 
@@ -368,8 +406,9 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] uppercase tracking-wider text-slate-600 font-bold">
-                          <th className="py-3 px-4">Nome</th>
-                          <th className="py-3 px-4">CPF</th>
+                          <th className="py-3 px-4">Tipo</th>
+                          <th className="py-3 px-4">Nome / Razão Social</th>
+                          <th className="py-3 px-4">Documento</th>
                           <th className="py-3 px-4">Participação</th>
                           <th className="py-3 px-4">Estado Civil</th>
                           <th className="py-3 px-4 text-right">Ações</th>
@@ -378,8 +417,13 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                       <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
                         {socios.map((socio) => (
                           <tr key={socio.id} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="py-3 px-4">
+                              <Badge tone={socio.tipoPessoa === 'PJ' ? 'blue' : 'emerald'}>{socio.tipoPessoa}</Badge>
+                            </td>
                             <td className="py-3 px-4 font-bold text-slate-900">{socio.nome}</td>
-                            <td className="py-3 px-4 font-mono text-slate-600">{socio.cpf}</td>
+                            <td className="py-3 px-4 font-mono text-slate-600">
+                              {socio.tipoPessoa === 'PJ' ? socio.cnpj : socio.cpf}
+                            </td>
                             <td className="py-3 px-4 font-semibold text-slate-800">{socio.participacao}%</td>
                             <td className="py-3 px-4 text-slate-600">{socio.estadoCivil ?? '—'}</td>
                             <td className="py-3 px-4 text-right whitespace-nowrap">
@@ -387,16 +431,16 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                                 <button
                                   onClick={() => {
                                     setEditingSocio(socio);
-                                    setIsSocioDrawerOpen(true);
+                                    setIsIntegranteDrawerOpen(true);
                                   }}
-                                  title="Editar sócio"
+                                  title="Editar integrante"
                                   className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition"
                                 >
                                   <Edit2 className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteSocio(socio.id)}
-                                  title="Remover sócio"
+                                  title="Remover integrante"
                                   className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -587,18 +631,40 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                     <>
                       {/* Listagem de Bens Agrupada */}
                       <div>
-                        <div className="flex items-center justify-between mb-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                           <h3 className="text-sm font-bold text-slate-900">Bens e Direitos</h3>
-                          <Button
-                            variant="primary"
-                            onClick={() => {
-                              setEditingBem(null);
-                              setIsBemDrawerOpen(true);
-                            }}
-                            className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
-                          >
-                            <Plus className="w-3.5 h-3.5" /> Adicionar
-                          </Button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              variant="secondary"
+                              onClick={() => {
+                                setEditingBem(null);
+                                setIsImovelRuralOpen(true);
+                              }}
+                              className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
+                            >
+                              <MapPin className="w-3.5 h-3.5" /> Imóvel Rural (ANEXO A)
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              onClick={() => {
+                                setEditingBem(null);
+                                setIsImovelUrbanoOpen(true);
+                              }}
+                              className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
+                            >
+                              <Building className="w-3.5 h-3.5" /> Imóvel Urbano (ANEXO B)
+                            </Button>
+                            <Button
+                              variant="primary"
+                              onClick={() => {
+                                setEditingBem(null);
+                                setIsBemDrawerOpen(true);
+                              }}
+                              className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
+                            >
+                              <Plus className="w-3.5 h-3.5" /> Adicionar
+                            </Button>
+                          </div>
                         </div>
 
                         <div className="space-y-4">
@@ -619,65 +685,177 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                                   </div>
                                 </div>
 
-                                {/* Tabela do Grupo */}
+                                {/* Tabela do Grupo — ANEXO A/B têm colunas próprias e editam via modal específico */}
                                 <div className="overflow-x-auto">
-                                  <table className="w-full text-left border-collapse">
-                                    <thead>
-                                      <tr className="bg-white border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 font-bold">
-                                        <th className="py-2.5 px-4">Descrição</th>
-                                        <th className="py-2.5 px-4">Sócio Titular</th>
-                                        <th className="py-2.5 px-4">Código / Tipo</th>
-                                        <th className="py-2.5 px-4">Liquidez</th>
-                                        <th className="py-2.5 px-4 text-right">Valor Declarado IRPF</th>
-                                        <th className="py-2.5 px-4 text-right">Valor de Mercado</th>
-                                        <th className="py-2.5 px-4 text-right">Ações</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                                      {bens.map((bem) => (
-                                        <tr key={bem.id} className="hover:bg-slate-50/60 transition-colors">
-                                          <td className="py-3 px-4 font-bold text-slate-900">
-                                            {bem.descricao}
-                                            {bem.elegivelGarantia && (
-                                              <span className="block mt-1">
-                                                <Badge tone="emerald">Elegível como garantia</Badge>
-                                              </span>
-                                            )}
-                                          </td>
-                                          <td className="py-3 px-4 text-slate-600">{bem.socioNome ?? 'Grupo'}</td>
-                                          <td className="py-3 px-4 text-slate-600">{bem.codigoTipo}</td>
-                                          <td className="py-3 px-4 text-slate-600">{bem.liquidez}</td>
-                                          <td className="py-3 px-4 text-right font-semibold text-slate-800">
-                                            {bem.valorDeclaradoIrpf != null ? formatCurrency(bem.valorDeclaradoIrpf) : '—'}
-                                          </td>
-                                          <td className="py-3 px-4 text-right font-bold text-emerald-700">
-                                            {bem.valorMercadoEstimado != null ? formatCurrency(bem.valorMercadoEstimado) : '—'}
-                                          </td>
-                                          <td className="py-3 px-4 text-right whitespace-nowrap">
-                                            <div className="flex items-center justify-end gap-2">
-                                              <button
-                                                onClick={() => {
-                                                  setEditingBem(bem);
-                                                  setIsBemDrawerOpen(true);
-                                                }}
-                                                title="Editar bem"
-                                                className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition"
-                                              >
-                                                <Edit2 className="w-4 h-4" />
-                                              </button>
-                                              <button
-                                                onClick={() => handleDeleteBem(bem.id)}
-                                                title="Remover bem"
-                                                className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
-                                              >
-                                                <Trash2 className="w-4 h-4" />
-                                              </button>
-                                            </div>
-                                          </td>
+                                  {grupo === 'Imóveis Rurais - ANEXO A' ? (
+                                    <table className="w-full text-left border-collapse">
+                                      <thead>
+                                        <tr className="bg-white border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 font-bold">
+                                          <th className="py-2.5 px-4">Denominação do Imóvel</th>
+                                          <th className="py-2.5 px-4">Município/UF</th>
+                                          <th className="py-2.5 px-4">Matrícula</th>
+                                          <th className="py-2.5 px-4 text-right">Área (ha)</th>
+                                          <th className="py-2.5 px-4 text-right">Área Plantada (ha)</th>
+                                          <th className="py-2.5 px-4 text-right">R$/ha</th>
+                                          <th className="py-2.5 px-4 text-right">Valor de Mercado Total</th>
+                                          <th className="py-2.5 px-4">Situação/Credor</th>
+                                          <th className="py-2.5 px-4 text-right">Ações</th>
                                         </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                                        {bens.map((bem) => (
+                                          <tr key={bem.id} className="hover:bg-slate-50/60 transition-colors">
+                                            <td className="py-3 px-4 font-bold text-slate-900">
+                                              {bem.detalheImovelRural?.denominacaoImovel ?? bem.descricao}
+                                            </td>
+                                            <td className="py-3 px-4 text-slate-600">{bem.detalheImovelRural?.municipioUf ?? '—'}</td>
+                                            <td className="py-3 px-4 text-slate-600">{bem.detalheImovelRural?.matricula ?? '—'}</td>
+                                            <td className="py-3 px-4 text-right text-slate-700">
+                                              {bem.detalheImovelRural?.areaHa.toLocaleString('pt-BR') ?? '—'}
+                                            </td>
+                                            <td className="py-3 px-4 text-right text-slate-700">
+                                              {bem.detalheImovelRural?.areaPropriaPlantadaHa?.toLocaleString('pt-BR') ?? '—'}
+                                            </td>
+                                            <td className="py-3 px-4 text-right text-slate-700">
+                                              {bem.detalheImovelRural?.valorMercadoHa != null
+                                                ? formatCurrency(bem.detalheImovelRural.valorMercadoHa)
+                                                : '—'}
+                                            </td>
+                                            <td className="py-3 px-4 text-right font-bold text-emerald-700">
+                                              {bem.valorMercadoEstimado != null ? formatCurrency(bem.valorMercadoEstimado) : '—'}
+                                            </td>
+                                            <td className="py-3 px-4 text-slate-600">{bem.detalheImovelRural?.situacaoCredor ?? '—'}</td>
+                                            <td className="py-3 px-4 text-right whitespace-nowrap">
+                                              <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                  onClick={() => {
+                                                    setEditingBem(bem);
+                                                    setIsImovelRuralOpen(true);
+                                                  }}
+                                                  title="Editar imóvel rural"
+                                                  className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition"
+                                                >
+                                                  <Edit2 className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                  onClick={() => handleDeleteBem(bem.id)}
+                                                  title="Remover imóvel"
+                                                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
+                                                >
+                                                  <Trash2 className="w-4 h-4" />
+                                                </button>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  ) : grupo === 'Imóveis Urbanos - ANEXO B' ? (
+                                    <table className="w-full text-left border-collapse">
+                                      <thead>
+                                        <tr className="bg-white border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 font-bold">
+                                          <th className="py-2.5 px-4">Descrição</th>
+                                          <th className="py-2.5 px-4">Matrícula</th>
+                                          <th className="py-2.5 px-4">Cidade</th>
+                                          <th className="py-2.5 px-4 text-right">Valor Atual</th>
+                                          <th className="py-2.5 px-4 text-right">Ações</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                                        {bens.map((bem) => (
+                                          <tr key={bem.id} className="hover:bg-slate-50/60 transition-colors">
+                                            <td className="py-3 px-4 font-bold text-slate-900">
+                                              {bem.detalheImovelUrbano?.descricao ?? bem.descricao}
+                                            </td>
+                                            <td className="py-3 px-4 text-slate-600">{bem.detalheImovelUrbano?.matricula ?? '—'}</td>
+                                            <td className="py-3 px-4 text-slate-600">{bem.detalheImovelUrbano?.cidade ?? '—'}</td>
+                                            <td className="py-3 px-4 text-right font-bold text-emerald-700">
+                                              {bem.valorMercadoEstimado != null ? formatCurrency(bem.valorMercadoEstimado) : '—'}
+                                            </td>
+                                            <td className="py-3 px-4 text-right whitespace-nowrap">
+                                              <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                  onClick={() => {
+                                                    setEditingBem(bem);
+                                                    setIsImovelUrbanoOpen(true);
+                                                  }}
+                                                  title="Editar imóvel urbano"
+                                                  className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition"
+                                                >
+                                                  <Edit2 className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                  onClick={() => handleDeleteBem(bem.id)}
+                                                  title="Remover imóvel"
+                                                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
+                                                >
+                                                  <Trash2 className="w-4 h-4" />
+                                                </button>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  ) : (
+                                    <table className="w-full text-left border-collapse">
+                                      <thead>
+                                        <tr className="bg-white border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 font-bold">
+                                          <th className="py-2.5 px-4">Descrição</th>
+                                          <th className="py-2.5 px-4">Sócio Titular</th>
+                                          <th className="py-2.5 px-4">Código / Tipo</th>
+                                          <th className="py-2.5 px-4">Liquidez</th>
+                                          <th className="py-2.5 px-4 text-right">Valor Declarado IRPF</th>
+                                          <th className="py-2.5 px-4 text-right">Valor de Mercado</th>
+                                          <th className="py-2.5 px-4 text-right">Ações</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                                        {bens.map((bem) => (
+                                          <tr key={bem.id} className="hover:bg-slate-50/60 transition-colors">
+                                            <td className="py-3 px-4 font-bold text-slate-900">
+                                              {bem.descricao}
+                                              {bem.elegivelGarantia && (
+                                                <span className="block mt-1">
+                                                  <Badge tone="emerald">Elegível como garantia</Badge>
+                                                </span>
+                                              )}
+                                            </td>
+                                            <td className="py-3 px-4 text-slate-600">{bem.socioNome ?? 'Grupo'}</td>
+                                            <td className="py-3 px-4 text-slate-600">{bem.codigoTipo}</td>
+                                            <td className="py-3 px-4 text-slate-600">{bem.liquidez}</td>
+                                            <td className="py-3 px-4 text-right font-semibold text-slate-800">
+                                              {bem.valorDeclaradoIrpf != null ? formatCurrency(bem.valorDeclaradoIrpf) : '—'}
+                                            </td>
+                                            <td className="py-3 px-4 text-right font-bold text-emerald-700">
+                                              {bem.valorMercadoEstimado != null ? formatCurrency(bem.valorMercadoEstimado) : '—'}
+                                            </td>
+                                            <td className="py-3 px-4 text-right whitespace-nowrap">
+                                              <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                  onClick={() => {
+                                                    setEditingBem(bem);
+                                                    setIsBemDrawerOpen(true);
+                                                  }}
+                                                  title="Editar bem"
+                                                  className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition"
+                                                >
+                                                  <Edit2 className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                  onClick={() => handleDeleteBem(bem.id)}
+                                                  title="Remover bem"
+                                                  className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
+                                                >
+                                                  <Trash2 className="w-4 h-4" />
+                                                </button>
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  )}
                                 </div>
                               </div>
                             );
@@ -994,6 +1172,11 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                   </Card>
 
                   <Card className="p-5">
+                    <h3 className="text-sm font-bold text-slate-900 mb-4">Organograma Societário</h3>
+                    <OrganogramaGrupo socios={socios} />
+                  </Card>
+
+                  <Card className="p-5">
                     <div className="flex items-center gap-2 mb-4">
                       <h3 className="text-sm font-bold text-slate-900">Painel Consolidado do Grupo</h3>
                       <Badge tone="emerald">Patrimônio × Participação</Badge>
@@ -1042,72 +1225,123 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
               );
             }
 
-            // Histórico do Grupo — 5 seções narrativas
+            // Histórico do Grupo — 7 blocos de questionário (reestruturado em 20/08/2026)
+            type CampoHistorico = keyof typeof historicoDraft;
+            const BLOCOS_HISTORICO: {
+              titulo: string;
+              descricao?: string;
+              campos: { campo: CampoHistorico; label: string; rows?: number }[];
+            }[] = [
+              {
+                titulo: '1. Histórico',
+                descricao:
+                  'Este texto é utilizado na Apresentação do Grupo (Slide 2) e no Parecer Executivo.',
+                campos: [
+                  { campo: 'historicoInicio', label: 'Início' },
+                  { campo: 'historicoHerancaOrigem', label: 'Herança/Origem' },
+                  { campo: 'historicoEvolucaoNegocio', label: 'Evolução do negócio' },
+                  { campo: 'historicoGestaoCrises', label: 'Gestão de crises climáticas/financeiras' }
+                ]
+              },
+              {
+                titulo: '2. Gestão — Sucessão',
+                campos: [
+                  { campo: 'gestaoAdministracao', label: 'Administração' },
+                  { campo: 'gestaoParceriasSocios', label: 'Parcerias/Sócios' },
+                  { campo: 'gestaoDivisaoCustosFaturamento', label: 'Divisão de custos/faturamento' },
+                  { campo: 'gestaoPlanoSucessorioHerdeiros', label: 'Plano sucessório/Herdeiros' }
+                ]
+              },
+              {
+                titulo: '3. Modus Operandi — Agricultura',
+                campos: [
+                  { campo: 'agriculturaCustos', label: 'Custos' },
+                  { campo: 'agriculturaCronogramaPlantioColheita', label: 'Cronogramas de plantio/colheita' },
+                  { campo: 'agriculturaCapacidadeArmazenamento', label: 'Capacidade de Armazenamento estático' },
+                  { campo: 'agriculturaFornecedoresClientes', label: 'Fornecedores/Clientes' },
+                  { campo: 'agriculturaModalidadesCompra', label: 'Modalidades de compra' },
+                  { campo: 'agriculturaExportacao', label: 'Exportação' }
+                ]
+              },
+              {
+                titulo: '4. Modus Operandi — Pecuária',
+                campos: [
+                  { campo: 'pecuariaCicloProducao', label: 'Ciclo de produção' },
+                  { campo: 'pecuariaConfinamento', label: 'Confinamento' },
+                  { campo: 'pecuariaCustosCronogramaCompraAbate', label: 'Custos e Cronograma de compra/abate' }
+                ]
+              },
+              {
+                titulo: '5. Gestão Financeira',
+                campos: [
+                  { campo: 'financeiroFinanciamentos', label: 'Financiamentos' },
+                  { campo: 'financeiroPoliticaHedge', label: 'Política de Hedge para commodities e câmbio' },
+                  { campo: 'financeiroPosicaoComercializadaSafraAtual', label: 'Posição comercializada da safra atual' }
+                ]
+              },
+              {
+                titulo: '6. Outras Atividades / Empresas Coligadas',
+                campos: [{ campo: 'empresasColigadas', label: 'Empresas Coligadas', rows: 8 }]
+              }
+            ];
+
             return (
               <Card className="p-5">
-                <div className="space-y-6">
-                  {/* 1. Histórico */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <h4 className="text-sm font-bold text-slate-900">Histórico</h4>
+                <div className="space-y-8">
+                  {BLOCOS_HISTORICO.map((bloco, i) => (
+                    <div key={bloco.titulo} className={i === 0 ? '' : 'border-t border-slate-200 pt-6'}>
+                      <h4 className="text-sm font-bold text-slate-900 mb-1.5">{bloco.titulo}</h4>
+                      {bloco.descricao && <p className="text-xs text-slate-500 mb-3">{bloco.descricao}</p>}
+                      <div className="space-y-4">
+                        {bloco.campos.map(({ campo, label, rows }) => (
+                          <Textarea
+                            key={campo}
+                            label={label}
+                            rows={rows ?? 4}
+                            value={historicoDraft[campo]}
+                            onChange={(e) => setHistoricoCampo(campo, e.target.value)}
+                          />
+                        ))}
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-500 mb-3">
-                      Descreva a história, trajetória e contexto do grupo econômico. Este texto é utilizado na
-                      Apresentação do Grupo (Slide 2) e no Parecer Executivo.
-                    </p>
-                    <Textarea
-                      rows={12}
-                      value={historicoDraft}
-                      onChange={(e) => setHistoricoDraft(e.target.value)}
+                  ))}
+
+                  {/* 4. campo numérico — taxa de desfrute (único número do bloco Pecuária) */}
+                  <div className="border-t border-slate-200 pt-6 -mt-4">
+                    <Input
+                      label="Taxa de desfrute (%)"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      value={historicoDraft.pecuariaTaxaDesfrutePercent}
+                      onChange={(e) => setHistoricoCampo('pecuariaTaxaDesfrutePercent', e.target.value)}
+                      hint="Percentual de animais abatidos/comercializados sobre o rebanho total — bloco 4, Pecuária."
                     />
                   </div>
 
-                  {/* 2. Gestão — Sucessão */}
+                  {/* 7. Missão, Visão e Valores — destacado do restante do formulário */}
                   <div className="border-t border-slate-200 pt-6">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h4 className="text-sm font-bold text-slate-900">Gestão — Sucessão</h4>
+                    <h4 className="text-sm font-bold text-slate-900 mb-3">7. Missão, Visão e Valores</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {(
+                        [
+                          { campo: 'missao' as const, label: 'Missão', tone: 'from-emerald-50 to-emerald-100/40 border-emerald-200' },
+                          { campo: 'visao' as const, label: 'Visão', tone: 'from-blue-50 to-blue-100/40 border-blue-200' },
+                          { campo: 'valores' as const, label: 'Valores', tone: 'from-amber-50 to-amber-100/40 border-amber-200' }
+                        ]
+                      ).map(({ campo, label, tone }) => (
+                        <div key={campo} className={`rounded-2xl border bg-gradient-to-br ${tone} p-4`}>
+                          <p className="text-xs font-extrabold uppercase tracking-wide text-slate-700 mb-2">{label}</p>
+                          <Textarea
+                            rows={6}
+                            value={historicoDraft[campo]}
+                            onChange={(e) => setHistoricoCampo(campo, e.target.value)}
+                            className="bg-white/70"
+                          />
+                        </div>
+                      ))}
                     </div>
-                    <Textarea
-                      rows={8}
-                      value={sucessaoDraft}
-                      onChange={(e) => setSucesaoDraft(e.target.value)}
-                    />
-                  </div>
-
-                  {/* 3. Modus Operandi — Sistema de Produção (Agricultura) */}
-                  <div className="border-t border-slate-200 pt-6">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h4 className="text-sm font-bold text-slate-900">Modus Operandi — Sistema de Produção (Agricultura)</h4>
-                    </div>
-                    <Textarea
-                      rows={8}
-                      value={modusOperandiAgriculturaDraft}
-                      onChange={(e) => setModusOperandiAgriculturaDraft(e.target.value)}
-                    />
-                  </div>
-
-                  {/* 4. Modus Operandi — Sistema de Produção (Pecuária) */}
-                  <div className="border-t border-slate-200 pt-6">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h4 className="text-sm font-bold text-slate-900">Modus Operandi — Sistema de Produção (Pecuária)</h4>
-                    </div>
-                    <Textarea
-                      rows={8}
-                      value={modusOperandiPecuariaDraft}
-                      onChange={(e) => setModusOperandiPecuariaDraft(e.target.value)}
-                    />
-                  </div>
-
-                  {/* 5. Outras Atividades — Empresas Coligadas */}
-                  <div className="border-t border-slate-200 pt-6">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h4 className="text-sm font-bold text-slate-900">Outras Atividades — Empresas Coligadas</h4>
-                    </div>
-                    <Textarea
-                      rows={8}
-                      value={empresasColigadasDraft}
-                      onChange={(e) => setEmpresasColigadasDraft(e.target.value)}
-                    />
                   </div>
                 </div>
 
@@ -1126,9 +1360,9 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
         </Tabs>
       </Card>
 
-      <SocioDrawer
-        isOpen={isSocioDrawerOpen}
-        onClose={() => setIsSocioDrawerOpen(false)}
+      <IntegranteDrawer
+        isOpen={isIntegranteDrawerOpen}
+        onClose={() => setIsIntegranteDrawerOpen(false)}
         onSave={handleSaveSocio}
         editingSocio={editingSocio}
         outrosSocios={socios.filter((s) => s.id !== editingSocio?.id)}
@@ -1137,6 +1371,22 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
       <BemDireitoDrawer
         isOpen={isBemDrawerOpen}
         onClose={() => setIsBemDrawerOpen(false)}
+        onSave={handleSaveBem}
+        editingBem={editingBem}
+        socios={socios}
+      />
+
+      <ImovelRuralModal
+        isOpen={isImovelRuralOpen}
+        onClose={() => setIsImovelRuralOpen(false)}
+        onSave={handleSaveBem}
+        editingBem={editingBem}
+        socios={socios}
+      />
+
+      <ImovelUrbanoModal
+        isOpen={isImovelUrbanoOpen}
+        onClose={() => setIsImovelUrbanoOpen(false)}
         onSave={handleSaveBem}
         editingBem={editingBem}
         socios={socios}

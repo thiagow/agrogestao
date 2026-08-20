@@ -33,10 +33,10 @@ export const navEntries: NavEntry[] = [
   },
   {
     id: 'cadastro_mestre',
-    label: 'Cadastro Mestre',
+    label: 'Cadastro',
     icon: Database,
-    title: 'Cadastro Mestre',
-    subtitle: 'Gestão de fazendas, safras, culturas e índices econômicos'
+    title: 'Cadastro',
+    subtitle: 'Sócios, empresas, bens e direitos do grupo econômico'
   },
   {
     id: 'quadro_safra',

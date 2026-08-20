@@ -60,23 +60,39 @@ export type ActiveTab =
   | 'fluxo_mensal'
   | 'apresentacao_grupo';
 
-// ---- Cadastro Mestre: Sócios ----
+// ---- Cadastro: Sócios e Empresas ----
 
 export type EstadoCivil = 'Solteiro' | 'Casado' | 'Viúvo' | 'Divorciado' | 'Separado';
+export type TipoPessoa = 'PF' | 'PJ';
+
+// Cap table de uma empresa (Socio tipoPessoa=PJ) — cada linha é "este PF possui X%
+// desta PJ". Concepto separado de Socio.participacao (que é a % no GRUPO
+// ECONÔMICO como um todo, usada em src/lib/patrimonio.ts) — os dois nunca se
+// somam nem se substituem (decisão registrada em 20/08/2026).
+export interface ParticipacaoSocietaria {
+  id?: string; // ausente numa linha ainda não salva no formulário
+  socioPfId: string;
+  socioPfNome?: string; // só leitura, resolvido no server
+  percentual: number; // 0-100
+}
 
 export interface Socio {
   id: string;
-  nome: string;
-  cpf: string;
-  participacao: number; // 0-100
-  estadoCivil?: EstadoCivil;
+  tipoPessoa: TipoPessoa;
+  nome: string; // "Nome Completo" (PF) / "Razão Social" (PJ)
+  cpf?: string; // só PF
+  cnpj?: string; // só PJ
+  cargoOuAtividade?: string; // "Cargo" (PF) / "Atividade Principal" (PJ)
+  participacao: number; // 0-100, % no grupo econômico
+  estadoCivil?: EstadoCivil; // só PF
   telefone?: string;
   email?: string;
-  nacionalidade?: string;
-  dataNascimento?: string; // YYYY-MM-DD
+  nacionalidade?: string; // "Nacionalidade" (PF) / "Cidade/UF" (PJ)
+  dataNascimento?: string; // YYYY-MM-DD — "Data de Nascimento" (PF) / "Data de Fundação" (PJ)
+  participacoes?: ParticipacaoSocietaria[]; // só PJ — cap table da empresa
 }
 
-// ---- Cadastro Mestre: Bens e Direitos, Garantias, CAPEX, Grupo Econômico ----
+// ---- Cadastro: Bens e Direitos, Garantias, CAPEX, Grupo Econômico ----
 // Design próprio (fonte AgroFlow não especifica campos para essas abas, exceto
 // Bens e Direitos, que tem "campos estimados" replicados abaixo).
 
@@ -88,9 +104,33 @@ export type GrupoIrpfBem =
   | 'Depósitos à Vista e Poupança'
   | 'Créditos e Outros Direitos'
   | 'Criptoativos'
-  | 'Outros Bens e Direitos';
+  | 'Outros Bens e Direitos'
+  | 'Imóveis Rurais - ANEXO A'
+  | 'Imóveis Urbanos - ANEXO B';
 
 export type LiquidezBem = 'Alta' | 'Média' | 'Baixa';
+
+// Detalhe do ANEXO A (grupoIrpf='Imóveis Rurais - ANEXO A'). "Valor de Mercado
+// Total (R$)" da spec é BemDireito.valorMercadoEstimado (=areaHa × valorMercadoHa,
+// calculado ao vivo no formulário) — não duplicado aqui.
+export interface DetalheImovelRural {
+  denominacaoImovel: string;
+  municipioUf: string;
+  matricula?: string;
+  areaHa: number;
+  areaPropriaPlantadaHa?: number;
+  areaReservasPastagensOutrosHa?: number;
+  valorMercadoHa?: number;
+  situacaoCredor?: string;
+}
+
+// Detalhe do ANEXO B (grupoIrpf='Imóveis Urbanos - ANEXO B'). "Valor Atual (R$)"
+// da spec é BemDireito.valorMercadoEstimado.
+export interface DetalheImovelUrbano {
+  descricao: string;
+  matricula?: string;
+  cidade: string;
+}
 
 export interface BemDireito {
   id: string;
@@ -108,6 +148,8 @@ export interface BemDireito {
   elegivelGarantia: boolean;
   geraFluxoCaixa: boolean;
   observacoes?: string;
+  detalheImovelRural?: DetalheImovelRural; // só quando grupoIrpf = ANEXO A
+  detalheImovelUrbano?: DetalheImovelUrbano; // só quando grupoIrpf = ANEXO B
 }
 
 export interface Garantia {
@@ -144,6 +186,9 @@ export interface Capex {
   observacoes?: string;
 }
 
+// "Histórico do Grupo" reestruturado (20/08/2026) de 5 campos-blob soltos para 7
+// blocos de questionário, um campo por sub-pergunta — ver comentário em
+// schema.prisma. Bloco 6 reaproveita empresasColigadas (já existia).
 export interface PerfilGrupoEconomico {
   email?: string;
   telefone?: string;
@@ -151,11 +196,45 @@ export interface PerfilGrupoEconomico {
   fundacao?: string; // YYYY-MM-DD
   sede?: string;
   consultorResponsavel?: string;
-  historico?: string;
-  sucessao?: string;
-  modusOperandiAgricultura?: string;
-  modusOperandiPecuaria?: string;
+
+  // Bloco 1 — Histórico
+  historicoInicio?: string;
+  historicoHerancaOrigem?: string;
+  historicoEvolucaoNegocio?: string;
+  historicoGestaoCrises?: string;
+
+  // Bloco 2 — Gestão-Sucessão
+  gestaoAdministracao?: string;
+  gestaoParceriasSocios?: string;
+  gestaoDivisaoCustosFaturamento?: string;
+  gestaoPlanoSucessorioHerdeiros?: string;
+
+  // Bloco 3 — Modus Operandi (Agricultura)
+  agriculturaCustos?: string;
+  agriculturaCronogramaPlantioColheita?: string;
+  agriculturaCapacidadeArmazenamento?: string;
+  agriculturaFornecedoresClientes?: string;
+  agriculturaModalidadesCompra?: string;
+  agriculturaExportacao?: string;
+
+  // Bloco 4 — Modus Operandi (Pecuária)
+  pecuariaCicloProducao?: string;
+  pecuariaConfinamento?: string;
+  pecuariaTaxaDesfrutePercent?: number; // 0-100
+  pecuariaCustosCronogramaCompraAbate?: string;
+
+  // Bloco 5 — Gestão Financeira
+  financeiroFinanciamentos?: string;
+  financeiroPoliticaHedge?: string;
+  financeiroPosicaoComercializadaSafraAtual?: string;
+
+  // Bloco 6 — Outras Atividades / Empresas Coligadas
   empresasColigadas?: string;
+
+  // Bloco 7 — Missão, Visão e Valores
+  missao?: string;
+  visao?: string;
+  valores?: string;
 }
 
 // ---- Quadro de Safra / Resumo: Cultura x Ano-Safra ----

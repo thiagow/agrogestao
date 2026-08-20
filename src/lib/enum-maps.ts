@@ -171,7 +171,9 @@ export const GRUPO_IRPF_TO_DB: Record<GrupoIrpfBem, PrismaGrupoIrpfBem> = {
   'Depósitos à Vista e Poupança': PrismaGrupoIrpfBem.DEPOSITOS_POUPANCA,
   'Créditos e Outros Direitos': PrismaGrupoIrpfBem.CREDITOS_DIREITOS,
   Criptoativos: PrismaGrupoIrpfBem.CRIPTOATIVOS,
-  'Outros Bens e Direitos': PrismaGrupoIrpfBem.OUTROS_BENS
+  'Outros Bens e Direitos': PrismaGrupoIrpfBem.OUTROS_BENS,
+  'Imóveis Rurais - ANEXO A': PrismaGrupoIrpfBem.IMOVEIS_RURAIS_ANEXO_A,
+  'Imóveis Urbanos - ANEXO B': PrismaGrupoIrpfBem.IMOVEIS_URBANOS_ANEXO_B
 };
 
 export const GRUPO_IRPF_FROM_DB: Record<PrismaGrupoIrpfBem, GrupoIrpfBem> = {
@@ -182,7 +184,9 @@ export const GRUPO_IRPF_FROM_DB: Record<PrismaGrupoIrpfBem, GrupoIrpfBem> = {
   DEPOSITOS_POUPANCA: 'Depósitos à Vista e Poupança',
   CREDITOS_DIREITOS: 'Créditos e Outros Direitos',
   CRIPTOATIVOS: 'Criptoativos',
-  OUTROS_BENS: 'Outros Bens e Direitos'
+  OUTROS_BENS: 'Outros Bens e Direitos',
+  IMOVEIS_RURAIS_ANEXO_A: 'Imóveis Rurais - ANEXO A',
+  IMOVEIS_URBANOS_ANEXO_B: 'Imóveis Urbanos - ANEXO B'
 };
 
 export const LIQUIDEZ_BEM_TO_DB: Record<LiquidezBem, PrismaLiquidezBem> = {

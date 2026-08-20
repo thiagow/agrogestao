@@ -4,8 +4,54 @@
 
 import { auth } from '../src/lib/auth';
 import { db } from '../src/lib/db';
-import { initialSuppliers, initialSocios } from '../src/data/initialData';
+import { initialSuppliers } from '../src/data/initialData';
 import { CATEGORY_TO_DB, ESTADO_CIVIL_TO_DB } from '../src/lib/enum-maps';
+import type { EstadoCivil } from '../src/types';
+
+// Sócios da conta demo — não é mais mock de UI (Sócios e Empresas persiste de
+// verdade desde a Fase 1), então mora só aqui, seed-only. tipoPessoa: 'PF'
+// porque a conta demo não ilustra o cenário de PJ/cap table ainda.
+const SOCIOS_DEMO: {
+  nome: string;
+  cpf: string;
+  participacao: number;
+  estadoCivil?: EstadoCivil;
+  telefone?: string;
+  email?: string;
+  nacionalidade?: string;
+  dataNascimento?: string;
+}[] = [
+  {
+    nome: 'Roberto Pereira',
+    cpf: '123.456.789-01',
+    participacao: 40,
+    estadoCivil: 'Casado',
+    telefone: '(62) 99123-4567',
+    email: 'roberto.pereira@grupopereira.com.br',
+    nacionalidade: 'Brasileira',
+    dataNascimento: '1968-04-12'
+  },
+  {
+    nome: 'Roger Machado Pereira',
+    cpf: '234.567.890-12',
+    participacao: 35,
+    estadoCivil: 'Casado',
+    telefone: '(62) 99234-5678',
+    email: 'roger.pereira@grupopereira.com.br',
+    nacionalidade: 'Brasileira',
+    dataNascimento: '1972-09-03'
+  },
+  {
+    nome: 'Augusto Pereira',
+    cpf: '345.678.901-23',
+    participacao: 25,
+    estadoCivil: 'Solteiro',
+    telefone: '(62) 99345-6789',
+    email: 'augusto.pereira@grupopereira.com.br',
+    nacionalidade: 'Brasileira',
+    dataNascimento: '1995-11-27'
+  }
+];
 
 const CULTURAS_PADRAO = [
   { nome: 'Soja', unidadeMedida: 'sc' },
@@ -128,8 +174,9 @@ async function seedDemo() {
   });
 
   await db.socio.createMany({
-    data: initialSocios.map((s) => ({
+    data: SOCIOS_DEMO.map((s) => ({
       contaId: conta.id,
+      tipoPessoa: 'PF' as const,
       nome: s.nome,
       cpf: s.cpf,
       participacao: s.participacao,

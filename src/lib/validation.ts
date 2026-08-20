@@ -31,15 +31,61 @@ export const propriedadeSchema = z.object({
   areaTotalHectares: z.coerce.number().nonnegative().optional()
 });
 
-export const socioSchema = z.object({
-  nome: z.string().trim().min(2, 'Informe o nome'),
-  cpf: z.string().trim().min(11, 'CPF inválido'),
-  participacao: z.coerce.number().min(0).max(100),
-  estadoCivil: z.enum(['Solteiro', 'Casado', 'Viúvo', 'Divorciado', 'Separado']).optional(),
-  telefone: z.string().trim().optional().or(z.literal('')),
-  email: z.string().trim().email('E-mail inválido').optional().or(z.literal('')),
-  nacionalidade: z.string().trim().optional().or(z.literal('')),
-  dataNascimento: z.string().trim().optional().or(z.literal(''))
+const participacaoSocietariaSchema = z.object({
+  socioPfId: z.string().trim().min(1, 'Selecione o integrante'),
+  percentual: z.coerce.number().min(0, 'Percentual não pode ser negativo').max(100, 'Percentual não pode passar de 100%')
+});
+
+// Sócios e Empresas: PF exige CPF, PJ exige CNPJ + cap table (participacoes) cuja
+// soma não pode passar de 100% — validação de negócio, feita com .refine porque
+// depende de mais de um campo. A checagem de que cada socioPfId aponta pra um
+// Socio tipoPessoa=PF da mesma conta é feita no server (não dá pra validar I/O
+// dentro do Zod puro).
+export const socioSchema = z
+  .object({
+    tipoPessoa: z.enum(['PF', 'PJ']).default('PF'),
+    nome: z.string().trim().min(2, 'Informe o nome'),
+    cpf: z.string().trim().optional().or(z.literal('')),
+    cnpj: z.string().trim().optional().or(z.literal('')),
+    cargoOuAtividade: z.string().trim().optional().or(z.literal('')),
+    participacao: z.coerce.number().min(0).max(100),
+    estadoCivil: z.enum(['Solteiro', 'Casado', 'Viúvo', 'Divorciado', 'Separado']).optional(),
+    telefone: z.string().trim().optional().or(z.literal('')),
+    email: z.string().trim().email('E-mail inválido').optional().or(z.literal('')),
+    nacionalidade: z.string().trim().optional().or(z.literal('')),
+    dataNascimento: z.string().trim().optional().or(z.literal('')),
+    participacoes: z.array(participacaoSocietariaSchema).optional()
+  })
+  .refine((data) => data.tipoPessoa !== 'PF' || (data.cpf && data.cpf.trim().length >= 11), {
+    message: 'CPF inválido',
+    path: ['cpf']
+  })
+  .refine((data) => data.tipoPessoa !== 'PJ' || (data.cnpj && data.cnpj.trim().length >= 14), {
+    message: 'CNPJ inválido',
+    path: ['cnpj']
+  })
+  .refine(
+    (data) =>
+      data.tipoPessoa !== 'PJ' ||
+      (data.participacoes ?? []).reduce((sum, p) => sum + p.percentual, 0) <= 100,
+    { message: 'Soma da participação societária excede 100%', path: ['participacoes'] }
+  );
+
+const detalheImovelRuralSchema = z.object({
+  denominacaoImovel: z.string().trim().min(1, 'Informe a denominação do imóvel'),
+  municipioUf: z.string().trim().min(1, 'Informe o município/UF'),
+  matricula: z.string().trim().optional().or(z.literal('')),
+  areaHa: z.coerce.number().positive('Área deve ser maior que zero'),
+  areaPropriaPlantadaHa: z.coerce.number().nonnegative().optional(),
+  areaReservasPastagensOutrosHa: z.coerce.number().nonnegative().optional(),
+  valorMercadoHa: z.coerce.number().nonnegative().optional(),
+  situacaoCredor: z.string().trim().optional().or(z.literal(''))
+});
+
+const detalheImovelUrbanoSchema = z.object({
+  descricao: z.string().trim().min(1, 'Informe a descrição'),
+  matricula: z.string().trim().optional().or(z.literal('')),
+  cidade: z.string().trim().min(1, 'Informe a cidade')
 });
 
 export const bemDireitoSchema = z.object({
@@ -52,7 +98,9 @@ export const bemDireitoSchema = z.object({
     'Depósitos à Vista e Poupança',
     'Créditos e Outros Direitos',
     'Criptoativos',
-    'Outros Bens e Direitos'
+    'Outros Bens e Direitos',
+    'Imóveis Rurais - ANEXO A',
+    'Imóveis Urbanos - ANEXO B'
   ]),
   codigoTipo: z.string().trim().min(1, 'Informe o código/tipo'),
   descricao: z.string().trim().min(2, 'Informe a descrição'),
@@ -64,7 +112,9 @@ export const bemDireitoSchema = z.object({
   ltv: z.coerce.number().min(0, 'LTV não pode ser negativo').max(100, 'LTV não pode passar de 100%').optional(),
   elegivelGarantia: z.coerce.boolean().default(false),
   geraFluxoCaixa: z.coerce.boolean().default(false),
-  observacoes: z.string().trim().optional().or(z.literal(''))
+  observacoes: z.string().trim().optional().or(z.literal('')),
+  detalheImovelRural: detalheImovelRuralSchema.optional(),
+  detalheImovelUrbano: detalheImovelUrbanoSchema.optional()
 });
 
 export const garantiaSchema = z.object({
@@ -98,18 +148,57 @@ export const capexSchema = z.object({
   observacoes: z.string().trim().optional().or(z.literal(''))
 });
 
+const textoLivreOpcional = z.string().trim().optional().or(z.literal(''));
+
+// Histórico do Grupo reestruturado em 7 blocos (20/08/2026) — ver comentário em
+// schema.prisma. Todos os campos são texto livre opcional, exceto o único campo
+// numérico do bloco 4 (taxa de desfrute).
 export const perfilGrupoSchema = z.object({
-  email: z.string().trim().optional().or(z.literal('')),
-  telefone: z.string().trim().optional().or(z.literal('')),
-  atividadePrincipal: z.string().trim().optional().or(z.literal('')),
-  fundacao: z.string().trim().optional().or(z.literal('')),
-  sede: z.string().trim().optional().or(z.literal('')),
-  consultorResponsavel: z.string().trim().optional().or(z.literal('')),
-  historico: z.string().trim().optional().or(z.literal('')),
-  sucessao: z.string().trim().optional().or(z.literal('')),
-  modusOperandiAgricultura: z.string().trim().optional().or(z.literal('')),
-  modusOperandiPecuaria: z.string().trim().optional().or(z.literal('')),
-  empresasColigadas: z.string().trim().optional().or(z.literal(''))
+  email: textoLivreOpcional,
+  telefone: textoLivreOpcional,
+  atividadePrincipal: textoLivreOpcional,
+  fundacao: textoLivreOpcional,
+  sede: textoLivreOpcional,
+  consultorResponsavel: textoLivreOpcional,
+
+  // Bloco 1 — Histórico
+  historicoInicio: textoLivreOpcional,
+  historicoHerancaOrigem: textoLivreOpcional,
+  historicoEvolucaoNegocio: textoLivreOpcional,
+  historicoGestaoCrises: textoLivreOpcional,
+
+  // Bloco 2 — Gestão-Sucessão
+  gestaoAdministracao: textoLivreOpcional,
+  gestaoParceriasSocios: textoLivreOpcional,
+  gestaoDivisaoCustosFaturamento: textoLivreOpcional,
+  gestaoPlanoSucessorioHerdeiros: textoLivreOpcional,
+
+  // Bloco 3 — Modus Operandi (Agricultura)
+  agriculturaCustos: textoLivreOpcional,
+  agriculturaCronogramaPlantioColheita: textoLivreOpcional,
+  agriculturaCapacidadeArmazenamento: textoLivreOpcional,
+  agriculturaFornecedoresClientes: textoLivreOpcional,
+  agriculturaModalidadesCompra: textoLivreOpcional,
+  agriculturaExportacao: textoLivreOpcional,
+
+  // Bloco 4 — Modus Operandi (Pecuária)
+  pecuariaCicloProducao: textoLivreOpcional,
+  pecuariaConfinamento: textoLivreOpcional,
+  pecuariaTaxaDesfrutePercent: z.coerce.number().min(0).max(100).optional(),
+  pecuariaCustosCronogramaCompraAbate: textoLivreOpcional,
+
+  // Bloco 5 — Gestão Financeira
+  financeiroFinanciamentos: textoLivreOpcional,
+  financeiroPoliticaHedge: textoLivreOpcional,
+  financeiroPosicaoComercializadaSafraAtual: textoLivreOpcional,
+
+  // Bloco 6 — Outras Atividades / Empresas Coligadas
+  empresasColigadas: textoLivreOpcional,
+
+  // Bloco 7 — Missão, Visão e Valores
+  missao: textoLivreOpcional,
+  visao: textoLivreOpcional,
+  valores: textoLivreOpcional
 });
 
 export const compraFornecedorSchema = z.object({

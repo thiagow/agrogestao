@@ -10,8 +10,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
   // Banco vazio e descartável que o Prisma usa para gerar migrations
   // (`migrate dev`) e comparar histórico com produção. Ver .env.example.
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
@@ -185,11 +185,11 @@ model Propriedade {
 // ============================================================
 
 model Cultura {
-  id                String  @id @default(cuid())
-  contaId           String? // null = catálogo global seedado; preenchido = cultura própria da conta
-  nome              String
-  unidadeMedida     String  @default("sc") // "sc", "kg", "@", "t", "m³"
-  ativo             Boolean @default(true)
+  id            String  @id @default(cuid())
+  contaId       String? // null = catálogo global seedado; preenchido = cultura própria da conta
+  nome          String
+  unidadeMedida String  @default("sc") // "sc", "kg", "@", "t", "m³"
+  ativo         Boolean @default(true)
 
   conta              Conta?             @relation(fields: [contaId], references: [id], onDelete: Cascade)
   contratosBancarios ContratoBancario[]
@@ -263,21 +263,47 @@ enum EstadoCivil {
   SEPARADO   @map("Separado")
 }
 
+enum TipoPessoa {
+  PF
+  PJ
+}
+
+// Refatoração "Sócios e Empresas" (20/08/2026): Socio passou a representar tanto
+// integrantes PF quanto empresas PJ do grupo — o mesmo model, discriminado por
+// tipoPessoa. Campos existentes (nome, cpf, nacionalidade, dataNascimento) foram
+// mantidos como estão (3 sócios reais em produção) e ganharam um segundo
+// significado condicional na UI quando tipoPessoa=PJ, em vez de renomeados:
+// nome -> "Razão Social", nacionalidade -> "Cidade/UF", dataNascimento -> "Data de
+// Fundação". cpf virou opcional (só PF) e cnpj é novo (só PJ). cargoOuAtividade é
+// um campo novo único que também dobra de rótulo ("Cargo" no PF, "Atividade
+// Principal" na PJ). estadoCivil só se aplica a PF. `participacao` continua sendo
+// a % do integrante NO GRUPO ECONÔMICO (usada por src/lib/patrimonio.ts) — a nova
+// ParticipacaoSocietaria abaixo é um conceito separado (% de um PF numa PJ
+// específica, cap table da empresa), os dois nunca se somam nem se substituem.
 model Socio {
-  id             String       @id @default(cuid())
-  contaId        String // participação societária é do grupo econômico, não da fazenda
-  nome           String
-  cpf            String
-  participacao   Decimal      @db.Decimal(5, 2) // 0-100
-  estadoCivil    EstadoCivil?
-  telefone       String?
-  email          String?
-  nacionalidade  String?
-  dataNascimento DateTime?
-  ativo          Boolean      @default(true)
+  id               String       @id @default(cuid())
+  contaId          String // participação societária é do grupo econômico, não da fazenda
+  tipoPessoa       TipoPessoa   @default(PF)
+  nome             String // "Nome Completo" (PF) / "Razão Social" (PJ)
+  cpf              String? // só PF
+  cnpj             String? // só PJ
+  cargoOuAtividade String? // "Cargo" (PF) / "Atividade Principal" (PJ)
+  participacao     Decimal      @db.Decimal(5, 2) // 0-100, % no grupo econômico
+  estadoCivil      EstadoCivil? // só PF
+  telefone         String?
+  email            String?
+  nacionalidade    String? // "Nacionalidade" (PF) / "Cidade/UF" (PJ)
+  dataNascimento   DateTime? // "Data de Nascimento" (PF) / "Data de Fundação" (PJ)
+  ativo            Boolean      @default(true)
 
   conta        Conta        @relation(fields: [contaId], references: [id], onDelete: Cascade)
   bensDireitos BemDireito[]
+
+  // Cap table: quando este Socio é uma PJ, participacoesNaEmpresa lista os PF donos
+  // dela e o % de cada um. Quando é PF, participacoesComoDono lista as PJ das quais
+  // é dono e o % que tem em cada uma. As duas pontas da mesma relação.
+  participacoesComoDono  ParticipacaoSocietaria[] @relation("Dono")
+  participacoesNaEmpresa ParticipacaoSocietaria[] @relation("Empresa")
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -285,8 +311,30 @@ model Socio {
   updatedById String?
 
   @@unique([contaId, cpf])
+  @@unique([contaId, cnpj])
   @@index([contaId, ativo])
   @@map("socios")
+}
+
+// Cap table de uma PJ do grupo — cada linha é "este Socio PF possui X% desta
+// Socio PJ". Validação de soma <= 100% por socioPjId feita em src/server/socios.ts
+// (não dá pra validar agregação no schema).
+model ParticipacaoSocietaria {
+  id         String  @id @default(cuid())
+  socioPjId  String // a empresa
+  socioPfId  String // o dono (pessoa física)
+  percentual Decimal @db.Decimal(5, 2) // 0-100
+
+  socioPj Socio @relation("Empresa", fields: [socioPjId], references: [id], onDelete: Cascade)
+  socioPf Socio @relation("Dono", fields: [socioPfId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([socioPjId, socioPfId])
+  @@index([socioPjId])
+  @@index([socioPfId])
+  @@map("participacoes_societarias")
 }
 
 // Sub-abas de Cadastro Mestre (Bens e Direitos, Garantias, CAPEX, Grupo
@@ -313,6 +361,10 @@ enum GrupoIrpfBem {
   CREDITOS_DIREITOS         @map("Créditos e Outros Direitos")
   CRIPTOATIVOS              @map("Criptoativos")
   OUTROS_BENS               @map("Outros Bens e Direitos")
+  // Adicionados em 20/08/2026 — cada um ganha um grid/modal próprio (DetalheImovelRural/
+  // DetalheImovelUrbano abaixo) em vez do formulário genérico de Bens e Direitos.
+  IMOVEIS_RURAIS_ANEXO_A    @map("Imóveis Rurais - ANEXO A")
+  IMOVEIS_URBANOS_ANEXO_B   @map("Imóveis Urbanos - ANEXO B")
 }
 
 enum LiquidezBem {
@@ -345,6 +397,9 @@ model BemDireito {
   conta Conta  @relation(fields: [contaId], references: [id], onDelete: Cascade)
   socio Socio? @relation(fields: [socioId], references: [id], onDelete: SetNull)
 
+  detalheImovelRural  DetalheImovelRural?
+  detalheImovelUrbano DetalheImovelUrbano?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdById String?
@@ -353,6 +408,49 @@ model BemDireito {
   @@index([contaId, ativo])
   @@index([socioId])
   @@map("bens_direitos")
+}
+
+// Detalhe 1:1 de um BemDireito com grupoIrpf=IMOVEIS_RURAIS_ANEXO_A — mesmo padrão de
+// Aquisicao/ParcelaAquisicao (entidade-mãe genérica + tabela de detalhe específica).
+// "Valor de Mercado Total (R$)" da spec NÃO é uma coluna aqui: é
+// BemDireito.valorMercadoEstimado (= areaHa × valorMercadoHa, calculado ao vivo no
+// client e salvo no pai), assim src/lib/patrimonio.ts soma esses imóveis sem
+// nenhuma mudança de fórmula.
+model DetalheImovelRural {
+  id                            String   @id @default(cuid())
+  bemDireitoId                  String   @unique
+  denominacaoImovel             String
+  municipioUf                   String
+  matricula                     String?
+  areaHa                        Float
+  areaPropriaPlantadaHa         Float?
+  areaReservasPastagensOutrosHa Float?
+  valorMercadoHa                Decimal? @db.Decimal(18, 2)
+  situacaoCredor                String?
+
+  bemDireito BemDireito @relation(fields: [bemDireitoId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("detalhes_imovel_rural")
+}
+
+// Detalhe 1:1 de um BemDireito com grupoIrpf=IMOVEIS_URBANOS_ANEXO_B. "Valor Atual
+// (R$)" da spec é BemDireito.valorMercadoEstimado, mesmo raciocínio do rural acima.
+model DetalheImovelUrbano {
+  id           String  @id @default(cuid())
+  bemDireitoId String  @unique
+  descricao    String
+  matricula    String?
+  cidade       String
+
+  bemDireito BemDireito @relation(fields: [bemDireitoId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("detalhes_imovel_urbano")
 }
 
 // Garantias/CAPEX/Grupo Econômico (Garantia, Capex, PerfilGrupoEconomico) tiveram seus
@@ -453,23 +551,61 @@ model Capex {
 // lê e exibe esses campos direto de Conta (via requireContext(), read-only aqui) em vez
 // de duplicá-los numa segunda tabela que nasceria vazia. Este model guarda só os campos
 // extras que o próprio usuário da conta preenche por cima disso (contato, atividade,
-// fundação, sede, consultor). "Histórico do Grupo" resolve a pendência que existia (audit
-// log automático vs. timeline manual): não é nenhum dos dois, é um único campo de texto
-// livre, usado na Apresentação do Grupo (Slide 2) e no Parecer Executivo.
+// fundação, sede, consultor).
+//
+// "Histórico do Grupo" (20/08/2026): reestruturado de 5 campos-blob soltos para 7
+// blocos de questionário, um campo String? por sub-pergunta — mesmo padrão 100%
+// tipado do resto do schema, sem JSON solto (tabela estava vazia em produção, sem
+// risco de perda de dado na troca). Bloco 6 reaproveita empresasColigadas (já
+// existia, mapeia 1:1). Bloco 7 (Missão/Visão/Valores) é novo.
 model PerfilGrupoEconomico {
-  id                       String    @id @default(cuid())
-  contaId                  String    @unique
-  email                    String?
-  telefone                 String?
-  atividadePrincipal       String?
-  fundacao                 DateTime?
-  sede                     String?
-  consultorResponsavel     String?
-  historico                String?
-  sucessao                 String?
-  modusOperandiAgricultura String?
-  modusOperandiPecuaria    String?
-  empresasColigadas        String?
+  id                   String    @id @default(cuid())
+  contaId              String    @unique
+  email                String?
+  telefone             String?
+  atividadePrincipal   String?
+  fundacao             DateTime?
+  sede                 String?
+  consultorResponsavel String?
+
+  // Bloco 1 — Histórico
+  historicoInicio          String?
+  historicoHerancaOrigem   String?
+  historicoEvolucaoNegocio String?
+  historicoGestaoCrises    String?
+
+  // Bloco 2 — Gestão-Sucessão
+  gestaoAdministracao            String?
+  gestaoParceriasSocios          String?
+  gestaoDivisaoCustosFaturamento String?
+  gestaoPlanoSucessorioHerdeiros String?
+
+  // Bloco 3 — Modus Operandi (Agricultura)
+  agriculturaCustos                    String?
+  agriculturaCronogramaPlantioColheita String?
+  agriculturaCapacidadeArmazenamento   String?
+  agriculturaFornecedoresClientes      String?
+  agriculturaModalidadesCompra         String?
+  agriculturaExportacao                String?
+
+  // Bloco 4 — Modus Operandi (Pecuária)
+  pecuariaCicloProducao               String?
+  pecuariaConfinamento                String?
+  pecuariaTaxaDesfrutePercent         Decimal? @db.Decimal(5, 2) // 0-100, único campo numérico do bloco
+  pecuariaCustosCronogramaCompraAbate String?
+
+  // Bloco 5 — Gestão Financeira
+  financeiroFinanciamentos                  String?
+  financeiroPoliticaHedge                   String?
+  financeiroPosicaoComercializadaSafraAtual String?
+
+  // Bloco 6 — Outras Atividades / Empresas Coligadas (campo pré-existente, só re-rotulado na UI)
+  empresasColigadas String?
+
+  // Bloco 7 — Missão, Visão e Valores
+  missao  String?
+  visao   String?
+  valores String?
 
   conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
 
@@ -603,13 +739,13 @@ enum SistemaAmortizacao {
 // nenhum evento intermediário — substitui o antigo BULLET quando usado nas
 // duas pernas. Ver src/lib/amortizacao.ts.
 enum PeriodicidadeLiquidacao {
-  MENSAL       @map("Mensal")
-  BIMESTRAL    @map("Bimestral")
-  TRIMESTRAL   @map("Trimestral")
+  MENSAL        @map("Mensal")
+  BIMESTRAL     @map("Bimestral")
+  TRIMESTRAL    @map("Trimestral")
   QUADRIMESTRAL @map("Quadrimestral")
-  SEMESTRAL    @map("Semestral")
-  ANUAL        @map("Anual")
-  FINAL        @map("Final")
+  SEMESTRAL     @map("Semestral")
+  ANUAL         @map("Anual")
+  FINAL         @map("Final")
 }
 
 // Convenção de contagem de dias para converter a taxa anual em taxa do período —
@@ -627,39 +763,39 @@ enum TipoCapitalizacao {
 }
 
 model ContratoBancario {
-  id                 String                 @id @default(cuid())
-  propriedadeId      String
-  banco              String
-  nomeTomador        String?
-  numeroContrato     String?
-  tipoOperacao       TipoOperacaoBancaria
-  safraVinculadaId   String?
-  culturaVinculadaId String?
-  saldoInicial       Decimal                @db.Decimal(18, 2) // "Valor Contratado" no print
-  saldoAtual         Decimal                @db.Decimal(18, 2)
+  id                     String                  @id @default(cuid())
+  propriedadeId          String
+  banco                  String
+  nomeTomador            String?
+  numeroContrato         String?
+  tipoOperacao           TipoOperacaoBancaria
+  safraVinculadaId       String?
+  culturaVinculadaId     String?
+  saldoInicial           Decimal                 @db.Decimal(18, 2) // "Valor Contratado" no print
+  saldoAtual             Decimal                 @db.Decimal(18, 2)
   // Taxa cheia quando tipoTaxa = PRE_FIXADO; spread sobre o indexador nos demais
   // casos. Não existe campo de spread separado — ver src/lib/taxa-efetiva.ts.
-  taxaJuros          Decimal                @db.Decimal(8, 4) // % a.a.
-  tipoTaxa           TipoTaxaBancaria
-  baseCalculo        BaseCalculoJuros       @default(DIAS_CORRIDOS_360)
-  capitalizacao      TipoCapitalizacao      @default(COMPOSTA)
-  sistemaAmortizacao SistemaAmortizacao
+  taxaJuros              Decimal                 @db.Decimal(8, 4) // % a.a.
+  tipoTaxa               TipoTaxaBancaria
+  baseCalculo            BaseCalculoJuros        @default(DIAS_CORRIDOS_360)
+  capitalizacao          TipoCapitalizacao       @default(COMPOSTA)
+  sistemaAmortizacao     SistemaAmortizacao
   periodicidadePrincipal PeriodicidadeLiquidacao
   periodicidadeJuros     PeriodicidadeLiquidacao
-  possuiCarencia     Boolean                @default(false)
-  dataContratacao    DateTime
-  inicioPagamento    DateTime?
-  dataVencimento     DateTime
-  tipoGarantia       String?
-  valorGarantia      Decimal?               @db.Decimal(18, 2)
-  moeda              Currency
+  possuiCarencia         Boolean                 @default(false)
+  dataContratacao        DateTime
+  inicioPagamento        DateTime?
+  dataVencimento         DateTime
+  tipoGarantia           String?
+  valorGarantia          Decimal?                @db.Decimal(18, 2)
+  moeda                  Currency
   // Cenário USD Puro (moeda=USD) e Cenário VC (tipoTaxa=DOLAR_JUROS): cotação
   // R$/US$ na data de contratação — referência pra medir variação cambial.
   // Renovado a cada aniversário do contrato só para fins de CONVERSÃO/exibição
   // (o saldo em USD não é re-marcado) — ver src/lib/taxa-efetiva.ts.
-  ptaxInicial        Decimal?               @db.Decimal(10, 4)
-  observacoes        String?
-  ativo              Boolean                @default(true)
+  ptaxInicial            Decimal?                @db.Decimal(10, 4)
+  observacoes            String?
+  ativo                  Boolean                 @default(true)
 
   // Memória de cálculo do último cronograma gerado — sem isso não há como saber
   // de que indexador saiu a projeção nem se ela está defasada. Preenchidos por
@@ -718,20 +854,20 @@ model Parcela {
 // "Contratos" e "Fluxo por Safra", gerado por src/server/aquisicao-engine.ts
 // a cada save — mesmo critério do cronograma de `ContratoBancario`.
 model Aquisicao {
-  id                  String    @id @default(cuid())
-  propriedadeId       String
-  nomeFazenda         String
-  vendedor            String?
-  denominacaoImovel   String?
-  comarca             String?
-  numeroMatricula     String?
-  estado              String // UF
-  municipio           String
-  areaTotalHa         Float
-  areaAgricolaHa      Float
-  dataAquisicao       DateTime
-  dataInicioPagamento DateTime
-  dataVencimento      DateTime
+  id                      String                 @id @default(cuid())
+  propriedadeId           String
+  nomeFazenda             String
+  vendedor                String?
+  denominacaoImovel       String?
+  comarca                 String?
+  numeroMatricula         String?
+  estado                  String // UF
+  municipio               String
+  areaTotalHa             Float
+  areaAgricolaHa          Float
+  dataAquisicao           DateTime
+  dataInicioPagamento     DateTime
+  dataVencimento          DateTime
   // Sugerido automaticamente no client a partir do intervalo entre as duas
   // datas acima, mas continua editável e é o que fica persistido (corrige o
   // BUG #2 da spec: no AgroFlow original o campo nunca era pré-preenchido).
@@ -739,7 +875,7 @@ model Aquisicao {
   tipoPagamento           TipoPagamentoAquisicao
   // Só "Anual" confirmado pelo print do formulário — texto livre, mesmo
   // critério de Garantias/CAPEX para enum sem lista fechada confirmada.
-  periodicidade String @default("Anual")
+  periodicidade           String                 @default("Anual")
 
   // Modo SACAS
   culturaReferenciaId String?
@@ -762,8 +898,8 @@ model Aquisicao {
 
   ativo Boolean @default(true)
 
-  propriedade       Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
-  culturaReferencia Cultura?    @relation(fields: [culturaReferenciaId], references: [id], onDelete: SetNull)
+  propriedade       Propriedade        @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  culturaReferencia Cultura?           @relation(fields: [culturaReferenciaId], references: [id], onDelete: SetNull)
   parcelas          ParcelaAquisicao[]
 
   createdAt   DateTime @default(now())
@@ -779,14 +915,14 @@ model Aquisicao {
 // Gerada do zero a cada save de Aquisicao (delete + createMany), mesmo
 // critério de `Parcela`/`ContratoBancario` — sem UI de baixa de parcela.
 model ParcelaAquisicao {
-  id                 String                     @id @default(cuid())
+  id                 String                  @id @default(cuid())
   aquisicaoId        String
   safra              String // "2026/2027"
   tipo               TipoLancamentoAquisicao
-  sacas              Decimal                    @default(0) @db.Decimal(14, 2)
-  precoSc            Decimal?                   @db.Decimal(18, 4)
-  usaPrecoReferencia Boolean                    @default(false)
-  valorTotal         Decimal                    @db.Decimal(18, 2)
+  sacas              Decimal                 @default(0) @db.Decimal(14, 2)
+  precoSc            Decimal?                @db.Decimal(18, 4)
+  usaPrecoReferencia Boolean                 @default(false)
+  valorTotal         Decimal                 @db.Decimal(18, 2)
   dataPagamento      DateTime
   ordem              Int
 

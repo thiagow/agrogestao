@@ -4,6 +4,13 @@
 // BemDireitoDrawer.tsx: "Vincule ao sócio para calcular o PL ponderado pela participação
 // societária" — bem vinculado a um sócio entra ponderado pela participação dele; bem sem
 // sócio ("Grupo") entra 100% (não é diluído por ninguém).
+//
+// Fix (20/08/2026): bruto/ponderado usam o mesmo fallback já usado pela aba Bens e
+// Direitos pra somar o subtotal por categoria (valorMercadoEstimado ?? valorDeclaradoIrpf
+// ?? 0, ver CadastroMestreView.tsx) — antes só olhava valorMercadoEstimado, então um bem
+// com só o valor de IRPF preenchido somava na aba mas desaparecia do Painel Consolidado.
+// A garantia continua só sobre valorMercadoEstimado: LTV sobre um valor autodeclarado de
+// IRPF não é uma base de empréstimo razoável.
 
 import type { BemDireito, Socio } from '@/types';
 
@@ -37,7 +44,7 @@ export function calcularPatrimonioGrupo(bens: BemDireito[], socios: Socio[]): Pa
   const garantiaPorSocio = new Map<string | null, number>();
 
   for (const bem of bens) {
-    const bruto = bem.valorMercadoEstimado ?? 0;
+    const bruto = bem.valorMercadoEstimado ?? bem.valorDeclaradoIrpf ?? 0;
     const garantia = valorGarantiaEstimado(bem);
     const socio = bem.socioId ? socioMap.get(bem.socioId) : undefined;
     const participacao = socio ? (socio.participacao ?? 0) / 100 : 1; // sem sócio = "Grupo", 100%

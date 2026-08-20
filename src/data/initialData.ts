@@ -1,6 +1,5 @@
 import {
   Supplier,
-  Socio,
   CulturaSafraAno,
   ContratoBancario,
   BalancoPatrimonial,
@@ -65,43 +64,9 @@ export const initialSuppliers: Supplier[] = [
   }
 ];
 
-// ---- Cadastro Mestre: Sócios ----
-
-export const initialSocios: Socio[] = [
-  {
-    id: 'socio-1',
-    nome: 'Roberto Pereira',
-    cpf: '123.456.789-01',
-    participacao: 40,
-    estadoCivil: 'Casado',
-    telefone: '(62) 99123-4567',
-    email: 'roberto.pereira@grupopereira.com.br',
-    nacionalidade: 'Brasileira',
-    dataNascimento: '1968-04-12'
-  },
-  {
-    id: 'socio-2',
-    nome: 'Roger Machado Pereira',
-    cpf: '234.567.890-12',
-    participacao: 35,
-    estadoCivil: 'Casado',
-    telefone: '(62) 99234-5678',
-    email: 'roger.pereira@grupopereira.com.br',
-    nacionalidade: 'Brasileira',
-    dataNascimento: '1972-09-03'
-  },
-  {
-    id: 'socio-3',
-    nome: 'Augusto Pereira',
-    cpf: '345.678.901-23',
-    participacao: 25,
-    estadoCivil: 'Solteiro',
-    telefone: '(62) 99345-6789',
-    email: 'augusto.pereira@grupopereira.com.br',
-    nacionalidade: 'Brasileira',
-    dataNascimento: '1995-11-27'
-  }
-];
+// Sócios (agora "Sócios e Empresas") migrou para persistência real
+// (src/server/socios.ts, Fase 1) — sem mock aqui, mesmo critério de Quadro
+// Safra, Contratos Bancários e Aquisição de Fazendas.
 
 // ---- Quadro de Safra / Resumo: Cultura x Ano-Safra ----
 
