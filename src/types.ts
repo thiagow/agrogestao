@@ -493,13 +493,9 @@ export interface ContratoComercial {
   dataVencimento: string;
   status: StatusContratoComercial;
   compradorNome?: string;
+  cambioUsd?: number; // R$/USD no momento da contratação — só quando aplicável (CBOT/NDF)
+  dataLiquidacaoFinanceira?: string; // registrado, ainda não integrado ao Fluxo de Caixa
   observacoes?: string;
-}
-
-export interface PosicaoComercializacao {
-  cultura: string;
-  producaoTotalSc: number;
-  cotacaoAtual: number; // R$/sc
 }
 
 // ---- Fluxo de Safra Projetado ----

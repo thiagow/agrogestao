@@ -29,6 +29,8 @@ interface SaveContratoComercialInput {
   dataVencimento: string;
   status: ContratoComercial['status'];
   compradorNome?: string;
+  cambioUsd?: number;
+  dataLiquidacaoFinanceira?: string;
   observacoes?: string;
 }
 
@@ -48,6 +50,8 @@ export async function saveContratoComercial(input: SaveContratoComercialInput): 
     dataVencimento: new Date(parsed.dataVencimento),
     status: parsed.status,
     compradorNome: parsed.compradorNome || null,
+    cambioUsd: parsed.cambioUsd ?? null,
+    dataLiquidacaoFinanceira: parsed.dataLiquidacaoFinanceira ? new Date(parsed.dataLiquidacaoFinanceira) : null,
     observacoes: parsed.observacoes || null
   };
 
@@ -87,6 +91,8 @@ type ContratoComercialRow = {
   dataVencimento: Date;
   status: string;
   compradorNome: string | null;
+  cambioUsd: unknown;
+  dataLiquidacaoFinanceira: Date | null;
   observacoes: string | null;
 };
 
@@ -102,6 +108,8 @@ function toDTO(row: ContratoComercialRow): ContratoComercial {
     dataVencimento: row.dataVencimento.toISOString().slice(0, 10),
     status: row.status as ContratoComercial['status'],
     compradorNome: row.compradorNome ?? undefined,
+    cambioUsd: row.cambioUsd != null ? Number(row.cambioUsd) : undefined,
+    dataLiquidacaoFinanceira: row.dataLiquidacaoFinanceira?.toISOString().slice(0, 10),
     observacoes: row.observacoes ?? undefined
   };
 }

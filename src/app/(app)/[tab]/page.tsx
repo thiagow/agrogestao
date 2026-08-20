@@ -70,7 +70,9 @@ export default async function TabPage({ params }: TabPageProps) {
   // Só importam à própria aba — buscados sob demanda.
   const initialLancamentosMensais = tab === 'fluxo_mensal' ? await listLancamentosMensais() : undefined;
   const initialBalanco = tab === 'analise_financeira' ? await getBalancoAtual() : undefined;
-  const cotacoes = tab === 'cotacoes' ? await listCotacoes() : undefined;
+  // Comercialização também precisa das cotações (Cotacao.precoDefinidoSafra
+  // alimenta a coluna "Cotação" da Posição por Cultura, src/lib/comercializacao.ts).
+  const cotacoes = tab === 'cotacoes' || tab === 'comercializacao' ? await listCotacoes() : undefined;
   const [cronogramaConsolidado, indices, fluxoDetalhado] =
     tab === 'bancos'
       ? await Promise.all([listCronogramaConsolidado(), listIndices(), listFluxoDetalhado()])

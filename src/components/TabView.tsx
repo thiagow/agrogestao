@@ -31,7 +31,6 @@ import { saveContratoComercial, deleteContratoComercial } from '../server/contra
 import { saveBalanco } from '../server/balanco';
 import {
   initialSaudeFinanceira,
-  initialPosicaoComercializacao,
   initialFluxoSafra,
   RECEITA_PROJETADA_SAFRA,
   initialCalendarioAgricola
@@ -394,6 +393,8 @@ export const TabView: React.FC<TabViewProps> = ({
         dataVencimento: data.dataVencimento || '',
         status: data.status || 'ATIVO',
         compradorNome: data.compradorNome,
+        cambioUsd: data.cambioUsd,
+        dataLiquidacaoFinanceira: data.dataLiquidacaoFinanceira,
         observacoes: data.observacoes
       });
       setContratosComerciais((prev) =>
@@ -520,7 +521,9 @@ export const TabView: React.FC<TabViewProps> = ({
       )}
       {tab === 'comercializacao' && (
         <ComercializacaoView
-          posicoes={initialPosicaoComercializacao}
+          culturaSafras={culturaSafras}
+          culturas={culturas}
+          cotacoes={initialCotacoesCommodities}
           contratos={contratosComerciais}
           onSave={handleSaveContratoComercial}
           onDelete={handleDeleteContratoComercial}

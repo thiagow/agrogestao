@@ -1091,6 +1091,13 @@ model ContratoComercial {
   dataVencimento DateTime
   status         StatusContratoComercial @default(ATIVO)
   compradorNome  String?
+  // R$/USD no momento da contratação — só relevante pra contratos em dólar
+  // (CBOT/NDF). Data em que o pagamento é esperado — registrada aqui, mas
+  // NÃO integrada ao Fluxo de Caixa nesta fase (mesmo critério já aplicado a
+  // Aquisição/Arrendamento: Fluxo Mensal/Fluxo de Safra são só projeção do
+  // Quadro de Safra, nenhum contrato lança lá ainda).
+  cambioUsd                Decimal?  @db.Decimal(10, 4)
+  dataLiquidacaoFinanceira DateTime?
   observacoes    String?
   ativo          Boolean                 @default(true)
 

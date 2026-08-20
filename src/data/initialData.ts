@@ -5,8 +5,6 @@ import {
   BalancoPatrimonial,
   IndicadorFinanceiro,
   IndicadorSaudeFinanceira,
-  ContratoComercial,
-  PosicaoComercializacao,
   FluxoSafraItem,
   Cotacao,
   LancamentoMensal,
@@ -176,20 +174,9 @@ export const initialSaudeFinanceira: IndicadorSaudeFinanceira[] = [
 // (src/server/aquisicoes.ts, src/server/arrendamentos.ts) — sem mock aqui,
 // mesmo critério de Quadro Safra e Contratos Bancários.
 
-// ---- Comercialização (Futuros/Hedge) ----
-
-export const initialContratosComerciais: ContratoComercial[] = [];
-
-export const initialPosicaoComercializacao: PosicaoComercializacao[] = [
-  { cultura: 'Soja', producaoTotalSc: 368400, cotacaoAtual: 120 },
-  { cultura: 'Milho', producaoTotalSc: 154700, cotacaoAtual: 52 },
-  { cultura: 'Seringueira', producaoTotalSc: 1664, cotacaoAtual: 6100 },
-  { cultura: 'Cana de Açúcar', producaoTotalSc: 188400, cotacaoAtual: 129 },
-  { cultura: 'Café Irrigado', producaoTotalSc: 99855, cotacaoAtual: 1800 },
-  { cultura: 'Eucalipto', producaoTotalSc: 513285, cotacaoAtual: 150 },
-  { cultura: 'Arroz', producaoTotalSc: 150060, cotacaoAtual: 108 },
-  { cultura: 'Bovino', producaoTotalSc: 222260, cotacaoAtual: 365 }
-];
+// Comercialização migrou para persistência real + cruzamento com Quadro de
+// Safra/Cotações (src/server/contratos-comerciais.ts, src/lib/comercializacao.ts)
+// — sem mock aqui, mesmo critério de Aquisição de Fazendas e Arrendamentos.
 
 // ---- Fluxo de Safra Projetado ----
 

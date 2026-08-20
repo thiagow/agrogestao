@@ -392,6 +392,8 @@ export const contratoComercialSchema = z.object({
   dataVencimento: z.string().min(1, 'Informe o vencimento'),
   status: z.enum(['ATIVO', 'LIQUIDADO', 'CANCELADO']),
   compradorNome: z.string().trim().optional().or(z.literal('')),
+  cambioUsd: z.coerce.number().positive().optional(),
+  dataLiquidacaoFinanceira: z.string().trim().optional().or(z.literal('')),
   observacoes: z.string().trim().optional().or(z.literal(''))
 });
 

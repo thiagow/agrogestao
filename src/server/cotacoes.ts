@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requireUser } from '@/lib/session';
 import { fetchDolarBRL, fetchYahooQuote } from '@/lib/market-data';
+import { commodityDaCultura } from '@/lib/cultura-commodity';
 import type { Cotacao } from '@/types';
 
 // Catálogo de commodities acompanhadas — mesmos tickers já usados no mock.
@@ -111,20 +112,29 @@ export async function salvarPrecoDefinidoSafra(commodity: string, preco: number)
 }
 
 /**
- * Fallback de preço para Arrendamentos (src/lib/arrendamento-engine.ts) quando
- * o contrato não tem "Preço de Referência" próprio preenchido — corrige o
- * BUG #1 da spec de Arrendamento sem inventar um preço: usa só
- * `Cotacao.precoDefinidoSafra`, o preço que o próprio usuário já confirmou
- * manualmente na tela Cotações, NUNCA `precoBrl` (a cotação bruta de futuros,
- * que não é um preço de fechamento por saca pronto — ver o comentário do
- * catálogo COMMODITIES acima). Sem match de cultura ou sem preço definido,
- * devolve null — a UI mostra "—"/N/D, nunca um número inventado.
+ * Fallback de preço para Arrendamentos (src/lib/arrendamento-engine.ts) e
+ * Comercialização (src/lib/comercializacao.ts) quando não há preço próprio
+ * preenchido — corrige o BUG #1 da spec de Arrendamento sem inventar um
+ * preço: usa só `Cotacao.precoDefinidoSafra`, o preço que o próprio usuário
+ * já confirmou manualmente na tela Cotações, NUNCA `precoBrl` (a cotação
+ * bruta de futuros, que não é um preço de fechamento por saca pronto — ver o
+ * comentário do catálogo COMMODITIES acima). Sem match de cultura ou sem
+ * preço definido, devolve null — a UI mostra "—"/N/D, nunca um número
+ * inventado.
+ *
+ * O cruzamento cultura->commodity tenta primeiro o mapa curado
+ * (`commodityDaCultura`, src/lib/cultura-commodity.ts — nomes que legitimamente
+ * não batem por substring, como "Bovino"->"Boi Gordo"); só cai no
+ * `.includes()` fuzzy abaixo pra cultura ainda não mapeada explicitamente mas
+ * cujo nome já contém o nome da commodity (ex: "Soja" em "Soja Grão").
  */
 export async function resolverPrecoFallback(culturaNome: string): Promise<number | null> {
   await requireUser();
-  const commodity = COMMODITIES.find((c) => c.commodity.toLowerCase().includes(culturaNome.toLowerCase()));
-  if (!commodity) return null;
-  const row = await db.cotacao.findUnique({ where: { commodity: commodity.commodity } });
+  const nomeCommodity =
+    commodityDaCultura(culturaNome) ??
+    COMMODITIES.find((c) => c.commodity.toLowerCase().includes(culturaNome.toLowerCase()))?.commodity;
+  if (!nomeCommodity) return null;
+  const row = await db.cotacao.findUnique({ where: { commodity: nomeCommodity } });
   return row?.precoDefinidoSafra != null ? Number(row.precoDefinidoSafra) : null;
 }
 
