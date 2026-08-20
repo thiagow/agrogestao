@@ -45,6 +45,7 @@ import { ResumoView } from './views/ResumoView';
 import { BancosView } from './views/BancosView';
 import type { CronogramaConsolidado, FluxoDetalhado } from '../server/contratos-bancarios';
 import type { LinhaFluxoConsolidado, ImpactoSafra } from '../server/aquisicoes';
+import type { LinhaFluxoConsolidadoArrendamento, ImpactoSafraArrendamento } from '../server/arrendamentos';
 import type { IndicesVigentes } from '../lib/taxa-efetiva';
 import { QuadroSafraView } from './views/QuadroSafraView';
 import { CotacoesView } from './views/CotacoesView';
@@ -86,6 +87,10 @@ interface TabViewProps {
   /** Aba "Análise de Impacto" de Aquisição Fazenda — computada no servidor. */
   impactoPorSafraAquisicoes?: ImpactoSafra[];
   initialArrendamentos?: ContratoArrendamento[];
+  /** Aba "Fluxo por Safra" de Arrendamentos — computada no servidor. */
+  fluxoConsolidadoArrendamentos?: LinhaFluxoConsolidadoArrendamento[];
+  /** Aba "Análise de Impacto" de Arrendamentos — computada no servidor. */
+  impactoPorSafraArrendamentos?: ImpactoSafraArrendamento[];
   initialContratosComerciais?: ContratoComercial[];
   initialBalanco?: BalancoPatrimonial | null;
   initialCotacaoDolar?: Cotacao | null;
@@ -115,6 +120,8 @@ export const TabView: React.FC<TabViewProps> = ({
   fluxoConsolidadoAquisicoes = [],
   impactoPorSafraAquisicoes = [],
   initialArrendamentos = [],
+  fluxoConsolidadoArrendamentos = [],
+  impactoPorSafraArrendamentos = [],
   initialContratosComerciais = [],
   initialBalanco = null,
   initialCotacaoDolar = null,
@@ -334,22 +341,29 @@ export const TabView: React.FC<TabViewProps> = ({
     try {
       const saved = await saveArrendamento({
         id: data.id,
-        nomePropriedade: data.nomePropriedade || '',
-        localizacao: data.localizacao || '',
-        proprietarioNome: data.proprietarioNome || '',
-        proprietarioCpfCnpj: data.proprietarioCpfCnpj || '',
-        areaHectares: data.areaHectares || 0,
-        culturaPrincipal: data.culturaPrincipal || '',
-        custoAnualHectare: data.custoAnualHectare || 0,
-        sacasPorHectare: data.sacasPorHectare,
+        nomeFazenda: data.nomeFazenda || '',
+        proprietario: data.proprietario,
+        denominacaoImovel: data.denominacaoImovel,
+        municipio: data.municipio,
+        comarca: data.comarca,
+        numeroMatricula: data.numeroMatricula,
+        areaTotalHa: data.areaTotalHa,
+        areaArrendadaHa: data.areaArrendadaHa || 0,
         dataInicio: data.dataInicio || new Date().toISOString().split('T')[0],
-        dataFim: data.dataFim || '',
+        dataVencimento: data.dataVencimento || '',
+        culturaReferenciaId: data.culturaReferenciaId,
+        tipoPagamento: data.tipoPagamento || 'SACAS',
         periodicidade: data.periodicidade || 'Anual',
-        renovavel: data.renovavel ?? true,
-        status: data.status || 'ATIVO',
-        safraInicio: data.safraInicio || '',
-        safraFim: data.safraFim || '',
-        observacoes: data.observacoes
+        sacasHa: data.sacasHa,
+        precoReferencia: data.precoReferencia,
+        precoHa: data.precoHa,
+        valorTotalManual: data.valorTotalManual,
+        possuiPagamentoAntecipado: data.possuiPagamentoAntecipado ?? false,
+        valorAntecipado: data.valorAntecipado,
+        dataPagamentoAntecipado: data.dataPagamentoAntecipado,
+        safraReferenciaAntecipacao: data.safraReferenciaAntecipacao,
+        observacoes: data.observacoes,
+        status: data.status || 'ATIVO'
       });
       setArrendamentos((prev) => (data.id ? prev.map((a) => (a.id === saved.id ? saved : a)) : [saved, ...prev]));
     } catch (err) {
@@ -450,6 +464,7 @@ export const TabView: React.FC<TabViewProps> = ({
           culturaSafras={culturaSafras}
           contratosBancarios={contratosBancarios}
           aquisicoes={aquisicoes}
+          arrendamentos={arrendamentos}
         />
       )}
       {tab === 'cadastro_mestre' && (
@@ -497,6 +512,8 @@ export const TabView: React.FC<TabViewProps> = ({
       {tab === 'arrendamentos' && (
         <ArrendamentosView
           arrendamentos={arrendamentos}
+          fluxoConsolidado={fluxoConsolidadoArrendamentos}
+          impactoPorSafra={impactoPorSafraArrendamentos}
           onSave={handleSaveArrendamento}
           onDelete={handleDeleteArrendamento}
         />

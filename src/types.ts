@@ -419,25 +419,62 @@ export interface Aquisicao {
 
 export type PeriodicidadeArrendamento = 'Anual' | 'Mensal' | 'Por Safra';
 export type StatusArrendamento = 'ATIVO' | 'ENCERRADO';
+export type OrigemPrecoArrendamento = 'CONTRATO' | 'COTACAO';
+
+export interface ParcelaArrendamento {
+  id: string;
+  safra: string; // "2026/2027"
+  sacasBrutas: number;
+  sacasAntecipadas: number;
+  sacasLiquidas: number;
+  precoSc?: number;
+  origemPreco?: OrigemPrecoArrendamento; // ausente = sem preço (N/D), nunca "0"
+  valorTotal?: number; // ausente quando origemPreco é ausente
+}
 
 export interface ContratoArrendamento {
   id: string;
-  nomePropriedade: string;
-  localizacao: string;
-  proprietarioNome: string;
-  proprietarioCpfCnpj: string;
-  areaHectares: number;
-  culturaPrincipal: string;
-  custoAnualHectare: number; // R$/ha/ano (ou sacas/ha convertido)
-  sacasPorHectare?: number;
-  dataInicio: string;
-  dataFim: string;
-  periodicidade: PeriodicidadeArrendamento;
-  renovavel: boolean;
-  status: StatusArrendamento;
-  safraInicio: string;
-  safraFim: string;
+  // 1. Identificação
+  nomeFazenda: string;
+  proprietario?: string;
+  denominacaoImovel?: string;
+  municipio?: string;
+  comarca?: string;
+  numeroMatricula?: string;
+  // 2. Área
+  areaTotalHa?: number;
+  areaArrendadaHa: number;
+  // 3. Contrato
+  dataInicio: string; // YYYY-MM-DD
+  dataVencimento: string;
+  // 4. Condições Econômicas e Pagamento
+  tipoPagamento: TipoPagamentoAquisicao;
+  periodicidade: string; // só "Anual" confirmado, mesmo critério de Aquisição
+
+  // Modo SACAS
+  culturaReferenciaId?: string;
+  culturaNome?: string; // nome da cultura de referência, para exibição (badge do card)
+  sacasHa?: number;
+  precoReferencia?: number; // R$/sc
+
+  // Modo REAIS
+  precoHa?: number;
+  valorTotalManual?: number;
+
+  // 5. Pagamento Antecipado
+  possuiPagamentoAntecipado: boolean;
+  valorAntecipado?: number; // sacas (modo SACAS) ou R$ (modo REAIS)
+  dataPagamentoAntecipado?: string;
+  safraReferenciaAntecipacao?: string;
+
   observacoes?: string;
+  status: StatusArrendamento;
+
+  // Derivados — soma das ParcelaArrendamento geradas no server
+  valorTotalFluxo: number;
+  totalSacas: number;
+
+  parcelas: ParcelaArrendamento[];
 }
 
 // ---- Comercialização (Futuros/Hedge) ----

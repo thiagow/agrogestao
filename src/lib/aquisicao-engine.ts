@@ -30,7 +30,10 @@
 // usuário), com periodicidade Anual, mesma cadência do modo Sacas.
 
 import { gerarCronograma } from '@/lib/amortizacao';
+import { listarSafrasCobertas, dataReferenciaDaSafra } from '@/lib/safra-periodo';
 import type { TipoLancamentoAquisicao, TipoPagamentoAquisicao } from '@/types';
+
+export { listarSafrasCobertas };
 
 export interface ParcelaGerada {
   safra: string;
@@ -59,36 +62,6 @@ export interface GerarParcelasAquisicaoInput {
   safraEntrada?: string | null;
 }
 
-/** "2026/2027" -> 2026 */
-function anoInicioSafra(safra: string): number {
-  const [ano] = safra.split('/').map(Number);
-  return ano || 0;
-}
-
-function safraDoAno(anoInicio: number): string {
-  return `${anoInicio}/${anoInicio + 1}`;
-}
-
-/** Data de pagamento convencionada: 31/03 do segundo ano da safra (ver cabeçalho). */
-function dataPagamentoDaSafra(safra: string): string {
-  const anoPagamento = anoInicioSafra(safra) + 1;
-  return `${anoPagamento}-03-31`;
-}
-
-function diffMeses(inicioISO: string, fimISO: string): number {
-  const inicio = new Date(inicioISO);
-  const fim = new Date(fimISO);
-  return (fim.getFullYear() - inicio.getFullYear()) * 12 + (fim.getMonth() - inicio.getMonth());
-}
-
-/** Lista de safras cobertas pelo contrato — usada também no formulário (chips + select da Entrada). */
-export function listarSafrasCobertas(dataInicioPagamento: string, dataVencimento: string): string[] {
-  if (!dataInicioPagamento || !dataVencimento) return [];
-  const numAnos = Math.max(Math.round(diffMeses(dataInicioPagamento, dataVencimento) / 12), 1);
-  const anoInicio = new Date(dataInicioPagamento).getFullYear();
-  return Array.from({ length: numAnos }, (_, i) => safraDoAno(anoInicio + i));
-}
-
 export function gerarParcelasAquisicao(input: GerarParcelasAquisicaoInput): ParcelaGerada[] {
   const safras = listarSafrasCobertas(input.dataInicioPagamento, input.dataVencimento);
   const parcelas: ParcelaGerada[] = [];
@@ -106,7 +79,7 @@ export function gerarParcelasAquisicao(input: GerarParcelasAquisicaoInput): Parc
         precoSc: precoReferencia,
         usaPrecoReferencia: true,
         valorTotal: sacasPorSafra * precoReferencia,
-        dataPagamento: dataPagamentoDaSafra(safra),
+        dataPagamento: dataReferenciaDaSafra(safra),
         ordem: 0
       });
     }
@@ -152,7 +125,7 @@ export function gerarParcelasAquisicao(input: GerarParcelasAquisicaoInput): Parc
       precoSc: null,
       usaPrecoReferencia: false,
       valorTotal: input.valorEntrada,
-      dataPagamento: dataPagamentoDaSafra(input.safraEntrada),
+      dataPagamento: dataReferenciaDaSafra(input.safraEntrada),
       ordem: 0
     });
   }

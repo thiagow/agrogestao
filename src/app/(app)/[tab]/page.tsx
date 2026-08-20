@@ -15,7 +15,7 @@ import { listLancamentosMensais } from '@/server/lancamentos';
 import { listContratosBancarios, listCronogramaConsolidado, listFluxoDetalhado } from '@/server/contratos-bancarios';
 import { listIndices } from '@/server/indices';
 import { listAquisicoes, listFluxoConsolidadoAquisicoes, listImpactoPorSafra } from '@/server/aquisicoes';
-import { listArrendamentos } from '@/server/arrendamentos';
+import { listArrendamentos, listFluxoConsolidadoArrendamentos, listImpactoPorSafraArrendamentos } from '@/server/arrendamentos';
 import { listContratosComerciais } from '@/server/contratos-comerciais';
 import { getBalancoAtual } from '@/server/balanco';
 import { listCotacoes } from '@/server/cotacoes';
@@ -79,6 +79,10 @@ export default async function TabPage({ params }: TabPageProps) {
     tab === 'aquisicao_fazenda'
       ? await Promise.all([listFluxoConsolidadoAquisicoes(), listImpactoPorSafra()])
       : [undefined, undefined];
+  const [fluxoConsolidadoArrendamentos, impactoPorSafraArrendamentos] =
+    tab === 'arrendamentos'
+      ? await Promise.all([listFluxoConsolidadoArrendamentos(), listImpactoPorSafraArrendamentos()])
+      : [undefined, undefined];
 
   return (
     <TabView
@@ -104,6 +108,8 @@ export default async function TabPage({ params }: TabPageProps) {
       fluxoConsolidadoAquisicoes={fluxoConsolidadoAquisicoes}
       impactoPorSafraAquisicoes={impactoPorSafraAquisicoes}
       initialArrendamentos={initialArrendamentos}
+      fluxoConsolidadoArrendamentos={fluxoConsolidadoArrendamentos}
+      impactoPorSafraArrendamentos={impactoPorSafraArrendamentos}
       initialContratosComerciais={initialContratosComerciais}
       initialBalanco={initialBalanco}
       initialCotacaoDolar={cotacoes?.dolar}

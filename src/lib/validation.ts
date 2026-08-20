@@ -332,24 +332,55 @@ export const aquisicaoSchema = z
     path: ['valorFinanciado']
   });
 
-export const arrendamentoSchema = z.object({
-  nomePropriedade: z.string().trim().min(1, 'Informe o nome da propriedade'),
-  localizacao: z.string().trim().min(1, 'Informe a localização'),
-  proprietarioNome: z.string().trim().min(1, 'Informe o proprietário'),
-  proprietarioCpfCnpj: z.string().trim().min(1, 'Informe o CPF/CNPJ'),
-  areaHectares: z.coerce.number().nonnegative(),
-  culturaPrincipal: z.string().trim().min(1, 'Informe a cultura'),
-  custoAnualHectare: z.coerce.number().nonnegative(),
-  sacasPorHectare: z.coerce.number().nonnegative().optional(),
-  dataInicio: z.string().min(1, 'Informe a data de início'),
-  dataFim: z.string().min(1, 'Informe a data de fim'),
-  periodicidade: z.enum(['Anual', 'Mensal', 'Por Safra']),
-  renovavel: z.boolean(),
-  status: z.enum(['ATIVO', 'ENCERRADO']),
-  safraInicio: z.string().trim().min(1),
-  safraFim: z.string().trim().min(1),
-  observacoes: z.string().trim().optional().or(z.literal(''))
-});
+export const arrendamentoSchema = z
+  .object({
+    // 1. Identificação — só nomeFazenda é obrigatório (a spec real não confirma
+    // CPF/CNPJ do proprietário nem torna os demais campos obrigatórios).
+    nomeFazenda: z.string().trim().min(1, 'Informe o nome da fazenda'),
+    proprietario: z.string().trim().optional().or(z.literal('')),
+    denominacaoImovel: z.string().trim().optional().or(z.literal('')),
+    municipio: z.string().trim().optional().or(z.literal('')),
+    comarca: z.string().trim().optional().or(z.literal('')),
+    numeroMatricula: z.string().trim().optional().or(z.literal('')),
+    // 2. Área
+    areaTotalHa: z.coerce.number().nonnegative().optional(),
+    areaArrendadaHa: z.coerce.number().positive('Informe a área arrendada'),
+    // 3. Contrato
+    dataInicio: z.string().min(1, 'Informe a data de início'),
+    dataVencimento: z.string().min(1, 'Informe a data de vencimento'),
+    // 4. Condições Econômicas e Pagamento
+    culturaReferenciaId: z.string().trim().optional().or(z.literal('')),
+    tipoPagamento: z.enum(['SACAS', 'REAIS']),
+    periodicidade: z.enum(['Anual', 'Mensal', 'Por Safra']).default('Anual'),
+    sacasHa: z.coerce.number().nonnegative().optional(),
+    // Preço de Referência fica opcional mesmo no modo SACAS — diferente de
+    // aquisicaoSchema, que exige os dois juntos: aqui a ausência é coberta
+    // pelo fallback de Cotações (resolverPrecoFallback), exatamente o
+    // comportamento que corrige o BUG #1 da spec (contrato sem preço não pode
+    // mais quebrar o cálculo em cascata).
+    precoReferencia: z.coerce.number().nonnegative().optional(),
+    precoHa: z.coerce.number().nonnegative().optional(),
+    valorTotalManual: z.coerce.number().nonnegative().optional(),
+    // 5. Pagamento Antecipado
+    possuiPagamentoAntecipado: z.boolean().default(false),
+    valorAntecipado: z.coerce.number().nonnegative().optional(),
+    dataPagamentoAntecipado: z.string().trim().optional().or(z.literal('')),
+    safraReferenciaAntecipacao: z.string().trim().optional().or(z.literal('')),
+    observacoes: z.string().trim().optional().or(z.literal('')),
+    status: z.enum(['ATIVO', 'ENCERRADO']).default('ATIVO')
+  })
+  .refine((data) => data.tipoPagamento !== 'SACAS' || !!data.sacasHa, {
+    message: 'Informe Sacas/ha no modo "Em Sacas"',
+    path: ['sacasHa']
+  })
+  .refine((data) => data.tipoPagamento !== 'REAIS' || !!data.precoHa || !!data.valorTotalManual, {
+    message: 'Informe o Preço/ha ou o Valor Total no modo "Em Reais"',
+    path: ['precoHa']
+  })
+  .refine((data) => !data.possuiPagamentoAntecipado || (!!data.valorAntecipado && !!data.safraReferenciaAntecipacao), {
+    message: 'Informe o valor e a safra de referência do pagamento antecipado',
+    path: ['valorAntecipado']
+  });
 
 export const contratoComercialSchema = z.object({
   cultura: z.string().trim().min(1, 'Informe a cultura'),

@@ -2,8 +2,9 @@
 
 import React from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Supplier, CulturaSafraAno, ContratoBancario, Aquisicao } from '../../types';
+import { Supplier, CulturaSafraAno, ContratoBancario, Aquisicao, ContratoArrendamento } from '../../types';
 import { formatCurrency, calcularSafra } from '../../data/initialData';
+import { dataReferenciaDaSafra } from '../../lib/safra-periodo';
 import { Card } from '../ui';
 import { TrendingDown, TrendingUp, Landmark, Scale } from 'lucide-react';
 
@@ -12,19 +13,19 @@ interface ResumoViewProps {
   culturaSafras: CulturaSafraAno[];
   contratosBancarios: ContratoBancario[];
   aquisicoes: Aquisicao[];
+  arrendamentos: ContratoArrendamento[];
 }
 
 const ANO_REFERENCIA = '2026/2027';
 const COLUNAS_ANO = ['2025/2026', '2026/2027', '2027/2028'];
 
-// Arrendamentos ainda não tem módulo próprio (Fase futura) — valor ilustrativo
-// até existir uma fonte de dados real. Aquisição Fazenda saiu dessa lista em
-// 20/08/2026 (BUG #4 da spec de Aquisição): passou a somar o saldo real das
-// parcelas futuras não pagas em vez de uma constante fixa.
-const ENDIVIDAMENTO_ARRENDAMENTOS = 6800000;
-const CUSTO_ARRENDAMENTO_HA = 1500;
-
-export const ResumoView: React.FC<ResumoViewProps> = ({ suppliers, culturaSafras, contratosBancarios, aquisicoes }) => {
+export const ResumoView: React.FC<ResumoViewProps> = ({
+  suppliers,
+  culturaSafras,
+  contratosBancarios,
+  aquisicoes,
+  arrendamentos
+}) => {
   const culturas = Array.from(new Set(culturaSafras.map((s) => s.cultura)));
 
   const linhas = culturas.map((cultura) => {
@@ -75,8 +76,37 @@ export const ResumoView: React.FC<ResumoViewProps> = ({ suppliers, culturaSafras
     (sum, a) => sum + a.parcelas.filter((p) => p.dataPagamento >= hoje).reduce((s, p) => s + p.valorTotal, 0),
     0
   );
+  // Mesmo critério de endividamentoAquisicaoFazenda: soma só as parcelas
+  // futuras não vencidas, e só as que têm preço definido (parcelas com
+  // valorTotal ausente — sem preço de referência nem cotação de fallback —
+  // não entram, mesmo critério do TOTAL "parcial" da aba Fluxo por Safra de
+  // Arrendamentos). Religado ao dado real em 20/08/2026 — antes usava uma
+  // constante fixa (ENDIVIDAMENTO_ARRENDAMENTOS = 6.800.000), a mesma dívida
+  // técnica que Aquisição Fazenda já tinha resolvido em 20/08/2026 (BUG #4).
+  const endividamentoArrendamentos = arrendamentos.reduce(
+    (sum, a) =>
+      sum +
+      a.parcelas
+        .filter((p) => p.valorTotal != null && dataReferenciaDaSafra(p.safra) >= hoje)
+        .reduce((s, p) => s + (p.valorTotal ?? 0), 0),
+    0
+  );
+  // "Custo Arrendamento/ha" no rodapé do Quadro de Safra por Cultura — usa a
+  // própria área/valor do módulo Arrendamentos (não a "Área Arrendada" do
+  // Quadro de Safra, que é uma fonte de dado propositalmente distinta, ver
+  // CLAUDE.md/ponto de atenção #7 da spec de Arrendamento) para não misturar
+  // numerador e denominador de fontes diferentes. Religado ao dado real em
+  // 20/08/2026 — antes usava uma constante fixa (CUSTO_ARRENDAMENTO_HA = 1.500).
+  const arrendamentosAtivos = arrendamentos.filter((a) => a.status === 'ATIVO');
+  const areaArrendamentoAtiva = arrendamentosAtivos.reduce((sum, a) => sum + a.areaArrendadaHa, 0);
+  const valorArrendamentoAnoReferencia = arrendamentosAtivos.reduce(
+    (sum, a) => sum + a.parcelas.filter((p) => p.safra === ANO_REFERENCIA).reduce((s, p) => s + (p.valorTotal ?? 0), 0),
+    0
+  );
+  const custoArrendamentoHaAtual = areaArrendamentoAtiva > 0 ? valorArrendamentoAnoReferencia / areaArrendamentoAtiva : 0;
+
   const endividamentoTotal =
-    endividamentoAquisicaoFazenda + ENDIVIDAMENTO_ARRENDAMENTOS + endividamentoBancos + endividamentoFornecedores;
+    endividamentoAquisicaoFazenda + endividamentoArrendamentos + endividamentoBancos + endividamentoFornecedores;
 
   const chartData = [
     { nome: 'Receita Líquida', valor: receitaLiquidaTotal },
@@ -164,7 +194,7 @@ export const ResumoView: React.FC<ResumoViewProps> = ({ suppliers, culturaSafras
                   {totalHectares > 0 ? ((totalHaArrendada / totalHectares) * 100).toFixed(1) : '0.0'}%)
                 </td>
                 <td colSpan={3} className="py-3 px-4 text-right text-slate-600 font-semibold">
-                  Custo Arrendamento/ha: {formatCurrency(CUSTO_ARRENDAMENTO_HA)}
+                  Custo Arrendamento/ha: {formatCurrency(custoArrendamentoHaAtual)}
                 </td>
               </tr>
             </tfoot>
@@ -214,7 +244,7 @@ export const ResumoView: React.FC<ResumoViewProps> = ({ suppliers, culturaSafras
               <dt className="text-slate-500 flex items-center gap-1.5">
                 <Scale className="w-3.5 h-3.5" /> Arrendamentos
               </dt>
-              <dd className="font-bold text-slate-900">{formatCurrency(ENDIVIDAMENTO_ARRENDAMENTOS)}</dd>
+              <dd className="font-bold text-slate-900">{formatCurrency(endividamentoArrendamentos)}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-slate-500">Bancos</dt>

@@ -5,7 +5,6 @@ import {
   BalancoPatrimonial,
   IndicadorFinanceiro,
   IndicadorSaudeFinanceira,
-  ContratoArrendamento,
   ContratoComercial,
   PosicaoComercializacao,
   FluxoSafraItem,
@@ -173,49 +172,9 @@ export const initialSaudeFinanceira: IndicadorSaudeFinanceira[] = [
   { dimensao: 'Cobertura', valor: 95 }
 ];
 
-// Aquisição de Fazendas migrou para persistência real (src/server/aquisicoes.ts,
-// Fase 4) — sem mock aqui, mesmo critério de Quadro Safra e Contratos Bancários.
-
-// ---- Arrendamentos ----
-
-export const initialArrendamentos: ContratoArrendamento[] = [
-  {
-    id: 'arrendamento-1',
-    nomePropriedade: 'Fazenda Matagal',
-    localizacao: 'Centro-Oeste',
-    proprietarioNome: 'Família Silveira',
-    proprietarioCpfCnpj: '123.456.789-01',
-    areaHectares: 1499,
-    culturaPrincipal: 'Soja',
-    custoAnualHectare: Math.round((2014656 / 1499) * 100) / 100,
-    sacasPorHectare: 12.0,
-    dataInicio: '2026-07-01',
-    dataFim: '2030-06-30',
-    periodicidade: 'Anual',
-    renovavel: true,
-    status: 'ATIVO',
-    safraInicio: '2026/2027',
-    safraFim: '2029/2030'
-  },
-  {
-    id: 'arrendamento-2',
-    nomePropriedade: 'Fazenda Pedra II',
-    localizacao: 'Cruzília - MG',
-    proprietarioNome: 'Agropecuária Primavera Ltda',
-    proprietarioCpfCnpj: '12.345.678/0001-90',
-    areaHectares: 800,
-    culturaPrincipal: 'Soja',
-    custoAnualHectare: 1200,
-    sacasPorHectare: 10.5,
-    dataInicio: '2025-07-01',
-    dataFim: '2032-06-30',
-    periodicidade: 'Anual',
-    renovavel: true,
-    status: 'ATIVO',
-    safraInicio: '2025/2026',
-    safraFim: '2031/2032'
-  }
-];
+// Aquisição de Fazendas e Arrendamentos migraram para persistência real
+// (src/server/aquisicoes.ts, src/server/arrendamentos.ts) — sem mock aqui,
+// mesmo critério de Quadro Safra e Contratos Bancários.
 
 // ---- Comercialização (Futuros/Hedge) ----
 

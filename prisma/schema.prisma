@@ -191,9 +191,10 @@ model Cultura {
   unidadeMedida String  @default("sc") // "sc", "kg", "@", "t", "m³"
   ativo         Boolean @default(true)
 
-  conta              Conta?             @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  conta              Conta?                 @relation(fields: [contaId], references: [id], onDelete: Cascade)
   contratosBancarios ContratoBancario[]
   aquisicoes         Aquisicao[]
+  arrendamentos      ContratoArrendamento[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -946,6 +947,18 @@ enum TipoLancamentoAquisicao {
 // Arrendamentos
 // ============================================================
 
+// Réplica confirmada da tela "Arrendamento Rural" do AgroFlow — spec
+// fotografada em 21/07/2026 (docs/demandas/SPEC_TELA_ARRENDAMENTO_RURAL.md,
+// dataset "Grupo Pereira" com os contratos "Fazenda Matagal"/"Fazenda Pedra
+// II"). Reconstruído em 20/08/2026 no mesmo padrão de `Aquisicao`
+// (`ParcelaArrendamento` guarda o detalhamento por safra, gerado por
+// src/lib/arrendamento-engine.ts a cada save) — o modelo raso anterior (só
+// `areaHectares × custoAnualHectare`, sem safra/preço) não sobrevivia ao BUG
+// #1 da spec (contrato sem "Preço de Referência" quebrando o cálculo em
+// cascata) porque não tinha o conceito de preço de referência para começo de
+// conversa. `contratos_arrendamento` estava vazia em produção (0 registros)
+// no momento da reconstrução — sem dado real a migrar.
+
 enum PeriodicidadeArrendamento {
   ANUAL     @map("Anual")
   MENSAL    @map("Mensal")
@@ -957,28 +970,64 @@ enum StatusArrendamento {
   ENCERRADO
 }
 
-model ContratoArrendamento {
-  id                  String                    @id @default(cuid())
-  propriedadeId       String
-  nomePropriedade     String
-  localizacao         String
-  proprietarioNome    String
-  proprietarioCpfCnpj String
-  areaHectares        Float
-  culturaPrincipal    String
-  custoAnualHectare   Decimal                   @db.Decimal(18, 2)
-  sacasPorHectare     Decimal?                  @db.Decimal(12, 4)
-  dataInicio          DateTime
-  dataFim             DateTime
-  periodicidade       PeriodicidadeArrendamento
-  renovavel           Boolean                   @default(true)
-  status              StatusArrendamento        @default(ATIVO)
-  safraInicio         String
-  safraFim            String
-  observacoes         String?
-  ativo               Boolean                   @default(true)
+// null = sem preço disponível (N/D em toda a UI, nunca "R$ 0" — corrige o
+// BUG #2 da spec).
+enum OrigemPrecoArrendamento {
+  CONTRATO // "Preço de Referência" preenchido no próprio contrato
+  COTACAO  // Fallback: Cotacao.precoDefinidoSafra da commodity correspondente à cultura
+}
 
-  propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+model ContratoArrendamento {
+  id            String @id @default(cuid())
+  propriedadeId String
+
+  // 1. Identificação — só nomeFazenda e areaArrendadaHa são obrigatórios, igual
+  // à tela real (seção 4.1 da spec: só "Nome da Fazenda/Área*" tem asterisco).
+  // Não existe CPF/CNPJ do proprietário na tela real — era um campo "estimado"
+  // da engenharia reversa nunca confirmado, mesmo critério já aplicado em
+  // Fornecedores (05/08/2026).
+  nomeFazenda       String
+  proprietario      String?
+  denominacaoImovel String?
+  municipio         String?
+  comarca           String?
+  numeroMatricula   String?
+
+  // 2. Área
+  areaTotalHa     Float?
+  areaArrendadaHa Float
+
+  // 3. Contrato — safra inicial/final são CALCULADAS a partir das datas
+  // (src/lib/safra-periodo.ts) em vez de texto livre digitado à mão.
+  dataInicio     DateTime
+  dataVencimento DateTime
+
+  // 4. Condições Econômicas e Pagamento
+  culturaReferenciaId String?
+  tipoPagamento       TipoPagamentoAquisicao   @default(SACAS)
+  periodicidade       PeriodicidadeArrendamento @default(ANUAL)
+  sacasHa             Decimal?                 @db.Decimal(12, 4) // modo SACAS
+  precoReferencia     Decimal?                 @db.Decimal(18, 4) // modo SACAS — opcional (raiz do BUG #1; coberto por fallback de Cotações)
+  precoHa             Decimal?                 @db.Decimal(18, 4) // modo REAIS
+  valorTotalManual    Decimal?                 @db.Decimal(18, 2) // modo REAIS
+
+  // 5. Pagamento Antecipado
+  possuiPagamentoAntecipado  Boolean   @default(false)
+  valorAntecipado            Decimal?  @db.Decimal(14, 2) // sacas (modo SACAS) ou R$ (modo REAIS)
+  dataPagamentoAntecipado    DateTime?
+  safraReferenciaAntecipacao String?
+
+  observacoes String?
+  status      StatusArrendamento @default(ATIVO)
+  ativo       Boolean            @default(true)
+
+  // Derivados — soma das ParcelaArrendamento geradas, nunca calculado ad-hoc na UI
+  valorTotalFluxo Decimal @db.Decimal(18, 2)
+  totalSacas      Float
+
+  propriedade       Propriedade           @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  culturaReferencia Cultura?              @relation(fields: [culturaReferenciaId], references: [id], onDelete: SetNull)
+  parcelas          ParcelaArrendamento[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -986,7 +1035,31 @@ model ContratoArrendamento {
   updatedById String?
 
   @@index([propriedadeId, ativo])
+  @@index([culturaReferenciaId])
   @@map("contratos_arrendamento")
+}
+
+// Gerada do zero a cada save de ContratoArrendamento (delete + createMany),
+// mesmo critério de ParcelaAquisicao/Parcela. Uma linha por safra — diferente
+// de ParcelaAquisicao (duas linhas tipadas ENTRADA/PARCELA): a spec de
+// Arrendamento mostra Sacas Brutas/(-) Antecipado/Sacas Líquidas na MESMA
+// linha da tabela "Fluxo de Pagamento por Safra".
+model ParcelaArrendamento {
+  id               String                   @id @default(cuid())
+  contratoId       String
+  safra            String // "2026/2027"
+  sacasBrutas      Decimal                  @default(0) @db.Decimal(14, 2)
+  sacasAntecipadas Decimal                  @default(0) @db.Decimal(14, 2)
+  sacasLiquidas    Decimal                  @default(0) @db.Decimal(14, 2)
+  precoSc          Decimal?                 @db.Decimal(18, 4)
+  origemPreco      OrigemPrecoArrendamento?
+  valorTotal       Decimal?                 @db.Decimal(18, 2) // null quando origemPreco é null
+  ordem            Int
+
+  contrato ContratoArrendamento @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+
+  @@index([contratoId])
+  @@map("parcelas_arrendamento")
 }
 
 // ============================================================

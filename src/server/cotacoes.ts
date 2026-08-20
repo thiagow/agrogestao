@@ -110,6 +110,24 @@ export async function salvarPrecoDefinidoSafra(commodity: string, preco: number)
   revalidatePath('/cotacoes');
 }
 
+/**
+ * Fallback de preço para Arrendamentos (src/lib/arrendamento-engine.ts) quando
+ * o contrato não tem "Preço de Referência" próprio preenchido — corrige o
+ * BUG #1 da spec de Arrendamento sem inventar um preço: usa só
+ * `Cotacao.precoDefinidoSafra`, o preço que o próprio usuário já confirmou
+ * manualmente na tela Cotações, NUNCA `precoBrl` (a cotação bruta de futuros,
+ * que não é um preço de fechamento por saca pronto — ver o comentário do
+ * catálogo COMMODITIES acima). Sem match de cultura ou sem preço definido,
+ * devolve null — a UI mostra "—"/N/D, nunca um número inventado.
+ */
+export async function resolverPrecoFallback(culturaNome: string): Promise<number | null> {
+  await requireUser();
+  const commodity = COMMODITIES.find((c) => c.commodity.toLowerCase().includes(culturaNome.toLowerCase()));
+  if (!commodity) return null;
+  const row = await db.cotacao.findUnique({ where: { commodity: commodity.commodity } });
+  return row?.precoDefinidoSafra != null ? Number(row.precoDefinidoSafra) : null;
+}
+
 type CotacaoRow = {
   id: string;
   commodity: string;
