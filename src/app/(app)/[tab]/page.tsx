@@ -11,7 +11,6 @@ import { listCapex } from '@/server/capex';
 import { getPerfilGrupo } from '@/server/perfil-grupo';
 import { listCulturas } from '@/server/culturas';
 import { listQuadroSafra } from '@/server/quadro-safra';
-import { listLancamentosMensais } from '@/server/lancamentos';
 import { listContratosBancarios, listCronogramaConsolidado, listFluxoDetalhado } from '@/server/contratos-bancarios';
 import { listIndices } from '@/server/indices';
 import { listAquisicoes, listFluxoConsolidadoAquisicoes, listImpactoPorSafra } from '@/server/aquisicoes';
@@ -20,6 +19,7 @@ import { listContratosComerciais } from '@/server/contratos-comerciais';
 import { getBalancoAtual } from '@/server/balanco';
 import { listCotacoes, listPrecosDefinidos } from '@/server/cotacoes';
 import { listItensFluxoManual } from '@/server/fluxo-safra';
+import { listItensLancamentoManualMensal } from '@/server/lancamentos-manuais';
 
 interface TabPageProps {
   params: Promise<{ tab: string }>;
@@ -69,7 +69,6 @@ export default async function TabPage({ params }: TabPageProps) {
   ]);
 
   // Só importam à própria aba — buscados sob demanda.
-  const initialLancamentosMensais = tab === 'fluxo_mensal' ? await listLancamentosMensais() : undefined;
   const initialBalanco = tab === 'analise_financeira' ? await getBalancoAtual() : undefined;
   // Comercialização também precisa das cotações (PrecoDefinidoSafra
   // alimenta a coluna "Cotação" da Posição por Cultura, src/lib/comercializacao.ts).
@@ -80,10 +79,13 @@ export default async function TabPage({ params }: TabPageProps) {
   // inteira e filtra no client" já usada para culturaSafras/contratos.
   const initialPrecosDefinidos =
     tab === 'cotacoes' || tab === 'comercializacao' || tab === 'fluxo_safra' ? await listPrecosDefinidos() : undefined;
-  const [cronogramaConsolidado, indices, fluxoDetalhado] =
+  const [cronogramaConsolidado, indices, fluxoDetalhadoBancos] =
     tab === 'bancos'
       ? await Promise.all([listCronogramaConsolidado(), listIndices(), listFluxoDetalhado()])
       : [undefined, undefined, undefined];
+  // Fluxo Mensal também consome o Fluxo Detalhado (parcelas de cada contrato
+  // ativo, já com data real) para as linhas "Vinculado" de Bancos.
+  const fluxoDetalhado = tab === 'fluxo_mensal' && !fluxoDetalhadoBancos ? await listFluxoDetalhado() : fluxoDetalhadoBancos;
   // Fluxo de Safra também consome o cronograma consolidado (linhas "Amortização"/"Juros" do demonstrativo).
   const cronogramaBancario =
     tab === 'fluxo_safra' && !cronogramaConsolidado ? await listCronogramaConsolidado() : cronogramaConsolidado;
@@ -104,6 +106,8 @@ export default async function TabPage({ params }: TabPageProps) {
       ? await listFluxoConsolidadoArrendamentos()
       : fluxoConsolidadoArrendamentos;
   const initialItensFluxoManual = tab === 'fluxo_safra' ? await listItensFluxoManual() : undefined;
+  const initialItensLancamentoManualMensal =
+    tab === 'fluxo_mensal' ? await listItensLancamentoManualMensal() : undefined;
 
   return (
     <TabView
@@ -120,7 +124,6 @@ export default async function TabPage({ params }: TabPageProps) {
       contaCnpj={ctx.conta.cnpj ?? undefined}
       initialCulturas={initialCulturas}
       initialCulturaSafras={initialCulturaSafras}
-      initialLancamentosMensais={initialLancamentosMensais}
       initialContratosBancarios={initialContratosBancarios}
       cronogramaConsolidado={cronogramaBancario}
       indices={indices}
@@ -137,6 +140,7 @@ export default async function TabPage({ params }: TabPageProps) {
       initialCotacoesCommodities={cotacoes?.commodities}
       initialPrecosDefinidos={initialPrecosDefinidos}
       initialItensFluxoManual={initialItensFluxoManual}
+      initialItensLancamentoManualMensal={initialItensLancamentoManualMensal}
     />
   );
 }

@@ -170,6 +170,7 @@ model Propriedade {
   arrendamentos       ContratoArrendamento[]
   contratosComerciais ContratoComercial[]
   itensFluxoManual    ItemFluxoManual[]
+  lancamentosManuaisMensais LancamentoManualMensal[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -196,6 +197,7 @@ model Cultura {
   contratosBancarios ContratoBancario[]
   aquisicoes         Aquisicao[]
   arrendamentos      ContratoArrendamento[]
+  lancamentosManuaisMensais LancamentoManualMensal[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1155,6 +1157,70 @@ model ItemFluxoManual {
 
   @@index([propriedadeId, safra, ativo])
   @@map("itens_fluxo_manual")
+}
+
+// ============================================================
+// Fluxo de Caixa Mensal
+// ============================================================
+
+// Réplica confirmada da tela "Fluxo de Caixa Mensal" do AgroFlow (spec
+// fotografada em 26/08/2026, docs/demandas/SPEC_TELA_FLUXO_MENSAL.md). Assim
+// como Fluxo de Safra, não tem tabela primária própria — Custeio/Safra vêm do
+// Quadro de Safra + Calendário Agrícola estático (src/lib/calendario-agricola.ts),
+// e "Vinculado" vem ao vivo de Fornecedores/Bancos/Arrendamentos/Aquisição
+// (src/lib/fluxo-mensal-calc.ts). A ÚNICA escrita própria é o lançamento
+// genuinamente manual (modal "+ Lançamento"), que é o que este model guarda.
+// `tipo` (ENTRADA/SAIDA) não é persistido — derivado da categoria em código
+// (src/lib/fluxo-mensal-calc.ts), mesmo critério de ItemFluxoManual acima.
+enum CategoriaLancamentoMensal {
+  // Saída (11, spec seção 5.1)
+  CUSTEIO_AGRICOLA
+  INSUMOS
+  MAO_DE_OBRA
+  ARRENDAMENTO_PAGO
+  PARCELA_BANCARIA
+  AQUISICAO_MAQUINAS
+  AQUISICAO_FAZENDA
+  DESPESAS_ADMINISTRATIVAS
+  IMPOSTOS_TAXAS
+  FRETE_LOGISTICA
+  OUTRAS_DESPESAS
+  // Entrada (8, spec seção 5.2)
+  VENDA_GRAOS
+  VENDA_GADO
+  VENDA_ALGODAO
+  RECEBIMENTO_CPR
+  ARRENDAMENTO_RECEBIDO
+  DIVIDENDOS_DISTRIBUICAO
+  SUBVENCAO_PREMIO_SEGURO
+  OUTRAS_RECEITAS
+}
+
+model LancamentoManualMensal {
+  id            String                    @id @default(cuid())
+  propriedadeId String
+  mes           Int // 1-12
+  ano           Int
+  categoria     CategoriaLancamentoMensal
+  descricao     String
+  valor         Decimal                   @db.Decimal(18, 2)
+  // Cultura é Select (não texto livre) alimentado pelas Culturas cadastradas
+  // na conta — corrige o ponto de atenção #1 da spec, que aponta o campo
+  // texto-livre do modal original como risco de inconsistência de digitação.
+  culturaId   String?
+  observacoes String?
+  ativo       Boolean @default(true)
+
+  propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+  cultura     Cultura?    @relation(fields: [culturaId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@index([propriedadeId, ano, mes, ativo])
+  @@map("lancamentos_manuais_mensais")
 }
 
 // ============================================================

@@ -415,6 +415,36 @@ export const itemFluxoManualSchema = z.object({
   observacoes: z.string().trim().optional().or(z.literal(''))
 });
 
+export const itemLancamentoManualMensalSchema = z.object({
+  mes: z.coerce.number().int().min(1).max(12),
+  ano: z.coerce.number().int().min(2000).max(2100),
+  categoria: z.enum([
+    'CUSTEIO_AGRICOLA',
+    'INSUMOS',
+    'MAO_DE_OBRA',
+    'ARRENDAMENTO_PAGO',
+    'PARCELA_BANCARIA',
+    'AQUISICAO_MAQUINAS',
+    'AQUISICAO_FAZENDA',
+    'DESPESAS_ADMINISTRATIVAS',
+    'IMPOSTOS_TAXAS',
+    'FRETE_LOGISTICA',
+    'OUTRAS_DESPESAS',
+    'VENDA_GRAOS',
+    'VENDA_GADO',
+    'VENDA_ALGODAO',
+    'RECEBIMENTO_CPR',
+    'ARRENDAMENTO_RECEBIDO',
+    'DIVIDENDOS_DISTRIBUICAO',
+    'SUBVENCAO_PREMIO_SEGURO',
+    'OUTRAS_RECEITAS'
+  ]),
+  descricao: z.string().trim().min(1, 'Descreva o lançamento'),
+  valor: z.coerce.number().positive('Valor deve ser maior que zero'),
+  culturaId: z.string().trim().optional().or(z.literal('')),
+  observacoes: z.string().trim().optional().or(z.literal(''))
+});
+
 export const balancoPatrimonialSchema = z.object({
   safra: z.string().trim().regex(/^\d{4}\/\d{4}$/, 'Formato esperado: AAAA/AAAA'),
   ativoCirculante: z.coerce.number().nonnegative(),

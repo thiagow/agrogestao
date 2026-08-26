@@ -404,8 +404,8 @@ export const ArrendamentosView: React.FC<ArrendamentosViewProps> = ({
   const areaTotal = ativos.reduce((sum, a) => sum + a.areaArrendadaHa, 0);
 
   // "Safra atual" = safra de maior valor entre as parcelas cadastradas — mesma
-  // convenção usada em Aquisição de Fazendas (AquisicaoFazendaView.tsx) e em
-  // listLancamentosMensais(): a safra mais recente que existe dado real.
+  // convenção usada em Aquisição de Fazendas (AquisicaoFazendaView.tsx):
+  // a safra mais recente que existe dado real.
   const todasSafras = Array.from(new Set(ativos.flatMap((a) => a.parcelas.map((p) => p.safra)))).sort();
   const safraAtual = todasSafras[todasSafras.length - 1];
   const parcelasSafraAtual = ativos.flatMap((a) => a.parcelas.filter((p) => p.safra === safraAtual));

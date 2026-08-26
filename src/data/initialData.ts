@@ -4,9 +4,7 @@ import {
   ContratoBancario,
   BalancoPatrimonial,
   IndicadorFinanceiro,
-  IndicadorSaudeFinanceira,
-  LancamentoMensal,
-  CalendarioAgricolaEtapa
+  IndicadorSaudeFinanceira
 } from '../types';
 
 export const initialSuppliers: Supplier[] = [
@@ -190,51 +188,6 @@ const MESES_LABEL = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Se
 export function mesLabel(mes: number): string {
   return MESES_LABEL[mes - 1] ?? String(mes);
 }
-
-function gerarLancamentosMensais(): LancamentoMensal[] {
-  const lancamentos: LancamentoMensal[] = [];
-  let seq = 1;
-
-  CULTURA_BASES.forEach((base) => {
-    for (let mes = 1; mes <= 12; mes++) {
-      const fatorSazonal = 1 + Math.sin((mes / 12) * Math.PI * 2) * 0.6;
-      const entrada = mes >= 4 && mes <= 7 ? Math.round(base.hectares2627 * base.precoMedio * base.rendimento * 0.08) : 0;
-      const saida = Math.round(base.hectares2627 * base.despesaPorHa * 0.09 * Math.max(fatorSazonal, 0.3));
-
-      if (entrada > 0) {
-        lancamentos.push({
-          id: `lanc-${seq++}`,
-          cultura: base.cultura,
-          mes,
-          tipo: 'ENTRADA',
-          categoria: 'Receita de Colheita',
-          valor: entrada
-        });
-      }
-
-      lancamentos.push({
-        id: `lanc-${seq++}`,
-        cultura: base.cultura,
-        mes,
-        tipo: 'SAIDA',
-        categoria: 'Custeio Operacional',
-        valor: saida
-      });
-    }
-  });
-
-  return lancamentos;
-}
-
-export const initialLancamentosMensais: LancamentoMensal[] = gerarLancamentosMensais();
-
-export const initialCalendarioAgricola: CalendarioAgricolaEtapa[] = [
-  { cultura: 'Soja', mesesPlantioColheita: [3, 6], mesesDesenvolvimento: [4, 5] },
-  { cultura: 'Milho 1ª Safra', mesesPlantioColheita: [2, 10, 11], mesesDesenvolvimento: [3, 4, 5, 6] },
-  { cultura: 'Milho Safrinha', mesesPlantioColheita: [5, 6, 7, 8], mesesDesenvolvimento: [5, 6] },
-  { cultura: 'Algodão', mesesPlantioColheita: [4, 10, 11], mesesDesenvolvimento: [5, 6, 7] },
-  { cultura: 'Bovino', mesesPlantioColheita: [], mesesDesenvolvimento: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] }
-];
 
 export function formatCurrency(amount: number, currency: string = 'BRL'): string {
   if (currency === 'USD') {

@@ -597,21 +597,68 @@ export interface PrecoDefinidoSafra {
 }
 
 // ---- Fluxo de Caixa Mensal ----
+// Réplica confirmada de docs/demandas/SPEC_TELA_FLUXO_MENSAL.md. "Manual" do
+// original foi renomeado para "VINCULADO" aqui (BUG #1 da spec): é o
+// lançamento sincronizado ao vivo de Fornecedores/Bancos/Arrendamentos/
+// Aquisição, nunca digitado pelo usuário. "MANUAL" fica só para o que
+// realmente vem do modal "+ Lançamento" (LancamentoManualMensal).
 
-export type TipoLancamentoMensal = 'ENTRADA' | 'SAIDA' | 'ESTIMADO';
+export type TipoLancamentoMensal = 'ENTRADA' | 'SAIDA';
+
+/** Origem de um lançamento no demonstrativo — determina o badge exibido e se ele conta como caixa (ver `contaComoCaixa`). */
+export type TipoOrigemLancamentoMensal = 'CUSTEIO' | 'SAFRA' | 'VINCULADO' | 'PROJECAO' | 'MANUAL';
 
 export interface LancamentoMensal {
   id: string;
-  cultura: string;
   mes: number; // 1-12
+  ano: number;
   tipo: TipoLancamentoMensal;
-  categoria: string;
+  origem: TipoOrigemLancamentoMensal;
+  categoriaLabel: string;
+  descricao: string;
+  cultura?: string;
   valor: number;
-  descricao?: string;
+  /**
+   * false só para `origem === 'SAFRA'` — receita por competência, já
+   * espelhada pelo lançamento `PROJECAO` correspondente (+1 mês). Evita
+   * contar a mesma receita duas vezes nos KPIs/Curva de Caixa (decisão
+   * confirmada com o usuário, ver fluxo-mensal-calc.ts).
+   */
+  contaComoCaixa: boolean;
 }
 
-export interface CalendarioAgricolaEtapa {
-  cultura: string;
-  mesesPlantioColheita: number[]; // 1-12, etapa de plantio/colheita
-  mesesDesenvolvimento: number[]; // 1-12, etapa de desenvolvimento/crescimento
+/** As 19 categorias do modal "+ Lançamento" (11 saída + 8 entrada) — spec seção 5. */
+export type CategoriaLancamentoMensal =
+  | 'CUSTEIO_AGRICOLA'
+  | 'INSUMOS'
+  | 'MAO_DE_OBRA'
+  | 'ARRENDAMENTO_PAGO'
+  | 'PARCELA_BANCARIA'
+  | 'AQUISICAO_MAQUINAS'
+  | 'AQUISICAO_FAZENDA'
+  | 'DESPESAS_ADMINISTRATIVAS'
+  | 'IMPOSTOS_TAXAS'
+  | 'FRETE_LOGISTICA'
+  | 'OUTRAS_DESPESAS'
+  | 'VENDA_GRAOS'
+  | 'VENDA_GADO'
+  | 'VENDA_ALGODAO'
+  | 'RECEBIMENTO_CPR'
+  | 'ARRENDAMENTO_RECEBIDO'
+  | 'DIVIDENDOS_DISTRIBUICAO'
+  | 'SUBVENCAO_PREMIO_SEGURO'
+  | 'OUTRAS_RECEITAS';
+
+/** Lançamento genuinamente manual (modal "+ Lançamento") — única escrita própria deste módulo. */
+export interface ItemLancamentoManualMensal {
+  id: string;
+  mes: number; // 1-12
+  ano: number;
+  categoria: CategoriaLancamentoMensal;
+  tipo: TipoLancamentoMensal; // derivado da categoria no servidor, nunca editado diretamente
+  descricao: string;
+  valor: number;
+  culturaId?: string;
+  culturaNome?: string;
+  observacoes?: string;
 }

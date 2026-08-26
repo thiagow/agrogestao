@@ -17,11 +17,11 @@ import {
   Aquisicao,
   ContratoArrendamento,
   ContratoComercial,
-  LancamentoMensal,
   BalancoPatrimonial,
   Cotacao,
   PrecoDefinidoSafra,
-  ItemFluxoManual
+  ItemFluxoManual,
+  ItemLancamentoManualMensal
 } from '../types';
 import { saveSupplier, deleteSupplier } from '../server/suppliers';
 import { saveQuadroSafra, deleteQuadroSafra } from '../server/quadro-safra';
@@ -32,7 +32,8 @@ import { saveArrendamento, deleteArrendamento } from '../server/arrendamentos';
 import { saveContratoComercial, deleteContratoComercial } from '../server/contratos-comerciais';
 import { saveBalanco } from '../server/balanco';
 import { saveItemFluxoManual, deleteItemFluxoManual } from '../server/fluxo-safra';
-import { initialSaudeFinanceira, initialCalendarioAgricola } from '../data/initialData';
+import { saveItemLancamentoManualMensal, deleteItemLancamentoManualMensal } from '../server/lancamentos-manuais';
+import { initialSaudeFinanceira } from '../data/initialData';
 import { Header } from './Header';
 import { MetricCards } from './MetricCards';
 import { SupplierTable } from './SupplierTable';
@@ -70,7 +71,6 @@ interface TabViewProps {
   contaCnpj?: string;
   initialCulturas?: Cultura[];
   initialCulturaSafras?: CulturaSafraAno[];
-  initialLancamentosMensais?: LancamentoMensal[];
   initialContratosBancarios?: ContratoBancario[];
   /** Projeção consolidada por ano da aba Cronograma — computada no servidor. */
   cronogramaConsolidado?: CronogramaConsolidado;
@@ -96,6 +96,8 @@ interface TabViewProps {
   initialPrecosDefinidos?: PrecoDefinidoSafra[];
   /** Itens manuais extraordinários do Fluxo de Safra — persistidos via src/server/fluxo-safra.ts. */
   initialItensFluxoManual?: ItemFluxoManual[];
+  /** Lançamentos genuinamente manuais do Fluxo Mensal (modal "+ Lançamento") — persistidos via src/server/lancamentos-manuais.ts. */
+  initialItensLancamentoManualMensal?: ItemLancamentoManualMensal[];
 }
 
 export const TabView: React.FC<TabViewProps> = ({
@@ -112,7 +114,6 @@ export const TabView: React.FC<TabViewProps> = ({
   contaCnpj,
   initialCulturas = [],
   initialCulturaSafras = [],
-  initialLancamentosMensais = [],
   initialContratosBancarios = [],
   cronogramaConsolidado,
   indices,
@@ -128,7 +129,8 @@ export const TabView: React.FC<TabViewProps> = ({
   initialCotacaoDolar = null,
   initialCotacoesCommodities = [],
   initialPrecosDefinidos = [],
-  initialItensFluxoManual = []
+  initialItensFluxoManual = [],
+  initialItensLancamentoManualMensal = []
 }) => {
   // Fornecedores — persistido via src/server/suppliers.ts
   const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
@@ -159,6 +161,11 @@ export const TabView: React.FC<TabViewProps> = ({
   // Fluxo de Safra — itens manuais extraordinários, persistido via src/server/fluxo-safra.ts
   // (o demonstrativo em si é agregado no client, ver src/lib/fluxo-safra-calc.ts)
   const [itensFluxoManual, setItensFluxoManual] = useState<ItemFluxoManual[]>(initialItensFluxoManual);
+
+  // Fluxo Mensal — lançamento genuinamente manual, persistido via src/server/lancamentos-manuais.ts
+  // (Custeio/Safra/Vinculado/Projeção são recomputados ao vivo, ver src/lib/fluxo-mensal-calc.ts)
+  const [itensLancamentoManualMensal, setItensLancamentoManualMensal] =
+    useState<ItemLancamentoManualMensal[]>(initialItensLancamentoManualMensal);
 
   const handleSaveSupplier = async (supplierData: Partial<Supplier>) => {
     try {
@@ -458,6 +465,36 @@ export const TabView: React.FC<TabViewProps> = ({
     }
   };
 
+  const handleSaveLancamentoManualMensal = async (data: Partial<ItemLancamentoManualMensal>) => {
+    try {
+      const saved = await saveItemLancamentoManualMensal({
+        id: data.id,
+        mes: data.mes || 1,
+        ano: data.ano || new Date().getFullYear(),
+        categoria: data.categoria || 'OUTRAS_DESPESAS',
+        descricao: data.descricao || '',
+        valor: data.valor || 0,
+        culturaId: data.culturaId,
+        observacoes: data.observacoes
+      });
+      setItensLancamentoManualMensal((prev) =>
+        data.id ? prev.map((i) => (i.id === saved.id ? saved : i)) : [...prev, saved]
+      );
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar lançamento.');
+    }
+  };
+
+  const handleDeleteLancamentoManualMensal = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este lançamento?')) return;
+    try {
+      await deleteItemLancamentoManualMensal(id);
+      setItensLancamentoManualMensal((prev) => prev.filter((i) => i.id !== id));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao excluir lançamento.');
+    }
+  };
+
   return (
     <>
       <Header
@@ -594,7 +631,17 @@ export const TabView: React.FC<TabViewProps> = ({
         />
       )}
       {tab === 'fluxo_mensal' && (
-        <FluxoMensalView lancamentos={initialLancamentosMensais} calendario={initialCalendarioAgricola} />
+        <FluxoMensalView
+          culturaSafras={culturaSafras}
+          suppliers={suppliers}
+          fluxoDetalhado={fluxoDetalhado}
+          arrendamentos={arrendamentos}
+          aquisicoes={aquisicoes}
+          culturas={culturas}
+          itensManuais={itensLancamentoManualMensal}
+          onSaveItem={handleSaveLancamentoManualMensal}
+          onDeleteItem={handleDeleteLancamentoManualMensal}
+        />
       )}
       {tab === 'apresentacao_grupo' && <ApresentacaoGrupoView />}
 
