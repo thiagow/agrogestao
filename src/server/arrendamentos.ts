@@ -8,6 +8,7 @@ import { PERIODICIDADE_ARRENDAMENTO_TO_DB, PERIODICIDADE_ARRENDAMENTO_FROM_DB } 
 import { gerarParcelasArrendamento } from '@/lib/arrendamento-engine';
 import { resolverPrecoFallback } from '@/server/cotacoes';
 import { calcularSafra } from '@/lib/agro';
+import { listarSafrasCobertas } from '@/lib/safra-periodo';
 import type { ContratoArrendamento, ParcelaArrendamento } from '@/types';
 
 export async function listArrendamentos(): Promise<ContratoArrendamento[]> {
@@ -60,10 +61,14 @@ export async function saveArrendamento(input: SaveArrendamentoInput): Promise<Co
   // padrão de saveAquisicao/gerarParcelasAquisicao. Só busca fallback quando o
   // contrato está no modo SACAS sem "Preço de Referência" próprio E há
   // cultura selecionada (sem cultura não há como casar com uma commodity).
+  // O preço travado (`PrecoDefinidoSafra`) é por safra — usa a primeira safra
+  // coberta pelo contrato como referência (mesmo valor já é aplicado a todas
+  // as safras do contrato hoje, ver arrendamento-engine.ts).
   let precoFallbackCotacao: number | null = null;
   if (parsed.tipoPagamento === 'SACAS' && parsed.precoReferencia == null && parsed.culturaReferenciaId) {
     const cultura = await db.cultura.findUnique({ where: { id: parsed.culturaReferenciaId } });
-    if (cultura) precoFallbackCotacao = await resolverPrecoFallback(cultura.nome);
+    const [primeiraSafra] = listarSafrasCobertas(parsed.dataInicio, parsed.dataVencimento);
+    if (cultura && primeiraSafra) precoFallbackCotacao = await resolverPrecoFallback(cultura.nome, primeiraSafra);
   }
 
   const parcelasGeradas = gerarParcelasArrendamento({

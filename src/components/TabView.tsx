@@ -20,6 +20,7 @@ import {
   LancamentoMensal,
   BalancoPatrimonial,
   Cotacao,
+  PrecoDefinidoSafra,
   ItemFluxoManual
 } from '../types';
 import { saveSupplier, deleteSupplier } from '../server/suppliers';
@@ -91,6 +92,8 @@ interface TabViewProps {
   initialBalanco?: BalancoPatrimonial | null;
   initialCotacaoDolar?: Cotacao | null;
   initialCotacoesCommodities?: Cotacao[];
+  /** Preço travado por commodity + safra (src/server/cotacoes.ts) — consumido por Comercialização, Fluxo de Safra e pela própria tela Cotações. */
+  initialPrecosDefinidos?: PrecoDefinidoSafra[];
   /** Itens manuais extraordinários do Fluxo de Safra — persistidos via src/server/fluxo-safra.ts. */
   initialItensFluxoManual?: ItemFluxoManual[];
 }
@@ -124,6 +127,7 @@ export const TabView: React.FC<TabViewProps> = ({
   initialBalanco = null,
   initialCotacaoDolar = null,
   initialCotacoesCommodities = [],
+  initialPrecosDefinidos = [],
   initialItensFluxoManual = []
 }) => {
   // Fornecedores — persistido via src/server/suppliers.ts
@@ -553,7 +557,7 @@ export const TabView: React.FC<TabViewProps> = ({
         <ComercializacaoView
           culturaSafras={culturaSafras}
           culturas={culturas}
-          cotacoes={initialCotacoesCommodities}
+          precosDefinidos={initialPrecosDefinidos}
           contratos={contratosComerciais}
           onSave={handleSaveContratoComercial}
           onDelete={handleDeleteContratoComercial}
@@ -568,13 +572,20 @@ export const TabView: React.FC<TabViewProps> = ({
           linhasArrendamento={fluxoConsolidadoArrendamentos}
           linhasAquisicao={fluxoConsolidadoAquisicoes}
           contratosComerciais={contratosComerciais}
-          cotacoesCommodities={initialCotacoesCommodities}
+          precosDefinidos={initialPrecosDefinidos}
           itensManuais={itensFluxoManual}
           onSaveItem={handleSaveItemFluxoManual}
           onDeleteItem={handleDeleteItemFluxoManual}
         />
       )}
-      {tab === 'cotacoes' && <CotacoesView dolar={initialCotacaoDolar} commodities={initialCotacoesCommodities} />}
+      {tab === 'cotacoes' && (
+        <CotacoesView
+          dolar={initialCotacaoDolar}
+          commodities={initialCotacoesCommodities}
+          precosDefinidos={initialPrecosDefinidos}
+          culturaSafras={culturaSafras}
+        />
+      )}
       {tab === 'analise_financeira' && (
         <AnaliseFinanceiraView
           balanco={balanco}

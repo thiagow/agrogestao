@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calcularPosicaoComercializacao } from './comercializacao';
-import type { CulturaSafraAno, ContratoComercial, Cotacao } from '@/types';
+import type { CulturaSafraAno, ContratoComercial, PrecoDefinidoSafra } from '@/types';
 
 function quadroSafra(overrides: Partial<CulturaSafraAno>): CulturaSafraAno {
   return {
@@ -34,19 +34,13 @@ function contrato(overrides: Partial<ContratoComercial>): ContratoComercial {
   };
 }
 
-function cotacao(overrides: Partial<Cotacao>): Cotacao {
+function precoDefinido(overrides: Partial<PrecoDefinidoSafra>): PrecoDefinidoSafra {
   return {
-    id: 'cot-1',
+    id: 'pd-1',
     commodity: 'Soja Grão',
-    bolsa: 'CBOT',
-    ticker: 'ZS=F',
-    precoBrl: 999, // nunca deve ser usado — só precoDefinidoSafra
-    unidade: 'R$',
-    variacaoPercentual: 0,
-    maxima: 0,
-    minima: 0,
-    volume: 0,
-    atualizadoEm: '00:00:00',
+    anoSafra: '2026/2027',
+    precoBrl: 118,
+    definidoEm: '26/08/2026',
     ...overrides
   };
 }
@@ -56,7 +50,7 @@ describe('calcularPosicaoComercializacao — Posição por Cultura', () => {
     const { porCultura } = calcularPosicaoComercializacao({
       quadroSafra: [quadroSafra({})],
       contratos: [],
-      cotacoes: [],
+      precosDefinidos: [],
       safra: '2026/2027'
     });
     expect(porCultura).toHaveLength(1);
@@ -74,7 +68,7 @@ describe('calcularPosicaoComercializacao — Posição por Cultura', () => {
         contrato({ cultura: 'Milho', quantidadeSc: 5000 }), // outra cultura, não deve entrar
         contrato({ safra: '2025/2026', quantidadeSc: 5000 }) // outra safra, não deve entrar
       ],
-      cotacoes: [],
+      precosDefinidos: [],
       safra: '2026/2027'
     });
     expect(porCultura[0].quantidadeFixada).toBe(10000);
@@ -82,22 +76,33 @@ describe('calcularPosicaoComercializacao — Posição por Cultura', () => {
     expect(porCultura[0].receitaFixada).toBe(10000 * 115);
   });
 
-  it('usa Cotacao.precoDefinidoSafra da commodity mapeada (Soja -> Soja Grão), nunca precoBrl', () => {
+  it('usa PrecoDefinidoSafra da commodity mapeada (Soja -> Soja Grão) e da safra certa, nunca Cotacao.precoBrl', () => {
     const { porCultura } = calcularPosicaoComercializacao({
       quadroSafra: [quadroSafra({})],
       contratos: [],
-      cotacoes: [cotacao({ precoDefinidoSafra: 118 })],
+      precosDefinidos: [precoDefinido({ precoBrl: 118 })],
       safra: '2026/2027'
     });
     expect(porCultura[0].cotacao).toBe(118);
     expect(porCultura[0].valorAMercado).toBe(60000 * 118);
   });
 
+  it('ignora preço definido de OUTRA safra (o trava é por safra, não global)', () => {
+    const { porCultura } = calcularPosicaoComercializacao({
+      quadroSafra: [quadroSafra({})],
+      contratos: [],
+      precosDefinidos: [precoDefinido({ anoSafra: '2025/2026', precoBrl: 118 })],
+      safra: '2026/2027'
+    });
+    expect(porCultura[0].cotacao).toBeNull();
+    expect(porCultura[0].valorAMercado).toBeNull();
+  });
+
   it('cotacao/valorAMercado ficam null (nunca 0) quando a commodity não tem preço definido', () => {
     const { porCultura } = calcularPosicaoComercializacao({
       quadroSafra: [quadroSafra({})],
       contratos: [],
-      cotacoes: [cotacao({ precoDefinidoSafra: undefined })],
+      precosDefinidos: [],
       safra: '2026/2027'
     });
     expect(porCultura[0].cotacao).toBeNull();
@@ -108,7 +113,7 @@ describe('calcularPosicaoComercializacao — Posição por Cultura', () => {
     const { porCultura } = calcularPosicaoComercializacao({
       quadroSafra: [quadroSafra({ cultura: 'Seringueira' })],
       contratos: [],
-      cotacoes: [cotacao({ commodity: 'Soja Grão', precoDefinidoSafra: 118 })],
+      precosDefinidos: [precoDefinido({ commodity: 'Soja Grão', precoBrl: 118 })],
       safra: '2026/2027'
     });
     expect(porCultura[0].cotacao).toBeNull();
@@ -118,7 +123,7 @@ describe('calcularPosicaoComercializacao — Posição por Cultura', () => {
     const { porCultura } = calcularPosicaoComercializacao({
       quadroSafra: [quadroSafra({ cultura: 'Bovino', rendimento: 10 })],
       contratos: [],
-      cotacoes: [cotacao({ commodity: 'Boi Gordo', precoDefinidoSafra: 365 })],
+      precosDefinidos: [precoDefinido({ commodity: 'Boi Gordo', precoBrl: 365 })],
       safra: '2026/2027'
     });
     expect(porCultura[0].cotacao).toBe(365);
@@ -128,7 +133,7 @@ describe('calcularPosicaoComercializacao — Posição por Cultura', () => {
     const { porCultura } = calcularPosicaoComercializacao({
       quadroSafra: [quadroSafra({ hectares: 10, rendimento: 60 })], // produção = 600
       contratos: [contrato({ quantidadeSc: 999_999 })],
-      cotacoes: [],
+      precosDefinidos: [],
       safra: '2026/2027'
     });
     expect(porCultura[0].quantidadeAFixar).toBe(0);
@@ -143,7 +148,7 @@ describe('calcularPosicaoComercializacao — Por Comprador', () => {
         contrato({ compradorNome: 'Bunge', quantidadeSc: 30000 }),
         contrato({ compradorNome: 'Cargill', quantidadeSc: 10000 })
       ],
-      cotacoes: [],
+      precosDefinidos: [],
       safra: '2026/2027'
     });
     expect(porComprador).toHaveLength(2);
@@ -156,7 +161,7 @@ describe('calcularPosicaoComercializacao — Por Comprador', () => {
     const { porComprador } = calcularPosicaoComercializacao({
       quadroSafra: [quadroSafra({})],
       contratos: [contrato({ compradorNome: 'Bunge', quantidadeSc: 10000 })],
-      cotacoes: [],
+      precosDefinidos: [],
       safra: '2026/2027'
     });
     expect(porComprador[0].percentualConcentracao).toBe(100);
@@ -166,7 +171,7 @@ describe('calcularPosicaoComercializacao — Por Comprador', () => {
     const { porComprador } = calcularPosicaoComercializacao({
       quadroSafra: [quadroSafra({})],
       contratos: [],
-      cotacoes: [],
+      precosDefinidos: [],
       safra: '2026/2027'
     });
     expect(porComprador).toEqual([]);
@@ -176,7 +181,7 @@ describe('calcularPosicaoComercializacao — Por Comprador', () => {
     const { porComprador } = calcularPosicaoComercializacao({
       quadroSafra: [quadroSafra({})],
       contratos: [contrato({ compradorNome: undefined, quantidadeSc: 5000 })],
-      cotacoes: [],
+      precosDefinidos: [],
       safra: '2026/2027'
     });
     expect(porComprador[0].comprador).toBe('Sem comprador definido');

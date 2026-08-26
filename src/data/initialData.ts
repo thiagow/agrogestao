@@ -5,7 +5,6 @@ import {
   BalancoPatrimonial,
   IndicadorFinanceiro,
   IndicadorSaudeFinanceira,
-  Cotacao,
   LancamentoMensal,
   CalendarioAgricolaEtapa
 } from '../types';
@@ -183,109 +182,6 @@ export const initialSaudeFinanceira: IndicadorSaudeFinanceira[] = [
 // escrita própria (itens manuais extraordinários) persiste via
 // src/server/fluxo-safra.ts — sem mock aqui, mesmo critério dos demais módulos
 // já migrados.
-
-// ---- Cotações de Mercado ----
-
-export const initialCotacaoDolar: Cotacao = {
-  id: 'cot-usd',
-  commodity: 'Dólar Americano',
-  bolsa: 'PTAX',
-  ticker: 'USD/BRL',
-  precoBrl: 5.0735,
-  unidade: 'R$',
-  variacaoPercentual: -1.04,
-  maxima: 5.09,
-  minima: 5.0635,
-  volume: 0,
-  precoDefinidoSafra: 5.0735,
-  atualizadoEm: '11:05:39'
-};
-
-export const initialCotacoesCommodities: Cotacao[] = [
-  {
-    id: 'cot-soja',
-    commodity: 'Soja Grão',
-    bolsa: 'CBOT',
-    ticker: 'ZS=F',
-    precoUsd: 27.43,
-    precoBrl: 139.14,
-    unidade: 'R$/sc',
-    variacaoPercentual: 1.47,
-    maxima: 1253.0,
-    minima: 1238.0,
-    volume: 59556,
-    precoDefinidoSafra: 139.14,
-    atualizadoEm: '11:05:39'
-  },
-  {
-    id: 'cot-milho',
-    commodity: 'Milho Grão',
-    bolsa: 'CBOT',
-    ticker: 'ZC=F',
-    precoUsd: 11.36,
-    precoBrl: 57.64,
-    unidade: 'R$/sc',
-    variacaoPercentual: -7.01,
-    maxima: 492.0,
-    minima: 480.0,
-    volume: 100740,
-    precoDefinidoSafra: 57.64,
-    atualizadoEm: '11:05:39'
-  },
-  {
-    id: 'cot-algodao',
-    commodity: 'Algodão Pluma',
-    bolsa: 'ICE',
-    ticker: 'CT=F',
-    precoUsd: 396.83,
-    precoBrl: 2013.33,
-    unidade: 'R$/sc',
-    variacaoPercentual: -3.4,
-    maxima: 81.75,
-    minima: 79.75,
-    volume: 11312,
-    atualizadoEm: '11:05:39'
-  },
-  {
-    id: 'cot-boi',
-    commodity: 'Boi Gordo',
-    bolsa: 'CME',
-    ticker: 'GF=F',
-    precoBrl: 5.79,
-    unidade: 'R$/@',
-    variacaoPercentual: -1.97,
-    maxima: 0,
-    minima: 0,
-    volume: 0,
-    atualizadoEm: '11:05:39'
-  },
-  {
-    id: 'cot-trigo',
-    commodity: 'Trigo',
-    bolsa: 'CBOT',
-    ticker: 'ZW=F',
-    precoBrl: 74.38,
-    unidade: 'R$/sc',
-    variacaoPercentual: -1.34,
-    maxima: 0,
-    minima: 0,
-    volume: 0,
-    atualizadoEm: '11:05:39'
-  },
-  {
-    id: 'cot-cafe',
-    commodity: 'Café Arábica',
-    bolsa: 'ICE',
-    ticker: 'KC=F',
-    precoBrl: 2118.01,
-    unidade: 'R$/sc',
-    variacaoPercentual: -5.62,
-    maxima: 0,
-    minima: 0,
-    volume: 0,
-    atualizadoEm: '11:05:39'
-  }
-];
 
 // ---- Fluxo de Caixa Mensal ----
 

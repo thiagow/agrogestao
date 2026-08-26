@@ -6,7 +6,7 @@ import { ArrowUpRight, ArrowDownRight, Activity, DollarSign, Plus, Trash2, Chevr
 import type {
   ContratoBancario,
   ContratoComercial,
-  Cotacao,
+  PrecoDefinidoSafra,
   CulturaSafraAno,
   ItemFluxoManual,
   Supplier
@@ -28,7 +28,7 @@ interface FluxoSafraViewProps {
   linhasArrendamento: LinhaFluxoConsolidadoArrendamento[];
   linhasAquisicao: LinhaFluxoConsolidado[];
   contratosComerciais: ContratoComercial[];
-  cotacoesCommodities: Cotacao[];
+  precosDefinidos: PrecoDefinidoSafra[];
   itensManuais: ItemFluxoManual[];
   onSaveItem: (data: Partial<ItemFluxoManual>) => void;
   onDeleteItem: (id: string) => void;
@@ -54,7 +54,7 @@ export const FluxoSafraView: React.FC<FluxoSafraViewProps> = ({
   linhasArrendamento,
   linhasAquisicao,
   contratosComerciais,
-  cotacoesCommodities,
+  precosDefinidos,
   itensManuais,
   onSaveItem,
   onDeleteItem
@@ -69,9 +69,11 @@ export const FluxoSafraView: React.FC<FluxoSafraViewProps> = ({
 
   const precoSoja = useMemo(() => {
     const nomeCommodity = commodityDaCultura('Soja');
-    const cotacao = nomeCommodity ? cotacoesCommodities.find((c) => c.commodity === nomeCommodity) : undefined;
-    return cotacao?.precoDefinidoSafra ?? null;
-  }, [cotacoesCommodities]);
+    const preco = nomeCommodity
+      ? precosDefinidos.find((p) => p.commodity === nomeCommodity && p.anoSafra === safraAtiva)
+      : undefined;
+    return preco?.precoBrl ?? null;
+  }, [precosDefinidos, safraAtiva]);
 
   const dto = useMemo(
     () =>

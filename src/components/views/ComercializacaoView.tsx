@@ -13,7 +13,7 @@ import {
   YAxis
 } from 'recharts';
 import { Plus, Edit2, Trash2, AlertTriangle } from 'lucide-react';
-import { ContratoComercial, TipoContratoComercial, CulturaSafraAno, Cultura, Cotacao } from '../../types';
+import { ContratoComercial, TipoContratoComercial, CulturaSafraAno, Cultura, PrecoDefinidoSafra } from '../../types';
 import { formatCurrency, formatDateBR } from '../../data/initialData';
 import { Card, Tabs, Button, KpiCard, Badge, Select } from '../ui';
 import { ContratoComercialDrawer } from '../ContratoComercialDrawer';
@@ -22,7 +22,7 @@ import { calcularPosicaoComercializacao, PosicaoCultura, PosicaoComprador } from
 interface ComercializacaoViewProps {
   culturaSafras: CulturaSafraAno[];
   culturas: Cultura[];
-  cotacoes: Cotacao[];
+  precosDefinidos: PrecoDefinidoSafra[];
   contratos: ContratoComercial[];
   onSave: (data: Partial<ContratoComercial>) => void;
   onDelete: (id: string) => void;
@@ -52,7 +52,7 @@ const CORES_COMPRADOR = ['#4a6700', '#a3e635', '#65a30d', '#84cc16', '#166534', 
 export const ComercializacaoView: React.FC<ComercializacaoViewProps> = ({
   culturaSafras,
   culturas,
-  cotacoes,
+  precosDefinidos,
   contratos,
   onSave,
   onDelete
@@ -69,8 +69,8 @@ export const ComercializacaoView: React.FC<ComercializacaoViewProps> = ({
   const safraAtiva = safraSelecionada || safrasDisponiveis[safrasDisponiveis.length - 1] || '';
 
   const { porCultura, porComprador } = useMemo(
-    () => calcularPosicaoComercializacao({ quadroSafra: culturaSafras, contratos, cotacoes, safra: safraAtiva }),
-    [culturaSafras, contratos, cotacoes, safraAtiva]
+    () => calcularPosicaoComercializacao({ quadroSafra: culturaSafras, contratos, precosDefinidos, safra: safraAtiva }),
+    [culturaSafras, contratos, precosDefinidos, safraAtiva]
   );
 
   const producaoTotal = porCultura.reduce((sum, p) => sum + p.producaoTotal, 0);

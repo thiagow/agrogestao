@@ -18,7 +18,7 @@ import { listAquisicoes, listFluxoConsolidadoAquisicoes, listImpactoPorSafra } f
 import { listArrendamentos, listFluxoConsolidadoArrendamentos, listImpactoPorSafraArrendamentos } from '@/server/arrendamentos';
 import { listContratosComerciais } from '@/server/contratos-comerciais';
 import { getBalancoAtual } from '@/server/balanco';
-import { listCotacoes } from '@/server/cotacoes';
+import { listCotacoes, listPrecosDefinidos } from '@/server/cotacoes';
 import { listItensFluxoManual } from '@/server/fluxo-safra';
 
 interface TabPageProps {
@@ -71,11 +71,15 @@ export default async function TabPage({ params }: TabPageProps) {
   // Só importam à própria aba — buscados sob demanda.
   const initialLancamentosMensais = tab === 'fluxo_mensal' ? await listLancamentosMensais() : undefined;
   const initialBalanco = tab === 'analise_financeira' ? await getBalancoAtual() : undefined;
-  // Comercialização também precisa das cotações (Cotacao.precoDefinidoSafra
+  // Comercialização também precisa das cotações (PrecoDefinidoSafra
   // alimenta a coluna "Cotação" da Posição por Cultura, src/lib/comercializacao.ts).
   // Fluxo de Safra usa a cotação de Soja pra estimar a Despesa Comercial (3 sc/ha).
   const cotacoes =
     tab === 'cotacoes' || tab === 'comercializacao' || tab === 'fluxo_safra' ? await listCotacoes() : undefined;
+  // Preço travado por safra — mesmas 3 abas, mesma decisão de "carrega a lista
+  // inteira e filtra no client" já usada para culturaSafras/contratos.
+  const initialPrecosDefinidos =
+    tab === 'cotacoes' || tab === 'comercializacao' || tab === 'fluxo_safra' ? await listPrecosDefinidos() : undefined;
   const [cronogramaConsolidado, indices, fluxoDetalhado] =
     tab === 'bancos'
       ? await Promise.all([listCronogramaConsolidado(), listIndices(), listFluxoDetalhado()])
@@ -131,6 +135,7 @@ export default async function TabPage({ params }: TabPageProps) {
       initialBalanco={initialBalanco}
       initialCotacaoDolar={cotacoes?.dolar}
       initialCotacoesCommodities={cotacoes?.commodities}
+      initialPrecosDefinidos={initialPrecosDefinidos}
       initialItensFluxoManual={initialItensFluxoManual}
     />
   );

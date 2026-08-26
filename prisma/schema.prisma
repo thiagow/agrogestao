@@ -975,7 +975,7 @@ enum StatusArrendamento {
 // BUG #2 da spec).
 enum OrigemPrecoArrendamento {
   CONTRATO // "Preço de Referência" preenchido no próprio contrato
-  COTACAO  // Fallback: Cotacao.precoDefinidoSafra da commodity correspondente à cultura
+  COTACAO  // Fallback: PrecoDefinidoSafra da commodity correspondente à cultura, na safra do contrato
 }
 
 model ContratoArrendamento {
@@ -1208,17 +1208,42 @@ model Cotacao {
   commodity          String   @unique
   bolsa              Bolsa
   ticker             String
+  // Preço bruto devolvido pela bolsa (USX = centavos de dólar), na unidade
+  // nativa do contrato futuro — bushel para grãos, libra-peso (lb) para
+  // algodão/boi/café. Pro Dólar (bolsa PTAX), é a própria cotação em R$.
+  precoOriginal      Decimal  @db.Decimal(18, 4)
+  unidadeOriginal    String // "USX/bu" | "USX/lb" | "R$" (dólar)
+  // USD por unidade agrícola de referência (sc/@), já convertido — ver
+  // src/lib/commodity-unidade.ts. Null pro Dólar (não se aplica).
   precoUsd           Decimal? @db.Decimal(18, 4)
-  precoBrl           Decimal  @db.Decimal(18, 4)
-  unidade            String
+  precoBrl           Decimal  @db.Decimal(18, 4) // preço final em R$, na mesma unidade de `unidade`
+  unidade            String // rótulo de exibição do preço final: "sc" | "@" | "lb" (Algodão, sem fator ainda) | "R$" (dólar)
   variacaoPercentual Decimal  @db.Decimal(8, 4)
   maxima             Decimal  @db.Decimal(18, 4)
   minima             Decimal  @db.Decimal(18, 4)
   volume             BigInt   @default(0)
-  precoDefinidoSafra Decimal? @db.Decimal(18, 4) // preço que o usuário "trava" como referência da safra
   atualizadoEm       DateTime @default(now())
 
   @@map("cotacoes")
+}
+
+// Preço travado ("Preço Definido") pelo usuário por commodity + safra —
+// substitui o antigo `Cotacao.precoDefinidoSafra` (26/08/2026), que não tinha
+// dimensão de safra nenhuma apesar do nome (um único valor global por
+// commodity, sobrescrito a cada trava). Continua GLOBAL entre contas, mesmo
+// critério de `Cotacao`/`IndiceMercado` — decisão confirmada com o usuário:
+// só ganhou a dimensão de safra nesta rodada, não passou a ser por conta.
+model PrecoDefinidoSafra {
+  id          String   @id @default(cuid())
+  commodity   String
+  anoSafra    String // "2026/2027" — mesma convenção de QuadroSafra.anoSafra
+  precoBrl    Decimal  @db.Decimal(18, 4)
+  definidoEm  DateTime @default(now())
+  createdById String?
+
+  @@unique([commodity, anoSafra])
+  @@index([commodity])
+  @@map("precos_definidos_safra")
 }
 
 // ============================================================

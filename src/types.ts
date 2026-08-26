@@ -575,6 +575,8 @@ export interface Cotacao {
   commodity: string;
   bolsa: Bolsa;
   ticker: string;
+  precoOriginal: number;
+  unidadeOriginal: string;
   precoUsd?: number;
   precoBrl: number;
   unidade: string;
@@ -582,8 +584,16 @@ export interface Cotacao {
   maxima: number;
   minima: number;
   volume: number;
-  precoDefinidoSafra?: number;
   atualizadoEm: string; // HH:MM:SS
+}
+
+/** Preço travado pelo usuário para uma commodity numa safra específica — src/server/cotacoes.ts. */
+export interface PrecoDefinidoSafra {
+  id: string;
+  commodity: string;
+  anoSafra: string;
+  precoBrl: number;
+  definidoEm: string;
 }
 
 // ---- Fluxo de Caixa Mensal ----

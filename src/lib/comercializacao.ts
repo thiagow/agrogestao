@@ -10,17 +10,19 @@
 // server action de agregação — só esta função, chamada no client a cada troca
 // do seletor de safra.
 //
-// ── Preço/Cotação (decisão registrada em 20/08/2026) ────────────────────────
-// A "Cotação" de cada cultura vem SEMPRE de `Cotacao.precoDefinidoSafra` (o
-// preço que o usuário já confirmou manualmente na tela Cotações), nunca de
-// `precoBrl` (cotação bruta de futuros, sem conversão bushel/lb->saca — ver
+// ── Preço/Cotação (decisão registrada em 20/08/2026, atualizada em 26/08/2026
+// quando o preço travado ganhou dimensão de safra própria) ─────────────────
+// A "Cotação" de cada cultura vem SEMPRE de `PrecoDefinidoSafra` (o preço que
+// o usuário já confirmou manualmente na tela Cotações, para a safra em
+// questão), nunca de `Cotacao.precoBrl` (cotação bruta de mercado — ver
 // src/server/cotacoes.ts). Cultura sem commodity mapeada (cultura-commodity.ts)
-// OU commodity ainda sem preço definido -> cotacao/valorAMercado ficam `null`,
-// nunca "0" nem um número inventado (mesmo critério do BUG #2 de Arrendamento).
+// OU commodity ainda sem preço definido para a safra -> cotacao/valorAMercado
+// ficam `null`, nunca "0" nem um número inventado (mesmo critério do BUG #2
+// de Arrendamento).
 
 import { calcularSafra } from '@/lib/agro';
 import { commodityDaCultura } from '@/lib/cultura-commodity';
-import type { CulturaSafraAno, ContratoComercial, Cotacao } from '@/types';
+import type { CulturaSafraAno, ContratoComercial, PrecoDefinidoSafra } from '@/types';
 
 export interface PosicaoCultura {
   cultura: string;
@@ -48,7 +50,7 @@ export interface PosicaoComercializacao {
 export interface CalcularPosicaoInput {
   quadroSafra: CulturaSafraAno[];
   contratos: ContratoComercial[];
-  cotacoes: Cotacao[];
+  precosDefinidos: PrecoDefinidoSafra[];
   safra: string;
 }
 
@@ -57,7 +59,9 @@ export function calcularPosicaoComercializacao(input: CalcularPosicaoInput): Pos
   // Contratos "fixados" = ativos da safra selecionada — mesmo critério já usado hoje na tela.
   const contratosSafra = input.contratos.filter((c) => c.status === 'ATIVO' && c.safra === input.safra);
 
-  const cotacaoPorCommodity = new Map(input.cotacoes.map((c) => [c.commodity, c]));
+  const precoDefinidoPorCommodity = new Map(
+    input.precosDefinidos.filter((p) => p.anoSafra === input.safra).map((p) => [p.commodity, p.precoBrl])
+  );
 
   const porCultura: PosicaoCultura[] = registrosSafra.map((r) => {
     const { totalProducao } = calcularSafra({
@@ -73,7 +77,7 @@ export function calcularPosicaoComercializacao(input: CalcularPosicaoInput): Pos
     const receitaFixada = contratosCultura.reduce((sum, c) => sum + c.quantidadeSc * c.precoFixado, 0);
 
     const nomeCommodity = commodityDaCultura(r.cultura);
-    const precoDefinido = nomeCommodity ? cotacaoPorCommodity.get(nomeCommodity)?.precoDefinidoSafra : undefined;
+    const precoDefinido = nomeCommodity ? precoDefinidoPorCommodity.get(nomeCommodity) : undefined;
     const cotacao = precoDefinido ?? null;
     const valorAMercado = cotacao != null ? quantidadeAFixar * cotacao : null;
 

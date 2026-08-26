@@ -46,7 +46,7 @@ export interface GerarParcelasArrendamentoInput {
   sacasHa?: number | null;
   precoReferencia?: number | null;
   // Preço de fallback já resolvido pelo caller (src/server/cotacoes.ts,
-  // resolverPrecoFallback) a partir de Cotacao.precoDefinidoSafra — o motor
+  // resolverPrecoFallback) a partir de PrecoDefinidoSafra — o motor
   // não faz I/O, só decide a origem.
   precoFallbackCotacao?: number | null;
   // Modo REAIS

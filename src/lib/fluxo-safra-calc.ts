@@ -79,7 +79,7 @@ export interface MontarFluxoSafraInput {
   linhasAquisicao: { safra: string; valorTotal: number }[];
   contratosComerciais: ContratoComercial[];
   itensManuais: ItemFluxoManual[];
-  /** Cotacao.precoDefinidoSafra de Soja (src/server/cotacoes.ts, resolverPrecoFallback) — null = não definida. */
+  /** PrecoDefinidoSafra de Soja na safra ativa (src/server/cotacoes.ts) — null = não definida. */
   precoSoja: number | null;
 }
 
