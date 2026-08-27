@@ -1,0 +1,821 @@
+<title>Regras de Cálculo AgroGestão</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg: #f6f7f2;
+    --surface: #ffffff;
+    --surface-alt: #edf0e4;
+    --ink: #171f14;
+    --ink-muted: #5b6355;
+    --ink-faint: #838d78;
+    --border: #dde2d3;
+    --border-strong: #c7cebb;
+    --accent: #5f7d1c;
+    --accent-bg: #dcedb0;
+    --accent-ink: #26350a;
+    --forest: #0b2310;
+    --warn: #9a5b0a;
+    --warn-bg: #f6e6c9;
+    --critical: #a3123a;
+    --critical-bg: #fbdde5;
+    --good: #15803d;
+    --good-bg: #d9f0e1;
+    --radius: 10px;
+    --serif: "Fraunces", "Iowan Old Style", "Palatino Linotype", serif;
+    --sans: "Manrope", -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0c110a;
+      --surface: #141c10;
+      --surface-alt: #1a2415;
+      --ink: #edf1e4;
+      --ink-muted: #9aa78c;
+      --ink-faint: #6d7862;
+      --border: #263120;
+      --border-strong: #34412a;
+      --accent: #a3e635;
+      --accent-bg: #24350f;
+      --accent-ink: #c9f27e;
+      --warn: #f0b247;
+      --warn-bg: #3a2c0f;
+      --critical: #fb7994;
+      --critical-bg: #3a1220;
+      --good: #4ade80;
+      --good-bg: #103622;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0c110a;
+    --surface: #141c10;
+    --surface-alt: #1a2415;
+    --ink: #edf1e4;
+    --ink-muted: #9aa78c;
+    --ink-faint: #6d7862;
+    --border: #263120;
+    --border-strong: #34412a;
+    --accent: #a3e635;
+    --accent-bg: #24350f;
+    --accent-ink: #c9f27e;
+    --warn: #f0b247;
+    --warn-bg: #3a2c0f;
+    --critical: #fb7994;
+    --critical-bg: #3a1220;
+    --good: #4ade80;
+    --good-bg: #103622;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15.5px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--accent-bg); color: var(--accent-ink); }
+
+  h1, h2, h3 { font-family: var(--serif); font-weight: 600; text-wrap: balance; color: var(--ink); }
+  p { text-wrap: pretty; }
+  code, .mono { font-family: var(--mono); }
+
+  /* ── Masthead ─────────────────────────────────────────── */
+  .masthead {
+    background: var(--forest);
+    color: #eef3e6;
+    padding: 3.6rem 1.5rem 3rem;
+    border-bottom: 4px solid var(--accent);
+  }
+  .masthead-inner { max-width: 920px; margin: 0 auto; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #a3e635;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1.1rem;
+  }
+  .eyebrow::before { content: ""; width: 22px; height: 1px; background: #a3e635; display: inline-block; }
+  .masthead h1 { font-size: clamp(1.9rem, 4vw, 2.7rem); margin: 0 0 0.9rem; line-height: 1.12; color: #fff; }
+  .masthead .lede { font-size: 1.05rem; color: #cfd9c3; max-width: 62ch; margin: 0; }
+  .masthead .meta {
+    margin-top: 1.8rem;
+    display: flex; flex-wrap: wrap; gap: 0.5rem 1.6rem;
+    font-family: var(--mono); font-size: 0.78rem; color: #9db188;
+  }
+  .masthead .meta b { color: #d9e8c2; font-weight: 600; }
+
+  /* ── How to use ───────────────────────────────────────── */
+  .howto {
+    max-width: 920px; margin: -1.6rem auto 0; padding: 0 1.5rem;
+  }
+  .howto-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 1.5rem 1.7rem; box-shadow: 0 12px 28px -18px rgba(11,35,16,0.35);
+    display: grid; gap: 1.1rem; grid-template-columns: repeat(3, 1fr);
+  }
+  .howto-card .step { display: flex; gap: 0.8rem; }
+  .howto-card .step .n {
+    font-family: var(--mono); font-weight: 700; font-size: 0.8rem;
+    color: var(--accent-ink); background: var(--accent-bg);
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .howto-card .step .txt strong { display: block; font-size: 0.87rem; margin-bottom: 0.15rem; }
+  .howto-card .step .txt span { font-size: 0.82rem; color: var(--ink-muted); }
+
+  /* ── Page frame ───────────────────────────────────────── */
+  .frame {
+    max-width: 1180px; margin: 0 auto; padding: 2.6rem 1.5rem 6rem;
+    display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 3rem;
+  }
+  nav.toc {
+    position: sticky; top: 1.5rem; align-self: start;
+    display: flex; flex-direction: column; gap: 0.2rem;
+    font-size: 0.86rem;
+  }
+  nav.toc a {
+    color: var(--ink-muted); text-decoration: none; padding: 0.4rem 0.7rem;
+    border-radius: 7px; border-left: 2px solid transparent;
+    display: flex; align-items: baseline; gap: 0.5rem;
+  }
+  nav.toc a:hover { background: var(--surface-alt); color: var(--ink); }
+  nav.toc a .idx { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-faint); }
+  nav.toc .toc-title {
+    font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--ink-faint); padding: 0 0.7rem 0.5rem;
+  }
+
+  main { min-width: 0; }
+
+  section.module { padding-top: 1.5rem; margin-bottom: 3.6rem; scroll-margin-top: 1.5rem; }
+  .module-head { display: flex; align-items: baseline; gap: 0.8rem; margin-bottom: 0.5rem; }
+  .module-num { font-family: var(--mono); color: var(--accent); font-size: 1rem; font-weight: 600; }
+  .module-head h2 { font-size: 1.7rem; margin: 0; }
+  .module-sub { color: var(--ink-muted); max-width: 68ch; margin: 0.4rem 0 1.6rem; font-size: 0.98rem; }
+
+  .chiprow { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.8rem; }
+  .chip {
+    font-family: var(--mono); font-size: 0.74rem; padding: 0.3rem 0.65rem; border-radius: 999px;
+    background: var(--surface-alt); border: 1px solid var(--border); color: var(--ink-muted);
+  }
+
+  /* ── Rule card ────────────────────────────────────────── */
+  .rule {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 1.5rem 1.7rem 1.4rem; margin-bottom: 1.1rem;
+  }
+  .rule + .rule { margin-top: 1.1rem; }
+  .rule-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 0.7rem; }
+  .rule-head h3 { font-size: 1.08rem; margin: 0; }
+  .rule-tag {
+    font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.05em; text-transform: uppercase;
+    padding: 0.22rem 0.55rem; border-radius: 5px; white-space: nowrap; flex-shrink: 0;
+  }
+  .rule-tag.calc { background: var(--accent-bg); color: var(--accent-ink); }
+  .rule-tag.input { background: var(--surface-alt); color: var(--ink-muted); border: 1px solid var(--border); }
+
+  .formula {
+    font-family: var(--mono); font-size: 0.87rem; background: var(--surface-alt);
+    border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 6px; padding: 0.75rem 0.95rem; margin: 0.7rem 0;
+    overflow-x: auto; white-space: pre; color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .rule p { margin: 0.55rem 0; font-size: 0.94rem; color: var(--ink); }
+  .rule p.note { color: var(--ink-muted); font-size: 0.88rem; }
+  .rule ul { margin: 0.5rem 0; padding-left: 1.2rem; font-size: 0.9rem; }
+  .rule li { margin: 0.3rem 0; }
+  .rule li b, .rule p b { font-weight: 700; }
+  .src {
+    margin-top: 0.8rem; padding-top: 0.7rem; border-top: 1px dashed var(--border);
+    font-family: var(--mono); font-size: 0.72rem; color: var(--ink-faint);
+    display: flex; gap: 0.4rem; align-items: baseline; flex-wrap: wrap;
+  }
+  .src b { color: var(--ink-faint); font-weight: 600; }
+
+  .callout {
+    border-radius: 8px; padding: 0.85rem 1rem; margin: 0.9rem 0; font-size: 0.88rem;
+    display: flex; gap: 0.6rem; align-items: flex-start;
+  }
+  .callout .tag { font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; flex-shrink: 0; padding-top: 0.1rem; }
+  .callout.warn { background: var(--warn-bg); color: var(--ink); }
+  .callout.warn .tag { color: var(--warn); }
+  .callout.info { background: var(--surface-alt); color: var(--ink); border: 1px solid var(--border); }
+  .callout.info .tag { color: var(--accent); }
+
+  table.data { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin: 0.7rem 0; }
+  table.data th, table.data td { text-align: left; padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--border); }
+  table.data th { font-family: var(--mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); font-weight: 600; }
+  table.data td.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* ── Divergence widget ────────────────────────────────── */
+  .flagbox { margin-top: 1.5rem; }
+  .flag-toggle {
+    font-family: var(--mono); font-size: 0.78rem; color: var(--critical);
+    background: var(--critical-bg); border: 1px solid transparent; border-radius: 7px;
+    padding: 0.5rem 0.85rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem;
+  }
+  .flag-toggle:hover { border-color: var(--critical); }
+  .flag-form { display: none; margin-top: 0.7rem; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+  .flag-form.open { display: block; }
+  .flag-form label { display: block; font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); margin-bottom: 0.35rem; }
+  .flag-form textarea {
+    width: 100%; min-height: 76px; resize: vertical; font-family: var(--sans); font-size: 0.9rem;
+    padding: 0.6rem 0.7rem; border-radius: 6px; border: 1px solid var(--border-strong);
+    background: var(--surface); color: var(--ink);
+  }
+  .flag-form textarea:focus, button:focus-visible, .flag-toggle:focus-visible, a:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  .flag-actions { display: flex; gap: 0.6rem; margin-top: 0.7rem; }
+  .btn {
+    font-family: var(--sans); font-weight: 700; font-size: 0.83rem; border-radius: 7px; border: 1px solid transparent;
+    padding: 0.5rem 1rem; cursor: pointer;
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); }
+  .btn.ghost { background: transparent; color: var(--ink-muted); border-color: var(--border-strong); }
+  .btn.primary:hover { filter: brightness(1.05); }
+  .btn.ghost:hover { background: var(--surface); }
+  .saved-hint { font-size: 0.78rem; color: var(--good); margin-top: 0.5rem; display: none; }
+  .saved-hint.show { display: block; }
+
+  /* ── Divergence ledger (final section) ───────────────── */
+  .ledger-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.6rem 1.8rem;
+  }
+  .ledger-empty { color: var(--ink-faint); font-size: 0.9rem; padding: 1rem 0; }
+  .ledger-item {
+    border: 1px solid var(--border); border-left: 3px solid var(--critical); border-radius: 7px;
+    padding: 0.85rem 1rem; margin-bottom: 0.7rem; display: flex; justify-content: space-between; gap: 1rem;
+  }
+  .ledger-item .body { font-size: 0.88rem; }
+  .ledger-item .rulename { font-family: var(--mono); font-size: 0.72rem; color: var(--critical); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
+  .ledger-item .txt { color: var(--ink); white-space: pre-wrap; }
+  .ledger-item .ts { color: var(--ink-faint); font-size: 0.74rem; font-family: var(--mono); margin-top: 0.35rem; }
+  .ledger-item button { background: none; border: none; color: var(--ink-faint); cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0.1rem; }
+  .ledger-item button:hover { color: var(--critical); }
+  .ledger-actions { display: flex; gap: 0.6rem; margin-top: 1.2rem; flex-wrap: wrap; align-items: center; }
+  .ledger-count { font-family: var(--mono); font-size: 0.8rem; color: var(--ink-muted); }
+  .toast {
+    position: fixed; bottom: 1.4rem; left: 50%; transform: translateX(-50%) translateY(8px);
+    background: var(--forest); color: #eef3e6; padding: 0.6rem 1.1rem; border-radius: 8px;
+    font-size: 0.85rem; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+    font-family: var(--sans); font-weight: 600; z-index: 50;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  footer.doc-footer {
+    max-width: 1180px; margin: 0 auto; padding: 0 1.5rem 3rem 1.5rem;
+    font-size: 0.8rem; color: var(--ink-faint); border-top: 1px solid var(--border); padding-top: 1.4rem;
+  }
+
+  @media (max-width: 860px) {
+    .frame { grid-template-columns: 1fr; }
+    nav.toc {
+      position: static; flex-direction: row; overflow-x: auto; gap: 0.3rem; padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border); margin-bottom: 1rem;
+    }
+    nav.toc .toc-title { display: none; }
+    nav.toc a { flex-shrink: 0; }
+    .howto-card { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="masthead">
+  <div class="masthead-inner">
+    <div class="eyebrow">Documento de validação · AgroGestão</div>
+    <h1>Regras de cálculo do sistema</h1>
+    <p class="lede">
+      Esta é a memória de cálculo de cinco telas do sistema — Quadro de Safra, Bancos, Aquisição de Fazendas,
+      Arrendamentos e Fluxo de Safra. Antes de validar os números na tela, valide as regras aqui: cada card abaixo
+      descreve exatamente o que o sistema soma, multiplica ou de onde busca cada valor exibido.
+    </p>
+    <div class="meta">
+      <span><b>Escopo</b> 5 telas · 20+ regras de cálculo</span>
+      <span><b>Base</b> lógica de produção atual do sistema</span>
+      <span><b>Atualizado</b> 21 ago 2026</span>
+    </div>
+  </div>
+</div>
+
+<div class="howto">
+  <div class="howto-card">
+    <div class="step">
+      <span class="n">1</span>
+      <span class="txt"><strong>Leia a regra</strong><span>Cada card mostra a fórmula exata em texto monoespaçado e de onde cada variável vem.</span></span>
+    </div>
+    <div class="step">
+      <span class="n">2</span>
+      <span class="txt"><strong>Confira na tela</strong><span>Abra o módulo correspondente no sistema e recalcule um caso real com esses passos.</span></span>
+    </div>
+    <div class="step">
+      <span class="n">3</span>
+      <span class="txt"><strong>Registre divergências</strong><span>Achou algo diferente? Use o botão vermelho ao final da regra — fica salvo neste navegador e pode ser copiado no fim da página.</span></span>
+    </div>
+  </div>
+</div>
+
+<div class="frame">
+  <nav class="toc" aria-label="Sumário">
+    <div class="toc-title">Módulos</div>
+    <a href="#quadro-safra"><span class="idx">01</span> Quadro de Safra</a>
+    <a href="#bancos"><span class="idx">02</span> Bancos</a>
+    <a href="#aquisicao"><span class="idx">03</span> Aquisição de Fazendas</a>
+    <a href="#arrendamentos"><span class="idx">04</span> Arrendamentos</a>
+    <a href="#fluxo-safra"><span class="idx">05</span> Fluxo de Safra</a>
+    <a href="#ledger"><span class="idx">—</span> Divergências registradas</a>
+  </nav>
+
+  <main>
+
+    <!-- ============================================================ -->
+    <section class="module" id="quadro-safra">
+      <div class="module-head"><span class="module-num">01</span><h2>Quadro de Safra</h2></div>
+      <p class="module-sub">
+        Um registro por combinação de Cultura + Safra. Sete campos são digitados pelo usuário; cinco linhas — as em
+        destaque na tabela — são sempre calculadas e nunca editáveis diretamente.
+      </p>
+      <div class="chiprow">
+        <span class="chip">entrada manual</span><span class="chip">calculado ao vivo</span><span class="chip">arredondamento por linha</span>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Total de Produção</h3><span class="rule-tag calc">calculado</span></div>
+        <div class="formula">Total de Produção = Hectares Plantados (Total) × Rendimento por Hectare</div>
+        <p class="note">Arredondado ao número inteiro mais próximo nesta própria etapa — não guarda casas decimais para o próximo cálculo.</p>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Receita Bruta</h3><span class="rule-tag calc">calculado</span></div>
+        <div class="formula">Receita Bruta = Total de Produção (já arredondado) × Preço Médio</div>
+        <p class="note">Usa o Total de Produção depois de arredondado, e o resultado é arredondado de novo — não é uma única conta em cascata sem arredondar.</p>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Despesa</h3><span class="rule-tag calc">calculado</span></div>
+        <div class="formula">Despesa = Hectares Plantados (Total) × Custo de Produção (R$/ha)</div>
+        <p class="note">Usa <b>Hectares Plantados (Total)</b> — não a soma de Área Própria + Área Arrendada, e o Custo de Produção cadastrado é sempre um valor por hectare, nunca um total absoluto.</p>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Receita Líquida e Margem</h3><span class="rule-tag calc">calculado</span></div>
+        <div class="formula">Receita Líquida = Receita Bruta − Despesa
+Margem (%) = (Receita Líquida ÷ Receita Bruta) × 100      — 0% se Receita Bruta = 0</div>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Totalizadores da safra (rodapé da tabela)</h3><span class="rule-tag calc">agregado</span></div>
+        <p>Somam todos os registros da safra selecionada — respeitando o filtro de cultura ativo na tela:</p>
+        <ul>
+          <li><b>Total Área Utilizada</b> — soma de Hectares Plantados de cada registro</li>
+          <li><b>Total Receita Bruta / Total Despesas / Total Receita Líquida</b> — soma das linhas já calculadas acima, registro a registro</li>
+        </ul>
+        <p class="note">É a mesma Receita Bruta e o mesmo Custo de Produção que o Fluxo de Safra (módulo 05) usa como fonte — qualquer divergência aqui se propaga para lá.</p>
+      </div>
+
+      <div class="src"><b>Fonte:</b> src/lib/agro.ts · função calcularSafra()</div>
+
+      <div class="flagbox" data-rule="Quadro de Safra">
+        <button class="flag-toggle" type="button" onclick="toggleFlag(this)">⚑ Registrar divergência — Quadro de Safra</button>
+        <div class="flag-form">
+          <label>O que diverge, e qual o valor esperado?</label>
+          <textarea placeholder="Ex.: Na safra 2026/2027, cultura Soja, a Despesa exibida foi R$ 812.000 mas o esperado, usando Área Própria, seria R$ 690.000."></textarea>
+          <div class="flag-actions">
+            <button class="btn primary" type="button" onclick="saveFlag(this)">Salvar registro</button>
+            <button class="btn ghost" type="button" onclick="toggleFlag(this)">Cancelar</button>
+          </div>
+          <p class="saved-hint">Registrado — veja em "Divergências registradas" no fim da página.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section class="module" id="bancos">
+      <div class="module-head"><span class="module-num">02</span><h2>Bancos</h2></div>
+      <p class="module-sub">
+        O módulo mais denso do sistema: quatro visões sobre o mesmo conjunto de contratos — os indicadores do topo,
+        Por Credor, Cronograma e Fluxo Detalhado. Todas partem da mesma "taxa efetiva" por contrato, explicada primeiro.
+      </p>
+      <div class="chiprow">
+        <span class="chip">CDI · IPCA · dólar</span><span class="chip">SAC / PRICE</span><span class="chip">cronograma regravado a cada save</span>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Taxa Efetiva — a regra que rege tudo neste módulo</h3><span class="rule-tag calc">motor central</span></div>
+        <p>O campo "Taxa" cadastrado no contrato nunca é usado direto no cronograma. Ele primeiro passa pela seguinte resolução, conforme o Tipo de Taxa escolhido:</p>
+        <table class="data">
+          <tr><th>Tipo de Taxa</th><th>Taxa efetiva aplicada</th></tr>
+          <tr><td>Pré-fixado, moeda BRL</td><td class="mono">a própria Taxa cadastrada, cheia</td></tr>
+          <tr><td>Pré-fixado, moeda USD ("Dólar Puro")</td><td class="mono">Taxa cadastrada, incidindo sobre o saldo em US$; convertido a BRL só na exibição, pela PTAX vigente do ciclo</td></tr>
+          <tr><td>CDI + spread</td><td class="mono">CDI vigente (a.a.) + Taxa cadastrada</td></tr>
+          <tr><td>IPCA + spread</td><td class="mono">IPCA acumulado 12m + Taxa cadastrada</td></tr>
+          <tr><td>Dólar + juros ("Variação Cambial")</td><td class="mono">variação % do dólar desde a PTAX Inicial (piso zero) + Taxa cadastrada</td></tr>
+        </table>
+        <div class="callout info"><span class="tag">Regra</span><span>No cenário "Variação Cambial", queda do dólar nunca reduz a taxa — o piso é zero. Só a valorização do dólar entra na conta.</span></div>
+        <div class="callout info"><span class="tag">Regra</span><span><b>PTAX vigente do ciclo:</b> dentro do 1º ano de vida do contrato usa a PTAX Inicial cadastrada; a partir do 1º aniversário do contrato passa a usar a cotação de mercado do dia, atualizada pelo botão "Atualizar Índices".</span></div>
+        <div class="callout warn"><span class="tag">Atenção</span><span>Se o CDI/IPCA/dólar ainda não foi carregado, a taxa efetiva cai para o spread puro (sem indexador) e o contrato é marcado como pendente — o sistema nunca inventa um valor de índice.</span></div>
+        <p class="note">Para CDI e IPCA especificamente: parcelas já vencidas usam o índice <b>realizado</b> daquele período (fonte BCB); parcelas futuras usam a <b>projeção</b> (BCB Focus — Selic é o proxy usado para CDI, já que não existe projeção oficial de "CDI"). A curva de amortização do Principal (SAC/PRICE) sempre usa a taxa atual; só os Juros mudam de taxa parcela a parcela.</p>
+        <div class="src"><b>Fonte:</b> src/lib/taxa-efetiva.ts</div>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Cálculo da parcela — SAC, PRICE, Juros</h3><span class="rule-tag calc">motor central</span></div>
+        <ul>
+          <li><b>SAC</b> — parcelas de Principal iguais em cada data de amortização.</li>
+          <li><b>PRICE</b> — as parcelas de Principal seguem uma curva de anuidade, calculada isoladamente só sobre o cronograma de Principal.</li>
+          <li><b>Juros</b> — em ambos os sistemas, são sempre o valor realmente incorrido: Saldo Devedor no início do sub-período × taxa do sub-período. Nunca uma fórmula de anuidade.</li>
+        </ul>
+        <p>A Base de Cálculo (252 dias úteis / 360 ou 365 dias corridos) e a Capitalização (Composta/Simples) definem como a taxa anual vira taxa do sub-período entre dois eventos de pagamento.</p>
+        <div class="callout info"><span class="tag">Regra</span><span>Principal e Juros podem ter periodicidades diferentes (ex.: Principal Anual, Juros Mensal) — cada perna gera seus próprios eventos de pagamento na linha do tempo do contrato.</span></div>
+        <div class="callout warn"><span class="tag">Atenção</span><span>Sempre que o contrato é salvo, ou quando "Atualizar Índices" é clicado, <b>o cronograma inteiro é apagado e regerado do zero</b> com a taxa efetiva do momento. Não existe edição isolada de uma parcela.</span></div>
+        <div class="src"><b>Fonte:</b> src/lib/amortizacao.ts</div>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Indicadores do topo</h3><span class="rule-tag calc">agregado</span></div>
+        <div class="formula">Saldo Devedor Total   = Σ Saldo Devedor Atual de todos os contratos ativos
+Curto Prazo (CP)     = Σ Saldo Devedor Atual dos contratos com Vencimento ≤ 360 dias corridos de hoje
+Longo Prazo (LP)     = Saldo Devedor Total − Curto Prazo
+Custo Médio Ponderado = Σ(Saldo Atual × Taxa Efetiva) ÷ Σ(Saldo Atual)</div>
+        <div class="callout warn"><span class="tag">Atenção</span><span>CP/LP olha o <b>vencimento final do contrato</b>, não de cada parcela — um contrato de longo prazo com parcela vencendo em 3 meses entra 100% em LP se o vencimento final for além de 360 dias.</span></div>
+        <p class="note">Custo Médio Ponderado usa a Taxa Efetiva já aplicada no último cronograma gerado; se o contrato nunca gerou cronograma, cai para a Taxa cadastrada bruta.</p>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Aba "Por Credor"</h3><span class="rule-tag calc">agregado</span></div>
+        <p>Agrupa contratos pelo texto exato do campo Banco/Credor. Por credor:</p>
+        <div class="formula">% do total = Saldo Atual do credor ÷ Saldo Atual de TODOS os contratos ativos</div>
+        <p>Lista ordenada do maior para o menor Saldo Atual. Mostra também Saldo Inicial ("Contratado"), quantidade de contratos e os Tipos de Operação distintos daquele credor.</p>
+        <div class="callout warn"><span class="tag">Atenção</span><span>O agrupamento é por texto exato — "Banco do Brasil" e "BANCO DO BRASIL" (ou com espaço extra) aparecem como dois credores diferentes no ranking.</span></div>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Aba "Cronograma"</h3><span class="rule-tag calc">agregado</span></div>
+        <p>Soma as parcelas já geradas de todos os contratos ativos, agrupadas por <b>ano-calendário da data de pagamento</b> — não por safra.</p>
+        <div class="formula">Ano → Juros = Σ valor de Juros das parcelas daquele ano
+Ano → Amortização = Σ valor de Principal das parcelas daquele ano
+Ano → Total = Juros + Amortização
+Composição por Tipo de Operação = Σ valor total das parcelas do ano, agrupado por Tipo de Operação</div>
+        <ul>
+          <li>Anos com Juros = 0 <b>e</b> Amortização = 0 são descartados da lista (evita linha fantasma de contratos com pagamento único no vencimento).</li>
+          <li>O ano final exibido é o maior entre "último ano com parcela" e "maior Data de Vencimento entre os contratos ativos" — pode aparecer um ano sem valor, marcando só o horizonte do contrato mais longo.</li>
+          <li><b>"Contratos sem Índice"</b> = contratos indexados (não Pré-fixados) cuja projeção ainda está usando só o spread, porque o índice de referência ainda não foi buscado.</li>
+        </ul>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Aba "Fluxo Detalhado"</h3><span class="rule-tag calc">agregado</span></div>
+        <p>Um card por contrato ativo, parcela a parcela (agrupado por ano quando há mais de uma parcela por ano).</p>
+        <div class="formula">Saldo Inicial da 1ª parcela = Saldo Inicial cadastrado no contrato
+Saldo Inicial das demais    = Saldo Devedor da parcela anterior</div>
+        <div class="callout info"><span class="tag">Regra</span><span>A "memória de taxa" mostrada no card (ex.: "CDI 13,90% + 4,00% = 17,90% a.a.") reflete o índice que foi <b>efetivamente aplicado na última geração do cronograma</b> — não o índice vigente agora. Se o CDI mudou e "Atualizar Índices" ainda não foi clicado, a memória continua batendo com a tabela, não com o mercado hoje.</span></div>
+      </div>
+
+      <div class="src"><b>Fonte:</b> src/server/cronograma-engine.ts · src/server/contratos-bancarios.ts</div>
+
+      <div class="flagbox" data-rule="Bancos">
+        <button class="flag-toggle" type="button" onclick="toggleFlag(this)">⚑ Registrar divergência — Bancos</button>
+        <div class="flag-form">
+          <label>Em qual aba (Credor / Cronograma / Fluxo Detalhado)? O que diverge?</label>
+          <textarea placeholder="Ex.: Aba Cronograma, contrato Banco X, ano 2027 — Juros exibido R$ 45.200, recalculei manualmente e deu R$ 43.900."></textarea>
+          <div class="flag-actions">
+            <button class="btn primary" type="button" onclick="saveFlag(this)">Salvar registro</button>
+            <button class="btn ghost" type="button" onclick="toggleFlag(this)">Cancelar</button>
+          </div>
+          <p class="saved-hint">Registrado — veja em "Divergências registradas" no fim da página.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section class="module" id="aquisicao">
+      <div class="module-head"><span class="module-num">03</span><h2>Aquisição de Fazendas</h2></div>
+      <p class="module-sub">
+        Gera as parcelas de compra de uma fazenda em dois modos possíveis — Sacas ou Reais — mais uma linha de
+        Entrada opcional.
+      </p>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Safras cobertas pelo contrato</h3><span class="rule-tag calc">calculado</span></div>
+        <div class="formula">Nº de safras = arredondar( meses entre Início do Pagamento e Vencimento ÷ 12 )   — mínimo 1</div>
+        <p class="note">Uma linha (parcela) é gerada para cada safra inteira coberta pelo intervalo.</p>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Modo Sacas</h3><span class="rule-tag calc">calculado</span></div>
+        <div class="formula">Sacas por safra = Sacas/ha × Área Total (ha)         — igual em todas as safras
+Valor da parcela = Sacas por safra × Preço de Referência do contrato</div>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Modo Reais</h3><span class="rule-tag calc">calculado</span></div>
+        <p>Reaproveita o mesmo motor de cronograma bancário (módulo 02), com parâmetros fixos: sistema <b>PRICE</b>, periodicidade <b>Anual</b>, base <b>360 dias corridos</b>, capitalização <b>Composta</b> — aplicados sobre o Valor Financiado e a Taxa (% a.a.) do contrato.</p>
+        <div class="formula">Valor da parcela do ano = Principal do ano + Juros do ano   (curva PRICE)</div>
+        <div class="callout info"><span class="tag">Regra</span><span>A tela de Aquisição não tem seletor de Sistema de Amortização — PRICE é sempre a convenção usada no modo Reais.</span></div>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Entrada (Sinal)</h3><span class="rule-tag calc">calculado</span></div>
+        <p>Comum aos dois modos: se Valor de Entrada e Safra da Entrada estiverem preenchidos, gera uma linha própria "Entrada", fora do cronograma de parcelas, na data 31/03 do 2º ano da safra escolhida.</p>
+      </div>
+
+      <div class="src"><b>Fonte:</b> src/lib/aquisicao-engine.ts</div>
+
+      <div class="flagbox" data-rule="Aquisição de Fazendas">
+        <button class="flag-toggle" type="button" onclick="toggleFlag(this)">⚑ Registrar divergência — Aquisição de Fazendas</button>
+        <div class="flag-form">
+          <label>O que diverge, e qual o valor esperado?</label>
+          <textarea placeholder="Ex.: Contrato Fazenda Y, modo Reais — a parcela de 2028 deveria ser R$ 310.000, sistema mostrou R$ 298.400."></textarea>
+          <div class="flag-actions">
+            <button class="btn primary" type="button" onclick="saveFlag(this)">Salvar registro</button>
+            <button class="btn ghost" type="button" onclick="toggleFlag(this)">Cancelar</button>
+          </div>
+          <p class="saved-hint">Registrado — veja em "Divergências registradas" no fim da página.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section class="module" id="arrendamentos">
+      <div class="module-head"><span class="module-num">04</span><h2>Arrendamentos</h2></div>
+      <p class="module-sub">
+        Mesma lógica de safras cobertas da Aquisição, com duas diferenças: preço com fallback automático em
+        Cotações, e um Pagamento Antecipado opcional.
+      </p>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Modo Sacas</h3><span class="rule-tag calc">calculado</span></div>
+        <div class="formula">Sacas Brutas por safra = Sacas/ha × Área Arrendada (ha)
+Sacas Líquidas = Sacas Brutas − Sacas Antecipadas (0 fora da safra de referência)
+Valor da parcela = Sacas Líquidas × Preço/saca</div>
+        <div class="callout info"><span class="tag">Regra — Preço/saca</span><span>Usa o "Preço de Referência" do próprio contrato quando cadastrado; se estiver vazio, busca automaticamente o preço definido em Cotações para a cultura do contrato. Sem nenhum dos dois, a parcela fica marcada <b>"sem preço"</b> — nunca vira R$ 0 na tela.</span></div>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Modo Reais</h3><span class="rule-tag calc">calculado</span></div>
+        <div class="formula">Se "Valor Total do Contrato" foi informado:
+    Valor Anual = Valor Total ÷ nº de safras cobertas
+
+Senão:
+    Valor Anual = Preço por Hectare × Área Arrendada</div>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Pagamento Antecipado</h3><span class="rule-tag calc">calculado</span></div>
+        <p>Opcional. Abate um valor (em sacas ou em R$, conforme o modo) do total da safra marcada como "Safra de Referência da Antecipação" — limitado ao total daquela safra. Nas demais safras do contrato, o abatimento é sempre zero.</p>
+      </div>
+
+      <div class="src"><b>Fonte:</b> src/lib/arrendamento-engine.ts</div>
+
+      <div class="flagbox" data-rule="Arrendamentos">
+        <button class="flag-toggle" type="button" onclick="toggleFlag(this)">⚑ Registrar divergência — Arrendamentos</button>
+        <div class="flag-form">
+          <label>O que diverge, e qual o valor esperado?</label>
+          <textarea placeholder="Ex.: Contrato Sítio Z, safra 2027/2028 — sacas líquidas exibidas não bateram com o pagamento antecipado registrado no papel."></textarea>
+          <div class="flag-actions">
+            <button class="btn primary" type="button" onclick="saveFlag(this)">Salvar registro</button>
+            <button class="btn ghost" type="button" onclick="toggleFlag(this)">Cancelar</button>
+          </div>
+          <p class="saved-hint">Registrado — veja em "Divergências registradas" no fim da página.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section class="module" id="fluxo-safra">
+      <div class="module-head"><span class="module-num">05</span><h2>Fluxo de Safra</h2></div>
+      <p class="module-sub">
+        Não tem cadastro próprio: é um agregador que lê ao vivo os quatro módulos acima, mais Fornecedores e
+        Comercialização, para uma safra escolhida.
+      </p>
+      <div class="chiprow"><span class="chip">agregador — sem tabela própria</span><span class="chip">conversão safra → ano bancário</span></div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Conversão safra → ano-calendário</h3><span class="rule-tag calc">regra base</span></div>
+        <div class="formula">Ano bancário da safra "2026/2027" = 2027   (sempre o 2º ano da safra)</div>
+        <p class="note">Necessário porque o Cronograma de Bancos (módulo 02) agrega por ano-calendário, não por safra. É esse ano que busca a Amortização e os Juros do período na aba Cronograma de Bancos.</p>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Entradas</h3><span class="rule-tag calc">agregado</span></div>
+        <table class="data">
+          <tr><th>Linha</th><th>Origem</th></tr>
+          <tr><td>Receita Projetada da Safra</td><td>Σ Receita Bruta (Quadro de Safra) de todas as culturas da safra</td></tr>
+          <tr><td>+ itens manuais</td><td>lançamentos do modal "Adicionar Item" (Receita Venda de Fazenda, Estoques, Outras Entradas)</td></tr>
+        </table>
+        <p class="note"><b>Receita Realizada</b> (Σ Quantidade × Preço Fixado dos contratos de Comercialização com status Liquidado) aparece só como referência ao lado do KPI — não entra na soma do Fluxo Líquido.</p>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Saídas</h3><span class="rule-tag calc">agregado</span></div>
+        <table class="data">
+          <tr><th>Linha</th><th>Origem</th></tr>
+          <tr><td>Custo de Produção da Safra</td><td>Σ Despesa (Quadro de Safra) da safra</td></tr>
+          <tr><td>Fornecedores</td><td>Σ Dívida Total dos fornecedores cadastrados para a safra</td></tr>
+          <tr><td>Amortização / Juros Programados</td><td>direto da aba Cronograma de Bancos, no ano bancário equivalente</td></tr>
+          <tr><td>Arrendamentos</td><td>Σ Valor Total das parcelas de arrendamento da safra</td></tr>
+          <tr><td>Despesa Comercial</td><td>Área de Soja × 3 sc/ha × Cotação de Soja definida</td></tr>
+          <tr><td>Parcelas de Aquisição de Fazenda</td><td>Σ Valor Total das parcelas de aquisição da safra</td></tr>
+          <tr><td>+ itens manuais</td><td>Dividendos/Retiradas, Manutenção de Máquinas, Correção de Solo, Outras Saídas</td></tr>
+        </table>
+        <div class="callout warn"><span class="tag">Atenção</span><span><b>Despesa Comercial</b>: 0 se não há área de Soja na safra; aparece como <b>"indisponível"</b> (nunca 0) se há área de Soja mas nenhuma cotação foi definida em Cotações.</span></div>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Totais e Índice de Cobertura</h3><span class="rule-tag calc">calculado</span></div>
+        <div class="formula">Fluxo de Caixa Líquido = Total de Entradas − Total de Saídas
+Índice de Cobertura   = Total de Entradas ÷ Total de Saídas    (0 se Saídas = 0)</div>
+        <table class="data">
+          <tr><th>Índice</th><th>Classificação</th></tr>
+          <tr><td class="num">≥ 1,2x</td><td>Saudável</td></tr>
+          <tr><td class="num">≥ 1,0x e &lt; 1,2x</td><td>Atenção</td></tr>
+          <tr><td class="num">&lt; 1,0x</td><td>Crítico</td></tr>
+        </table>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Estrutura de Financiamento Necessária</h3><span class="rule-tag calc">calculado</span></div>
+        <div class="formula">Renovação de Dívidas Bancárias (CP+LP) = Σ Saldo Devedor Atual de TODOS os contratos bancários ativos
+Fornecedores Previstos (próxima safra) = Σ Dívida Total dos fornecedores já cadastrados na safra seguinte
+Total de Recursos a Estruturar = soma das duas linhas acima</div>
+        <div class="callout warn"><span class="tag">Atenção</span><span>A linha de dívida bancária não é filtrada por safra nem separada em CP/LP — soma todos os contratos ativos, porque o cadastro ainda não guarda essa distinção por contrato.</span></div>
+      </div>
+
+      <div class="rule">
+        <div class="rule-head"><h3>Análise — Próxima Safra</h3><span class="rule-tag calc">calculado</span></div>
+        <div class="formula">Fluxo Disponível        = Fluxo de Caixa Líquido da safra atual
+Custo Projetado          = mesmo Custo de Produção da safra atual (usado como proxy)
+Déficit/Superávit        = Fluxo Disponível − Custo Projetado</div>
+        <div class="callout info"><span class="tag">Desvio deliberado</span><span>O selo de status deste bloco (Saudável/Atenção/Crítico) usa o <b>mesmo critério do Índice de Cobertura</b> do topo — não o sinal isolado do Déficit/Superávit. No sistema original havia um caso documentado de selo verde ao lado de um número vermelho; aqui o critério é sempre explícito.</span></div>
+      </div>
+
+      <div class="src"><b>Fonte:</b> src/lib/fluxo-safra-calc.ts</div>
+
+      <div class="flagbox" data-rule="Fluxo de Safra">
+        <button class="flag-toggle" type="button" onclick="toggleFlag(this)">⚑ Registrar divergência — Fluxo de Safra</button>
+        <div class="flag-form">
+          <label>Qual linha do demonstrativo diverge, e qual o valor esperado?</label>
+          <textarea placeholder="Ex.: Safra 2026/2027 — Índice de Cobertura mostrou 1,15x (Atenção), esperávamos Saudável considerando a receita realizada informal já negociada."></textarea>
+          <div class="flag-actions">
+            <button class="btn primary" type="button" onclick="saveFlag(this)">Salvar registro</button>
+            <button class="btn ghost" type="button" onclick="toggleFlag(this)">Cancelar</button>
+          </div>
+          <p class="saved-hint">Registrado — veja em "Divergências registradas" no fim da página.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <section class="module" id="ledger">
+      <div class="module-head"><span class="module-num">—</span><h2>Divergências registradas</h2></div>
+      <p class="module-sub">
+        Ficam salvas somente neste navegador (não são enviadas automaticamente). Use "Copiar tudo" para colar num
+        e-mail ou mensagem quando terminar a revisão.
+      </p>
+      <div class="ledger-card">
+        <div id="ledger-list"><p class="ledger-empty">Nenhuma divergência registrada ainda.</p></div>
+        <div class="ledger-actions">
+          <span class="ledger-count" id="ledger-count"></span>
+          <button class="btn primary" type="button" onclick="copyAll()">Copiar tudo</button>
+          <button class="btn ghost" type="button" onclick="clearAll()">Limpar tudo</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer class="doc-footer">
+  AgroGestão — documento gerado para validação de regras de negócio com o cliente. Reflete a lógica de cálculo
+  implementada no sistema na data indicada no topo; alterações posteriores ao motor de cálculo não são refletidas
+  automaticamente aqui.
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const STORAGE_KEY = 'agrogestao-divergencias-v1';
+
+  function loadFlags() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+
+  function saveFlags(list) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); } catch (e) {}
+  }
+
+  function toggleFlag(btn) {
+    const form = btn.nextElementSibling;
+    form.classList.toggle('open');
+    if (form.classList.contains('open')) {
+      const ta = form.querySelector('textarea');
+      ta.focus();
+    }
+  }
+
+  function saveFlag(btn) {
+    const form = btn.closest('.flag-form');
+    const box = btn.closest('.flagbox');
+    const textarea = form.querySelector('textarea');
+    const text = textarea.value.trim();
+    if (!text) { textarea.focus(); return; }
+
+    const list = loadFlags();
+    list.push({
+      id: 'f' + Date.now() + Math.random().toString(36).slice(2, 7),
+      regra: box.getAttribute('data-rule'),
+      texto: text,
+      data: new Date().toLocaleString('pt-BR')
+    });
+    saveFlags(list);
+
+    textarea.value = '';
+    form.classList.remove('open');
+    const hint = form.querySelector('.saved-hint');
+    hint.classList.add('show');
+    setTimeout(() => hint.classList.remove('show'), 2600);
+
+    renderLedger();
+    showToast('Divergência registrada em "' + box.getAttribute('data-rule') + '"');
+  }
+
+  function renderLedger() {
+    const list = loadFlags();
+    const container = document.getElementById('ledger-list');
+    const count = document.getElementById('ledger-count');
+    count.textContent = list.length + (list.length === 1 ? ' registro' : ' registros');
+
+    if (list.length === 0) {
+      container.innerHTML = '<p class="ledger-empty">Nenhuma divergência registrada ainda.</p>';
+      return;
+    }
+
+    container.innerHTML = list.map(item => `
+      <div class="ledger-item">
+        <div class="body">
+          <div class="rulename">${escapeHtml(item.regra)}</div>
+          <div class="txt">${escapeHtml(item.texto)}</div>
+          <div class="ts">${escapeHtml(item.data)}</div>
+        </div>
+        <button type="button" aria-label="Remover" onclick="removeFlag('${item.id}')">&times;</button>
+      </div>
+    `).join('');
+  }
+
+  function removeFlag(id) {
+    const list = loadFlags().filter(i => i.id !== id);
+    saveFlags(list);
+    renderLedger();
+  }
+
+  function clearAll() {
+    if (!confirm('Remover todas as divergências registradas neste navegador?')) return;
+    saveFlags([]);
+    renderLedger();
+  }
+
+  function copyAll() {
+    const list = loadFlags();
+    if (list.length === 0) { showToast('Nada para copiar ainda.'); return; }
+    const text = 'Divergências — Regras de Cálculo AgroGestão\n\n' + list.map((item, i) =>
+      `${i + 1}. [${item.regra}] (${item.data})\n${item.texto}`
+    ).join('\n\n');
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => showToast('Copiado — cole no e-mail ou mensagem.'),
+        () => showToast('Não foi possível copiar automaticamente.')
+      );
+    } else {
+      showToast('Cópia automática indisponível neste navegador.');
+    }
+  }
+
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(window.__toastTimer);
+    window.__toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  renderLedger();
+</script>

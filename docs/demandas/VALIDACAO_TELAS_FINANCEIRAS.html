@@ -1,0 +1,893 @@
+<title>Guia de Validação Financeira</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --bg: #f6f7f1;
+    --surface: #ffffff;
+    --surface-alt: #edf1e4;
+    --border: #dde3d1;
+    --border-strong: #c7d0b8;
+    --text: #1a2116;
+    --text-muted: #5b6553;
+    --text-faint: #838f77;
+    --accent: #4f7a1c;
+    --accent-strong: #3c5e14;
+    --accent-soft: #e4efd3;
+    --warning: #96590a;
+    --warning-soft: #faead0;
+    --warning-border: #edcf98;
+    --critical: #a13a35;
+    --critical-soft: #f7e2df;
+    --info: #2f5a8a;
+    --info-soft: #e2ecf5;
+    --shadow: 0 1px 2px rgba(26,33,22,0.04), 0 8px 24px -12px rgba(26,33,22,0.12);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10140d;
+      --surface: #161c11;
+      --surface-alt: #1c2416;
+      --border: #2b3423;
+      --border-strong: #3a4630;
+      --text: #e9ecdf;
+      --text-muted: #a3ae94;
+      --text-faint: #7c8870;
+      --accent: #9fd94e;
+      --accent-strong: #b8ea6e;
+      --accent-soft: #24311a;
+      --warning: #e2ac5d;
+      --warning-soft: #362c18;
+      --warning-border: #574320;
+      --critical: #e28a83;
+      --critical-soft: #3a211e;
+      --info: #8bb4e0;
+      --info-soft: #1c2a3a;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -16px rgba(0,0,0,0.55);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #10140d;
+    --surface: #161c11;
+    --surface-alt: #1c2416;
+    --border: #2b3423;
+    --border-strong: #3a4630;
+    --text: #e9ecdf;
+    --text-muted: #a3ae94;
+    --text-faint: #7c8870;
+    --accent: #9fd94e;
+    --accent-strong: #b8ea6e;
+    --accent-soft: #24311a;
+    --warning: #e2ac5d;
+    --warning-soft: #362c18;
+    --warning-border: #574320;
+    --critical: #e28a83;
+    --critical-soft: #3a211e;
+    --info: #8bb4e0;
+    --info-soft: #1c2a3a;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px -16px rgba(0,0,0,0.55);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection { background: var(--accent-soft); color: var(--text); }
+
+  h1, h2, h3, h4 {
+    font-family: "Fraunces", Georgia, "Times New Roman", serif;
+    font-weight: 600;
+    color: var(--text);
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  a { color: var(--accent-strong); }
+
+  code, .mono, .num {
+    font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 clamp(16px, 4vw, 48px) 96px;
+  }
+
+  /* ---------- Masthead ---------- */
+  .masthead {
+    padding: clamp(40px, 7vw, 72px) 0 40px;
+    border-bottom: 1px solid var(--border);
+  }
+  .masthead .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent-strong);
+    margin-bottom: 18px;
+  }
+  .masthead .eyebrow::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .masthead h1 {
+    font-size: clamp(2rem, 4.4vw, 3rem);
+    line-height: 1.08;
+    max-width: 16ch;
+  }
+  .masthead .lede {
+    margin-top: 18px;
+    max-width: 62ch;
+    font-size: 1.09rem;
+    color: var(--text-muted);
+  }
+  .masthead .meta-row {
+    margin-top: 28px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 28px;
+    font-size: 13.5px;
+    color: var(--text-faint);
+  }
+  .masthead .meta-row strong { color: var(--text-muted); font-weight: 600; }
+
+  /* ---------- How-to card ---------- */
+  .howto {
+    margin-top: 40px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    padding: clamp(20px, 3vw, 30px) clamp(20px, 3vw, 34px);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  @media (max-width: 760px) { .howto { grid-template-columns: 1fr; } }
+  .howto h3 {
+    font-size: 0.98rem;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .howto h3 .n { font-family: "JetBrains Mono", monospace; color: var(--accent-strong); font-size: 0.85rem; }
+  .howto p { margin: 8px 0 0; font-size: 14.5px; color: var(--text-muted); }
+
+  /* ---------- Layout: TOC + content ---------- */
+  .layout {
+    margin-top: 56px;
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 48px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  .toc {
+    position: sticky;
+    top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  @media (max-width: 900px) {
+    .toc {
+      position: static;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+  }
+  .toc .toc-label {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 10px;
+  }
+  @media (max-width: 900px) { .toc .toc-label { width: 100%; margin-bottom: 4px; } }
+  .toc a {
+    text-decoration: none;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border-left: 2px solid transparent;
+  }
+  @media (max-width: 900px) {
+    .toc a { border: 1px solid var(--border); border-radius: 20px; padding: 6px 13px; font-size: 13px; }
+  }
+  .toc a:hover { color: var(--text); background: var(--surface-alt); }
+
+  main { min-width: 0; }
+
+  /* ---------- Section ---------- */
+  .screen-section {
+    scroll-margin-top: 24px;
+    padding-top: 8px;
+    margin-bottom: 76px;
+  }
+  .screen-section:first-child { padding-top: 0; }
+
+  .screen-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+    padding-bottom: 22px;
+    border-bottom: 2px solid var(--border-strong);
+    margin-bottom: 30px;
+  }
+  .screen-header .idx {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    color: var(--accent-strong);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 5px 10px;
+    line-height: 1;
+    margin-top: 6px;
+  }
+  .screen-header h2 {
+    font-size: clamp(1.5rem, 2.6vw, 1.9rem);
+  }
+  .screen-header .sub {
+    margin-top: 6px;
+    color: var(--text-muted);
+    font-size: 15px;
+    max-width: 62ch;
+  }
+
+  .block { margin-bottom: 34px; }
+  .block h3 {
+    font-family: "Source Sans 3", sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 14px;
+  }
+  .block > p { color: var(--text); max-width: 68ch; }
+  .block > p.muted { color: var(--text-muted); }
+
+  /* ---------- Tags ---------- */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    padding: 3px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .tag::before { content: ""; width: 6px; height: 6px; border-radius: 50%; }
+  .tag-auto { background: var(--accent-soft); color: var(--accent-strong); }
+  .tag-auto::before { background: var(--accent); }
+  .tag-manual { background: var(--warning-soft); color: var(--warning); }
+  .tag-manual::before { background: var(--warning); }
+  .tag-external { background: var(--info-soft); color: var(--info); }
+  .tag-external::before { background: var(--info); }
+  .tag-derived { background: var(--surface-alt); color: var(--text-muted); border: 1px solid var(--border); }
+  .tag-derived::before { background: var(--text-faint); }
+
+  /* ---------- Source table ---------- */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; min-width: 560px; }
+  thead th {
+    text-align: left;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    padding: 12px 16px;
+    background: var(--surface-alt);
+    border-bottom: 1px solid var(--border);
+  }
+  tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    color: var(--text);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody td.dim { color: var(--text-muted); }
+  .table-wrap.small td, .table-wrap.small th { padding: 9px 14px; }
+
+  /* ---------- Formula card ---------- */
+  .formula-grid { display: flex; flex-direction: column; gap: 12px; }
+  .formula {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    box-shadow: var(--shadow);
+  }
+  .formula .fname { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+  .formula .fexpr {
+    display: block;
+    margin: 8px 0;
+    font-size: 13.5px;
+    color: var(--accent-strong);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 8px 12px;
+    overflow-x: auto;
+  }
+  .formula .fnote { font-size: 14px; color: var(--text-muted); margin: 0; }
+
+  /* ---------- Rule list ---------- */
+  ul.rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  ul.rules li {
+    position: relative;
+    padding-left: 22px;
+    font-size: 15px;
+    color: var(--text);
+  }
+  ul.rules li::before {
+    content: "";
+    position: absolute;
+    left: 2px; top: 9px;
+    width: 6px; height: 6px;
+    border-radius: 1px;
+    background: var(--accent);
+    transform: rotate(45deg);
+  }
+  ul.rules li strong { font-weight: 600; }
+  ul.rules li .dim { color: var(--text-muted); }
+
+  /* ---------- Callout: pending ---------- */
+  .callout {
+    border: 1px solid var(--warning-border);
+    background: var(--warning-soft);
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .callout ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .callout li { padding-left: 24px; position: relative; font-size: 14.5px; color: var(--text); }
+  .callout li::before {
+    content: "?";
+    position: absolute; left: 0; top: -1px;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--warning);
+    color: var(--surface);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .callout li strong { font-weight: 600; }
+
+  /* ---------- Summary table (pendencias consolidadas) ---------- */
+  .pri {
+    display: inline-block;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-weight: 600;
+  }
+  .pri-alta { background: var(--critical-soft); color: var(--critical); }
+  .pri-media { background: var(--warning-soft); color: var(--warning); }
+  .pri-baixa { background: var(--surface-alt); color: var(--text-faint); border: 1px solid var(--border); }
+
+  /* ---------- Divider note ---------- */
+  .note {
+    font-size: 13.5px;
+    color: var(--text-faint);
+    border-top: 1px dashed var(--border);
+    margin-top: 20px;
+    padding-top: 14px;
+  }
+
+  footer {
+    margin-top: 60px;
+    padding-top: 28px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text-faint);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .screen-section { scroll-behavior: smooth; }
+  }
+</style>
+
+<div class="shell">
+
+  <header class="masthead">
+    <span class="eyebrow">Guia de validação · dados financeiros</span>
+    <h1>De onde vêm os números do AgroGestão</h1>
+    <p class="lede">
+      Este documento explica, tela por tela, o que aparece em <strong>Fluxo Mensal</strong>,
+      <strong>Análise Financeira</strong> e <strong>Cotações</strong>: de onde cada número sai, quais são
+      calculados automaticamente e quais dependem de um dado digitado por alguém da equipe, e o que ainda
+      precisa da sua confirmação antes de tratarmos como definitivo. A ideia é que você consiga olhar a tela
+      do sistema com este texto do lado e conferir, linha por linha, se o número faz sentido.
+    </p>
+    <div class="meta-row">
+      <span><strong>Preparado em</strong> 27/08/2026</span>
+      <span><strong>Telas cobertas</strong> Fluxo Mensal · Análise Financeira · Cotações</span>
+      <span><strong>Base</strong> dados reais da conta, calculados a cada acesso — nunca uma foto antiga</span>
+    </div>
+  </header>
+
+  <section class="howto">
+    <div>
+      <h3><span class="n">01</span> Como ler as etiquetas</h3>
+      <p>
+        <span class="tag tag-auto">Automático</span> — o sistema calcula sozinho, a partir de outra tela já
+        cadastrada. <span class="tag tag-manual">Manual</span> — alguém digitou o valor. <span class="tag tag-external">Externo</span> — vem de uma fonte de mercado fora do AgroGestão (Banco Central, bolsas de commodities).
+      </p>
+    </div>
+    <div>
+      <h3><span class="n">02</span> O que validar</h3>
+      <p>
+        Compare os totais da tela com os números que você já conhece do dia a dia da fazenda — safra, dívidas,
+        preços praticados. Divergência não é necessariamente erro: pode ser questão de safra selecionada ou de
+        um dado complementar ainda não preenchido.
+      </p>
+    </div>
+    <div>
+      <h3><span class="n">03</span> Onde estão as dúvidas</h3>
+      <p>
+        Cada seção termina com um quadro <strong style="color:var(--warning)">"Pontos em aberto"</strong> —
+        são as decisões que tomamos por conta própria (por falta de uma regra confirmada) e que valem sua
+        palavra final. Há também um resumo de todas elas no fim do documento.
+      </p>
+    </div>
+  </section>
+
+  <div class="layout">
+    <nav class="toc">
+      <span class="toc-label">Nesta página</span>
+      <a href="#fluxo-mensal">Fluxo Mensal</a>
+      <a href="#analise-financeira">Análise Financeira</a>
+      <a href="#cotacoes">Cotações</a>
+      <a href="#pendencias">Resumo das pendências</a>
+    </nav>
+
+    <main>
+
+      <!-- ============================================================ -->
+      <!-- FLUXO MENSAL -->
+      <!-- ============================================================ -->
+      <section class="screen-section" id="fluxo-mensal">
+        <div class="screen-header">
+          <span class="idx">01</span>
+          <div>
+            <h2>Fluxo Mensal</h2>
+            <p class="sub">
+              O calendário de caixa da fazenda, mês a mês, cobrindo 18 meses — de janeiro do 1º ano da safra
+              selecionada até junho do ano seguinte. Mostra quando o dinheiro efetivamente entra e sai, cruzando
+              custeio e receita da safra com o calendário agrícola do Centro-Oeste.
+            </p>
+          </div>
+        </div>
+
+        <div class="block">
+          <h3>De onde vêm os lançamentos</h3>
+          <p class="muted">
+            Nada é digitado do zero nesta tela para os lançamentos recorrentes — eles nascem de quatro fontes
+            diferentes, identificadas na lista de lançamentos de cada mês:
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Tipo do lançamento</th><th>Origem</th><th>Como aparece na lista</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="tag tag-auto">Custeio</span></td>
+                  <td class="dim">Quadro de Safra × Calendário Agrícola</td>
+                  <td>Saída automática de custo de produção (R$/ha × área), distribuída nos meses de plantio de
+                    cada cultura. Pecuária entra igual em todos os 12 meses (atividade contínua, sem safra).</td>
+                </tr>
+                <tr>
+                  <td><span class="tag tag-auto">Safra</span></td>
+                  <td class="dim">Quadro de Safra</td>
+                  <td>Receita estimada da colheita, no(s) mês(es) de colheita de cada cultura. <strong>É só
+                    informativo — não entra nos totais de entrada/saída de caixa da tela</strong> (ver nota
+                    abaixo).</td>
+                </tr>
+                <tr>
+                  <td><span class="tag tag-auto">Projeção</span></td>
+                  <td class="dim">Espelho da linha "Safra", 1 mês depois</td>
+                  <td>Representa o dinheiro da colheita efetivamente caindo na conta, com 30 dias de atraso em
+                    relação à receita contábil. É essa linha, não a "Safra", que conta como entrada de caixa.</td>
+                </tr>
+                <tr>
+                  <td><span class="tag tag-derived">Vinculado</span></td>
+                  <td class="dim">Fornecedores · Bancos · Arrendamentos · Aquisição de Fazenda</td>
+                  <td>Cada parcela/vencimento já cadastrado nesses módulos aparece aqui automaticamente, no mês
+                    da sua data real — nada é copiado à mão.</td>
+                </tr>
+                <tr>
+                  <td><span class="tag tag-manual">Manual</span></td>
+                  <td class="dim">Botão "+ Lançamento"</td>
+                  <td>O único lançamento realmente digitado nesta tela — dividendos, retiradas, uma venda avulsa
+                    etc. — através do modal, com 19 categorias fixas (11 de saída, 8 de entrada).</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            A tela é sempre recalculada na hora — não existe botão "gerar" ou "sincronizar" que precise ser
+            clicado, nem risco de duplicar lançamento clicando duas vezes.
+          </p>
+        </div>
+
+        <div class="block">
+          <h3>Como os totais são calculados</h3>
+          <div class="formula-grid">
+            <div class="formula">
+              <div class="fname">Entradas / Saídas do mês</div>
+              <span class="fexpr">Entradas = soma de tudo do tipo Entrada que "conta como caixa" naquele mês<br>Saídas = soma de tudo do tipo Saída naquele mês</span>
+              <p class="fnote">
+                A linha "Safra" (receita por competência) fica de fora dessa soma de propósito — só a "Projeção"
+                (a mesma receita, 1 mês depois) entra, para não contar a mesma venda duas vezes.
+              </p>
+            </div>
+            <div class="formula">
+              <div class="fname">Saldo acumulado</div>
+              <span class="fexpr">Saldo do mês = Entradas − Saídas<br>Saldo Acumulado = Saldo Acumulado do mês anterior + Saldo do mês</span>
+              <p class="fnote">
+                É essa curva acumulada — não o saldo de um mês isolado — que decide o selo de "Situação"
+                no topo da tela (quantos meses a fazenda ficaria no vermelho se nada mudasse).
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="block">
+          <h3>Decisões aplicadas nesta reconstrução</h3>
+          <ul class="rules">
+            <li><strong>Sem dupla contagem de receita</strong> <span class="dim">— a versão original do AgroFlow parecia somar tanto "Safra" quanto "Projeção" nos totais, inflando as entradas em dobro; aqui só a "Projeção" (a entrada de caixa de fato) conta.</span></li>
+            <li><strong>Selo "Situação" pelo saldo acumulado</strong> <span class="dim">— um mês isolado no vermelho não vira alerta se o caixa acumulado ainda está positivo; o alerta olha a curva completa.</span></li>
+            <li><strong>Campo "Cultura" do lançamento manual é uma lista fechada</strong> <span class="dim">— evita "Soja", "soja" e "SOJA" virarem três coisas diferentes nos gráficos.</span></li>
+          </ul>
+        </div>
+
+        <div class="block">
+          <h3>Pontos em aberto para validação</h3>
+          <div class="callout">
+            <ul>
+              <li>
+                <strong>O preço usado no custeio/receita da safra é o "Preço Médio" digitado manualmente no
+                Quadro de Safra</strong>, não o preço de mercado ou o preço travado na tela Cotações. Se esse
+                campo estiver desatualizado, a receita projetada aqui também fica desatualizada, mesmo que a
+                cotação do dia esteja correta em outro lugar do sistema. Vale confirmar se isso é aceitável ou
+                se deveríamos puxar automaticamente da tela Cotações.
+              </li>
+              <li>
+                <strong>Só a cultura Soja tem preço de mercado usado noutras contas do sistema</strong>
+                (na Despesa Comercial da Análise Financeira); Milho, Algodão, Boi Gordo, Trigo e Café ainda
+                não têm esse mesmo cruzamento automático dentro do Fluxo Mensal.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- ANÁLISE FINANCEIRA -->
+      <!-- ============================================================ -->
+      <section class="screen-section" id="analise-financeira">
+        <div class="screen-header">
+          <span class="idx">02</span>
+          <div>
+            <h2>Análise Financeira</h2>
+            <p class="sub">
+              O raio-x financeiro da conta: um balanço patrimonial completo (o que a fazenda tem e deve), uma
+              DRE (o resultado da safra) e mais de 30 indicadores agrupados em 6 famílias, tudo recalculado a
+              cada vez que a tela abre — não é um número digitado uma vez e esquecido.
+            </p>
+          </div>
+        </div>
+
+        <div class="block">
+          <h3>De onde vêm os dados de cada bloco</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Bloco do balanço</th><th>Origem</th><th>Tipo</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Dívidas bancárias (curto e longo prazo)</td><td class="dim">Bancos — parcelas já geradas, separadas pela data real de vencimento</td><td><span class="tag tag-auto">Automático</span></td></tr>
+                <tr><td>Fornecedores a pagar</td><td class="dim">Fornecedores</td><td><span class="tag tag-auto">Automático</span></td></tr>
+                <tr><td>Arrendamentos do ano</td><td class="dim">Arrendamentos</td><td><span class="tag tag-auto">Automático</span></td></tr>
+                <tr><td>Aquisição de fazendas (parcelas)</td><td class="dim">Aquisição de Fazenda</td><td><span class="tag tag-auto">Automático</span></td></tr>
+                <tr><td>Receita, custo e área da safra (DRE)</td><td class="dim">Quadro de Safra</td><td><span class="tag tag-auto">Automático</span></td></tr>
+                <tr><td>Patrimônio pessoal (fazendas, máquinas, aplicações)</td><td class="dim">Bens e Direitos (Cadastro Mestre / IRPF)</td><td><span class="tag tag-auto">Automático</span></td></tr>
+                <tr><td>Caixa, estoques, obrigações trabalhistas/fiscais, capital social, CAPEX</td><td class="dim">Aba "Dados Complementares" desta própria tela</td><td><span class="tag tag-manual">Manual</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            A aba "Dados Complementares" existe justamente para os campos que nenhum outro módulo cobre — é a
+            única escrita própria deste módulo. Quanto mais completa ela estiver, mais preciso fica o balanço.
+          </p>
+        </div>
+
+        <div class="block">
+          <h3>Como o balanço fecha</h3>
+          <div class="formula-grid">
+            <div class="formula">
+              <div class="fname">Patrimônio Líquido</div>
+              <span class="fexpr">PL = Total do Ativo − Total do Passivo</span>
+              <p class="fnote">
+                O PL é sempre esse resultado — nunca uma soma separada que possa não bater. A linha "Bens IRPF"
+                mostrada dentro do PL é o que sobra dessa conta depois de descontar Capital Social e Resultado da
+                Safra; ela pode ficar um pouco diferente da soma independente dos bens cadastrados quando os
+                custos estimados da safra e as dívidas reais não se encaixam perfeitamente — é um efeito
+                conhecido de balanços que misturam projeção com dado real, não um erro de soma.
+              </p>
+            </div>
+            <div class="formula">
+              <div class="fname">Curto Prazo × Longo Prazo</div>
+              <span class="fexpr">Curto Prazo = parcela com vencimento em até 12 meses<br>Longo Prazo = o restante</span>
+              <p class="fnote">
+                Aplicado parcela a parcela nas dívidas bancárias e na Aquisição de Fazenda, usando a data real de
+                cada uma — não é mais uma estimativa genérica.
+              </p>
+            </div>
+            <div class="formula">
+              <div class="fname">Despesa Comercial (frete/armazenagem de venda)</div>
+              <span class="fexpr">Despesa = área de Soja (ha) × sacas/ha × preço da saca travado em Cotações</span>
+              <p class="fnote">
+                O "sacas por hectare" tem um padrão de 3, mas é configurável na aba Dados Complementares. Se não
+                houver preço de soja travado na tela Cotações para a safra, o sistema usa um valor manual de
+                respaldo em vez de travar em zero.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="block">
+          <h3>Os 32 indicadores e o radar "Saúde Financeira"</h3>
+          <p>
+            Cada indicador (Liquidez Corrente, Endividamento Geral, Margem EBITDA, DSCR, Dívida/Hectare etc.)
+            tem fórmula e referência de mercado mostradas no próprio card da tela. Eles são agrupados em 6
+            eixos — Liquidez, Endividamento, Rentabilidade, Cobertura, Eficiência e Solvência — e cada eixo vira
+            uma ponta do gráfico de radar do topo da aba "Índices".
+          </p>
+          <ul class="rules">
+            <li><strong>Indicador sem dado suficiente nunca aparece como "Crítico".</strong> <span class="dim">Ex.: "Cobertura de Arrendamento" sem nenhum arrendamento cadastrado vira "Sem dados", não uma nota vermelha de alerta — evita confundir "não há informação" com "situação ruim".</span></li>
+            <li><strong>A nota de cada eixo do radar é uma média própria</strong> <span class="dim">— pontuação de 0 a 100 por indicador (conforme o selo Excelente/Bom/Adequado/Atenção/Crítico/Sem dados), com a média dos indicadores daquele eixo. Ver pendência abaixo.</span></li>
+          </ul>
+        </div>
+
+        <div class="block">
+          <h3>Aba "Consolidado Grupo"</h3>
+          <p class="muted">
+            Espelha os mesmos números da Pessoa Física, com um selo fixo "PJ: 0 empresas" — o módulo de Balanço
+            PJ foi removido do sistema em 05/08/2026 a pedido do cliente, então não há hoje nenhum dado de
+            empresa (PJ) para somar. Se o grupo tiver empresas com balanço formal no futuro, esta aba é onde
+            elas entrariam.
+          </p>
+        </div>
+
+        <div class="block">
+          <h3>Pontos em aberto para validação</h3>
+          <div class="callout">
+            <ul>
+              <li>
+                <strong>A fórmula de agregação do radar "Saúde Financeira" é uma escolha nossa</strong>, não uma
+                cópia confirmada do AgroFlow original (o sistema de referência não expõe essa fórmula em lugar
+                nenhum da tela). Vale sua validação de que uma média simples por eixo, com indicadores "sem
+                dado" contando como neutro, é a leitura certa — ou se algum eixo deveria pesar mais que outro.
+              </li>
+              <li>
+                <strong>Os benchmarks do grupo "Indicadores do Agronegócio"</strong> (Receita/ha, Custo/ha,
+                Dívida/ha) usam faixas de referência de mercado da cultura Soja, mesmo em contas com várias
+                culturas — não temos ainda uma referência combinada por mix de cultura.
+              </li>
+              <li>
+                <strong>Serviço da Dívida</strong> (usado no DSCR e na Capacidade de Pagamento) pode ser
+                digitado manualmente na aba Dados Complementares; se não for preenchido, o sistema usa juros +
+                amortização do cronograma bancário do ano — vale confirmar qual das duas leituras reflete melhor
+                a realidade da fazenda.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- COTAÇÕES -->
+      <!-- ============================================================ -->
+      <section class="screen-section" id="cotacoes">
+        <div class="screen-header">
+          <span class="idx">03</span>
+          <div>
+            <h2>Cotações</h2>
+            <p class="sub">
+              A única tela do sistema cuja fonte primária não é um cadastro interno, mas o mercado financeiro em
+              si — câmbio e futuros agrícolas buscados ao vivo de fontes externas, com um botão para "travar" um
+              preço de referência por safra, que então alimenta o resto do sistema.
+            </p>
+          </div>
+        </div>
+
+        <div class="block">
+          <h3>De onde vem cada número</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Indicador</th><th>Fonte externa</th><th>Tipo</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Dólar (USD/BRL)</td><td class="dim">AwesomeAPI</td><td><span class="tag tag-external">Externo</span></td></tr>
+                <tr><td>Soja, Milho, Trigo, Algodão, Boi Gordo, Café Arábica (futuros)</td><td class="dim">Yahoo Finance — bolsas CBOT, CME e ICE New York</td><td><span class="tag tag-external">Externo</span></td></tr>
+                <tr><td>CDI, IPCA (usados em Bancos, não nesta tela)</td><td class="dim">Banco Central do Brasil (série SGS)</td><td><span class="tag tag-external">Externo</span></td></tr>
+                <tr><td>"Preço Definido" por safra</td><td class="dim">Digitado pelo usuário — parte do preço de mercado do dia, parte de decisão própria</td><td><span class="tag tag-manual">Manual</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            O "Preço Definido" é global entre todas as contas do sistema — todo cliente enxerga a mesma cotação
+            de soja travada para a safra 2026/2027, por exemplo. Isso foi uma decisão deliberada (preço de
+            commodity não é um dado exclusivo de uma fazenda), diferente do resto dos dados do AgroGestão, que
+            são sempre isolados por conta.
+          </p>
+        </div>
+
+        <div class="block">
+          <h3>Como o preço bruto da bolsa vira Reais por saca</h3>
+          <p class="muted">
+            A bolsa cota em centavos de dólar por unidade própria dela (bushel para grãos, libra-peso para os
+            demais) — bem diferente da saca de 60kg ou da arroba de 15kg usadas no Brasil. A conversão acontece
+            em duas etapas:
+          </p>
+          <div class="formula-grid">
+            <div class="formula">
+              <div class="fname">Etapa 1 — da unidade da bolsa para dólar por saca/arroba</div>
+              <span class="fexpr">USD por saca = (centavos de dólar da bolsa ÷ 100) × peso-padrão da saca ÷ peso do bushel/libra</span>
+              <p class="fnote">
+                Os pesos usados são padrões físicos internacionais (USDA): bushel de soja/trigo = 60 libras,
+                bushel de milho = 56 libras. Não é uma regra inventada — é a mesma conversão usada no mercado
+                real.
+              </p>
+            </div>
+            <div class="formula">
+              <div class="fname">Etapa 2 — de dólar para Real</div>
+              <span class="fexpr">R$ por saca = USD por saca × cotação do Dólar do dia</span>
+            </div>
+          </div>
+          <p class="note">
+            <strong>Exceção: Algodão.</strong> A "saca de pluma" não tem um peso padronizado confirmado entre as
+            praças de venda — por isso o card de Algodão mostra o preço em dólar/real por libra-peso, sem
+            converter para saca, até termos essa confirmação. Ver pendência abaixo.
+          </p>
+        </div>
+
+        <div class="block">
+          <h3>Comportamento da tela</h3>
+          <ul class="rules">
+            <li><strong>Botões "Aplicar Mercado" e "Salvar Todas"</strong> <span class="dim">pedem confirmação antes de sobrescrever um preço que já estava travado — evita perder um valor negociado por engano.</span></li>
+            <li><strong>Alerta de divergência</strong> <span class="dim">acende quando o preço travado se afasta mais de 10% do preço de mercado do dia, para chamar atenção de que a trava pode estar desatualizada.</span></li>
+            <li><strong>Aba "Histórico por Safra"</strong> <span class="dim">só começa a mostrar o gráfico depois que a mesma cultura tiver preço travado em 2 ou mais safras diferentes.</span></li>
+          </ul>
+        </div>
+
+        <div class="block">
+          <h3>Pontos em aberto para validação</h3>
+          <div class="callout">
+            <ul>
+              <li>
+                <strong>Peso da "saca de pluma" de Algodão</strong> — precisamos que você confirme o padrão
+                usado na sua operação/região para liberarmos a conversão automática para R$/saca, como já
+                acontece com as outras 5 commodities.
+              </li>
+              <li>
+                <strong>Quadro de Safra ainda não consome o preço travado desta tela</strong> — ele continua com
+                um campo de "Preço Médio" digitado à parte. Isso significa que travar um preço aqui em Cotações
+                não atualiza sozinho a receita projetada no Quadro de Safra nem no Fluxo de Safra (que também
+                só usa o preço da Soja). Alinhar se esse cruzamento deveria existir é o próximo passo pendente.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- RESUMO DE PENDÊNCIAS -->
+      <!-- ============================================================ -->
+      <section class="screen-section" id="pendencias" style="margin-bottom: 20px;">
+        <div class="screen-header">
+          <span class="idx">✓</span>
+          <div>
+            <h2>Resumo das pendências</h2>
+            <p class="sub">
+              Tudo que apareceu como "ponto em aberto" nas três telas, reunido numa lista só, com uma sugestão
+              de prioridade — para facilitar decidir por onde começar a conversa.
+            </p>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Tela</th><th>Pendência</th><th>Prioridade</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="dim">Fluxo Mensal</td>
+                <td>Custeio/receita da safra usa o "Preço Médio" manual do Quadro de Safra, não o preço travado em Cotações.</td>
+                <td><span class="pri pri-media">Média</span></td>
+              </tr>
+              <tr>
+                <td class="dim">Fluxo Mensal</td>
+                <td>Só a Soja tem cruzamento de preço com outras telas; as demais 5 commodities ainda não.</td>
+                <td><span class="pri pri-baixa">Baixa</span></td>
+              </tr>
+              <tr>
+                <td class="dim">Análise Financeira</td>
+                <td>Fórmula de agregação do radar "Saúde Financeira" é uma escolha própria, sem confirmação do padrão original.</td>
+                <td><span class="pri pri-media">Média</span></td>
+              </tr>
+              <tr>
+                <td class="dim">Análise Financeira</td>
+                <td>Benchmarks de "Indicadores do Agronegócio" usam só a referência de Soja, mesmo em contas multi-cultura.</td>
+                <td><span class="pri pri-baixa">Baixa</span></td>
+              </tr>
+              <tr>
+                <td class="dim">Análise Financeira</td>
+                <td>Confirmar se o "Serviço da Dívida" deve priorizar o valor manual (Dados Complementares) ou o cronograma bancário automático.</td>
+                <td><span class="pri pri-baixa">Baixa</span></td>
+              </tr>
+              <tr>
+                <td class="dim">Cotações</td>
+                <td>Peso padrão da "saca de pluma" de Algodão, para liberar a conversão automática para R$/saca.</td>
+                <td><span class="pri pri-alta">Alta</span></td>
+              </tr>
+              <tr>
+                <td class="dim">Cotações</td>
+                <td>Definir se o preço travado aqui deveria alimentar automaticamente o Quadro de Safra / Fluxo de Safra.</td>
+                <td><span class="pri pri-media">Média</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer>
+        <span>AgroGestão — documento de referência para validação de dados, não um contrato de especificação.</span>
+        <span>Gerado a partir do código em produção em 27/08/2026.</span>
+      </footer>
+
+    </main>
+  </div>
+</div>
