@@ -1,14 +1,27 @@
-// Ingestão de dados de mercado reais — três fontes públicas, nenhuma exige chave:
+// Ingestão de dados de mercado reais — fontes públicas, nenhuma exige chave:
+//  - Banco Central (olinda.bcb.gov.br, serviço PTAX): câmbio USD/BRL oficial.
+//    Fonte PRIMÁRIA do dólar desde 27/08/2026 — ver nota abaixo.
+//  - Banco Central (api.bcb.gov.br, sistema SGS): CDI e IPCA, usados no cálculo
+//    de juros dos contratos bancários indexados. Fonte primária e oficial do
+//    dado — não é agregador nem scraping de portal.
 //  - AwesomeAPI (economia.awesomeapi.com): câmbio USD/BRL, mantida por
-//    devs brasileiros, gratuita, sem cadastro.
+//    devs brasileiros, gratuita, sem cadastro. Rebaixada a RESERVA do dólar.
 //  - Yahoo Finance (query1.finance.yahoo.com/v8/finance/chart): cotação de
 //    futuros de commodities pelos mesmos tickers que já estavam no mock
 //    (ZS=F soja, ZC=F milho, CT=F algodão, GF=F boi, ZW=F trigo, KC=F café).
 //    Endpoint não-oficial, mas amplamente usado publicamente para leitura;
 //    se cair, o refresh simplesmente mantém o último preço salvo (fail-soft).
-//  - Banco Central (api.bcb.gov.br, sistema SGS): CDI e IPCA, usados no cálculo
-//    de juros dos contratos bancários indexados. Fonte primária e oficial do
-//    dado — não é agregador nem scraping de portal.
+//
+// POR QUE O DÓLAR MIGROU PARA A PTAX (27/08/2026): a AwesomeAPI responde 200
+// de uma rede residencial mas nunca gravou uma única vez em produção (função
+// serverless da Netlify, AWS us-east-2) — é um serviço brasileiro gratuito que
+// limita/bloqueia faixas de IP de datacenter, e mandar User-Agent explícito
+// não foi suficiente. Como o câmbio é o insumo que converte TODAS as
+// commodities para R$, essa falha derrubava a tela inteira. A PTAX resolve
+// isso por três motivos: é oficial, e é servida pelo MESMO host que
+// `fetchExpectativasFocusAnuais` já consome com sucesso em produção (prova de
+// alcançabilidade a partir do Netlify), e é semanticamente a taxa que o módulo
+// Bancos já usa (`ContratoBancario.ptaxInicial`).
 //
 // Todas seguem o mesmo contrato: retornam `null` em qualquer falha, nunca
 // lançam. Quem chama decide o que fazer com a ausência (tipicamente: manter o
@@ -21,6 +34,10 @@ export interface QuoteResult {
   maxima: number;
   minima: number;
   volume: number;
+  /** Rótulo da fonte que efetivamente respondeu — gravado junto do valor para a série de índices não registrar a origem errada. */
+  fonte?: string;
+  /** Data de referência do valor (YYYY-MM-DD). Na PTAX não é necessariamente hoje: a cotação do dia só sai ~13h BRT, e fim de semana/feriado não tem publicação. */
+  dataReferencia?: string;
 }
 
 /**
@@ -72,8 +89,106 @@ async function tentarFetchDolarBRL(): Promise<QuoteResult | null> {
  * segunda tentativa costuma resolver sozinha. Continua fail-soft: `null` se
  * as duas tentativas falharem, nunca lança.
  */
-export async function fetchDolarBRL(): Promise<QuoteResult | null> {
+async function fetchDolarAwesomeApi(): Promise<QuoteResult | null> {
   return (await tentarFetchDolarBRL()) ?? (await tentarFetchDolarBRL());
+}
+
+/** Dias corridos consultados para trás na PTAX — folga suficiente para qualquer emenda de feriado brasileiro. */
+const JANELA_DIAS_PTAX = 12;
+
+/** Date -> "MM-DD-YYYY" (formato exigido pelos parâmetros de data da API PTAX, não é ISO). */
+function dataParamPtax(d: Date): string {
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${mm}-${dd}-${d.getUTCFullYear()}`;
+}
+
+interface CotacaoPtaxRow {
+  cotacaoCompra: number;
+  cotacaoVenda: number;
+  /** "2026-08-26 13:05:20.847747" */
+  dataHoraCotacao: string;
+}
+
+/**
+ * PTAX (dólar oficial do Banco Central) — fonte primária do câmbio.
+ *
+ * Usa `CotacaoDolarPeriodo` (e não `CotacaoDolarDia`) de propósito: a PTAX só
+ * é publicada em dia útil, então consultar "hoje" devolve lista vazia em todo
+ * fim de semana e feriado. Pedir uma janela de dias e ordenar decrescente
+ * resolve isso numa única requisição, sem laço de retentativa por data.
+ *
+ * `$top=2` traz o último dia útil publicado E o anterior — é o que permite
+ * calcular a variação percentual de verdade, em vez de gravar zero.
+ *
+ * Sem cabeçalhos: `fetchExpectativasFocusAnuais` já chama este mesmo host sem
+ * nenhum e funciona em produção.
+ */
+export async function fetchPtaxDolar(): Promise<QuoteResult | null> {
+  try {
+    const hojeUtc = new Date();
+    const inicio = new Date(hojeUtc.getTime() - JANELA_DIAS_PTAX * 24 * 60 * 60 * 1000);
+    const url =
+      'https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/' +
+      'CotacaoDolarPeriodo(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)' +
+      `?@dataInicial='${dataParamPtax(inicio)}'&@dataFinalCotacao='${dataParamPtax(hojeUtc)}'` +
+      '&$top=2&$orderby=dataHoraCotacao%20desc&$format=json';
+
+    const res = await fetch(url, { next: { revalidate: 0 }, signal: AbortSignal.timeout(10000) });
+    if (!res.ok) {
+      console.error(`[market-data] PTAX respondeu ${res.status} ${res.statusText}`);
+      return null;
+    }
+
+    const data = await res.json();
+    const rows: CotacaoPtaxRow[] = data?.value ?? [];
+    const atual = rows[0];
+    if (!atual || !Number.isFinite(Number(atual.cotacaoVenda))) {
+      console.error(`[market-data] PTAX respondeu 200 mas sem cotação utilizável (${rows.length} linha(s))`);
+      return null;
+    }
+
+    // `cotacaoVenda` é a leitura usada em Bancos (ContratoBancario.ptaxInicial).
+    const venda = Number(atual.cotacaoVenda);
+    const anterior = rows[1] ? Number(rows[1].cotacaoVenda) : null;
+    const variacaoPercentual = anterior && anterior > 0 ? ((venda - anterior) / anterior) * 100 : 0;
+
+    return {
+      precoBrl: venda,
+      variacaoPercentual,
+      // A PTAX é uma cotação de fechamento, não tem máxima/mínima intradiária.
+      maxima: venda,
+      minima: venda,
+      volume: 0,
+      fonte: 'BCB PTAX (cotação de venda)',
+      dataReferencia: atual.dataHoraCotacao?.slice(0, 10)
+    };
+  } catch (e) {
+    console.error('[market-data] PTAX falhou:', e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/**
+ * Câmbio USD/BRL: PTAX oficial primeiro, AwesomeAPI como reserva.
+ *
+ * A AwesomeAPI segue no código (e não foi apagada) porque entrega máxima e
+ * mínima intradiárias que a PTAX não tem — quando ela está alcançável, o card
+ * do dólar fica mais rico. Mas ela nunca mais decide sozinha se a tela
+ * funciona.
+ */
+export async function fetchDolarBRL(): Promise<QuoteResult | null> {
+  const ptax = await fetchPtaxDolar();
+  if (ptax) return ptax;
+
+  console.error('[market-data] PTAX indisponível — tentando AwesomeAPI como reserva');
+  const awesome = await fetchDolarAwesomeApi();
+  return awesome ? { ...awesome, fonte: 'AwesomeAPI USD-BRL', dataReferencia: hojeIso() } : null;
+}
+
+/** Hoje em YYYY-MM-DD (UTC), usado como data de referência quando a fonte não informa uma. */
+function hojeIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 /** `usdBrl` converte o preço em USD do contrato futuro para BRL, quando aplicável. */
@@ -87,14 +202,23 @@ export async function fetchYahooQuote(ticker: string, usdBrl: number | null): Pr
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AgroGestaoBot/1.0)' }
       }
     );
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`[market-data] Yahoo Finance ${ticker} respondeu ${res.status} ${res.statusText}`);
+      return null;
+    }
     const data = await res.json();
     const meta = data?.chart?.result?.[0]?.meta;
-    if (!meta || typeof meta.regularMarketPrice !== 'number') return null;
+    if (!meta || typeof meta.regularMarketPrice !== 'number') {
+      console.error(`[market-data] Yahoo Finance ${ticker} respondeu 200 mas sem regularMarketPrice`);
+      return null;
+    }
 
     const precoUsd = meta.regularMarketPrice as number;
     const anterior = (meta.previousClose ?? meta.chartPreviousClose ?? precoUsd) as number;
     const variacaoPercentual = anterior > 0 ? ((precoUsd - anterior) / anterior) * 100 : 0;
+    // `??` só cobre null/undefined: um volume não-numérico passaria adiante e
+    // estouraria em BigInt(NaN) na hora de gravar.
+    const volumeBruto = Number(meta.regularMarketVolume);
 
     return {
       precoUsd,
@@ -102,9 +226,12 @@ export async function fetchYahooQuote(ticker: string, usdBrl: number | null): Pr
       variacaoPercentual,
       maxima: (meta.regularMarketDayHigh as number) ?? precoUsd,
       minima: (meta.regularMarketDayLow as number) ?? precoUsd,
-      volume: (meta.regularMarketVolume as number) ?? 0
+      volume: Number.isFinite(volumeBruto) ? volumeBruto : 0,
+      fonte: 'Yahoo Finance',
+      dataReferencia: hojeIso()
     };
-  } catch {
+  } catch (e) {
+    console.error(`[market-data] Yahoo Finance ${ticker} falhou:`, e instanceof Error ? e.message : e);
     return null;
   }
 }

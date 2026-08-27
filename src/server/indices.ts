@@ -58,7 +58,17 @@ export async function atualizarIndices(): Promise<ResultadoAtualizacaoIndices> {
 
   const dolar = await fetchDolarBRL();
   if (dolar) {
-    await inserirPontoRealizado('USD', dolar.precoBrl, 'BRL/USD', 'AwesomeAPI USD-BRL', hoje());
+    // Fonte e data vêm do próprio retorno: com a PTAX como fonte primária, a
+    // data de referência NÃO é sempre hoje (a cotação do dia sai ~13h BRT, e
+    // fim de semana/feriado não tem publicação). Gravar `hoje()` fixo faria a
+    // série registrar um ponto com data que a fonte nunca publicou.
+    await inserirPontoRealizado(
+      'USD',
+      dolar.precoBrl,
+      'BRL/USD',
+      dolar.fonte ?? 'AwesomeAPI USD-BRL',
+      dolar.dataReferencia ?? hoje()
+    );
     atualizados++;
   } else {
     falhas.push('Dólar (realizado)');

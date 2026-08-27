@@ -10,6 +10,12 @@ import { refreshCotacoes, salvarPrecoDefinidoSafra, aplicarMercadoEmLote } from 
 
 const LIMITE_DIVERGENCIA = 0.1; // 10% — ver docs/demandas/SPEC_TELA_COTACOES.md, seção 3.3
 
+/** "2026-08-19" -> "19/08/2026". Sem `new Date(...)`, que desloca a data por fuso. */
+function formatarData(iso: string): string {
+  const [ano, mes, dia] = iso.split('-');
+  return dia && mes && ano ? `${dia}/${mes}/${ano}` : iso;
+}
+
 /** Chips de cultura da aba "Histórico por Safra" — Soja e Milho vêm ativos por padrão, igual à spec. */
 const CHIPS_CULTURA: { commodity: string; label: string; ativoPadrao: boolean; cor: string }[] = [
   { commodity: 'Soja Grão', label: '🌱 Soja', ativoPadrao: true, cor: '#5f7d1c' },
@@ -143,6 +149,7 @@ export const CotacoesView: React.FC<CotacoesViewProps> = ({ dolar, commodities, 
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
+  const [avisoCambio, setAvisoCambio] = useState<string | null>(null);
   const [chipsAtivos, setChipsAtivos] = useState<Set<string>>(
     new Set(CHIPS_CULTURA.filter((c) => c.ativoPadrao).map((c) => c.commodity))
   );
@@ -158,11 +165,27 @@ export const CotacoesView: React.FC<CotacoesViewProps> = ({ dolar, commodities, 
 
   const handleAtualizar = () => {
     setErro(null);
+    setAvisoCambio(null);
     startTransition(async () => {
       const result = await refreshCotacoes();
+
       if (result.falhas.length > 0) {
-        setErro(`Não foi possível atualizar: ${result.falhas.join(', ')}.`);
+        // Cada falha carrega o motivo — uma lista de nomes sozinha não diz ao
+        // usuário o que aconteceu nem o que fazer a respeito.
+        const detalhes = result.falhas.map((f) => `${f.item} (${f.motivo})`).join(', ');
+        setErro(`Não foi possível atualizar: ${detalhes}.`);
       }
+
+      // Câmbio de rodada anterior converte os preços do mesmo jeito, mas o
+      // usuário precisa saber que o número em R$ não é do câmbio de hoje.
+      if (result.cambioUsado && !result.cambioUsado.aoVivo) {
+        setAvisoCambio(
+          `Preços em R$ convertidos pelo câmbio de ${formatarData(result.cambioUsado.data)} ` +
+            `(R$ ${result.cambioUsado.valor.toFixed(4)} — ${result.cambioUsado.fonte}), ` +
+            'porque não foi possível obter a cotação de hoje.'
+        );
+      }
+
       router.refresh();
     });
   };
@@ -265,6 +288,12 @@ export const CotacoesView: React.FC<CotacoesViewProps> = ({ dolar, commodities, 
       {erro && (
         <div className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
           {erro}
+        </div>
+      )}
+
+      {avisoCambio && (
+        <div className="text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-xl p-3">
+          {avisoCambio}
         </div>
       )}
 
