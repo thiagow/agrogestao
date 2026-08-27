@@ -126,7 +126,6 @@ model Conta {
   dividasPf            DividaPf[]
   capex                Capex[]
   perfilGrupoEconomico PerfilGrupoEconomico?
-  balancos             BalancoPatrimonial[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -171,6 +170,7 @@ model Propriedade {
   contratosComerciais ContratoComercial[]
   itensFluxoManual    ItemFluxoManual[]
   lancamentosManuaisMensais LancamentoManualMensal[]
+  dadosComplementaresFinanceiro DadosComplementaresFinanceiro[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1227,32 +1227,82 @@ model LancamentoManualMensal {
 // Análise Financeira — Balanço consolidado do grupo (Conta)
 // ============================================================
 
-// Indicadores são SEMPRE computados ao vivo a partir destes 6 campos
-// (src/lib/indicadores.ts) — nunca persistidos como número solto. Indicadores
-// que exigiriam contas mais finas (caixa, estoques, EBITDA...) não existentes
-// aqui ficam explicitamente "dados insuficientes" na UI, nunca inventados.
-model BalancoPatrimonial {
-  id                   String  @id @default(cuid())
-  contaId              String
-  safra                String // "2026/2027"
-  ativoCirculante      Decimal @db.Decimal(18, 2)
-  ativoNaoCirculante   Decimal @db.Decimal(18, 2)
-  passivoCirculante    Decimal @db.Decimal(18, 2)
-  passivoNaoCirculante Decimal @db.Decimal(18, 2)
-  capitalReservas      Decimal @db.Decimal(18, 2)
-  resultadoSafra       Decimal @db.Decimal(18, 2)
-  ativo                Boolean @default(true)
+// Réplica confirmada da tela "Análise de Índices Financeiros" do AgroFlow
+// (spec fotografada em 26/08/2026, docs/demandas/SPEC_TELA_ANALISE_FINANCEIRA.md).
+// Substituiu por completo o antigo `BalancoPatrimonial` (6 contas agregadas
+// digitadas à mão, 0 linhas em produção — sem risco de perda de dado) — Ativo/
+// Passivo/DRE/32 indicadores agora são SEMPRE computados ao vivo a partir de
+// Bancos/Fornecedores/Arrendamentos/Aquisição de Fazenda/Quadro de Safra/Bens e
+// Direitos (src/lib/balanco-calc.ts), nunca persistidos como número solto. Este
+// model guarda só os campos que nenhum módulo de origem cobre ("Dados
+// Complementares" da spec, seção 5.1) — mesmo critério de ItemFluxoManual/
+// LancamentoManualMensal, um registro por (propriedade, safra).
+model DadosComplementaresFinanceiro {
+  id            String @id @default(cuid())
+  propriedadeId String
+  safra         String // "2026/2027"
 
-  conta Conta @relation(fields: [contaId], references: [id], onDelete: Cascade)
+  // Ativo Circulante — "Aplicações Financeiras" não entra aqui: vem ao vivo de
+  // BemDireito (grupoIrpf=Aplicações e Investimentos), cruzamento confirmado
+  // pela própria spec (seção 4.6.4).
+  caixaEquivalentes Decimal @default(0) @db.Decimal(18, 2)
+  estoqueGraos      Decimal @default(0) @db.Decimal(18, 2)
+  estoqueInsumos    Decimal @default(0) @db.Decimal(18, 2)
+  outrosCreditosCp  Decimal @default(0) @db.Decimal(18, 2)
+
+  // Ativo Não Circulante
+  contasReceberLp      Decimal @default(0) @db.Decimal(18, 2)
+  outrosCreditosLp     Decimal @default(0) @db.Decimal(18, 2)
+  investimentos        Decimal @default(0) @db.Decimal(18, 2)
+  maquinasEquipamentos Decimal @default(0) @db.Decimal(18, 2)
+  benfeitorias         Decimal @default(0) @db.Decimal(18, 2)
+  depreciacaoAcumulada Decimal @default(0) @db.Decimal(18, 2)
+
+  // Passivo Complementar
+  obrigTrabalhistasCp Decimal @default(0) @db.Decimal(18, 2)
+  obrigFiscaisCp      Decimal @default(0) @db.Decimal(18, 2)
+  outrasObrigCp       Decimal @default(0) @db.Decimal(18, 2)
+  obrigFiscaisLp      Decimal @default(0) @db.Decimal(18, 2)
+  outrasObrigLp       Decimal @default(0) @db.Decimal(18, 2)
+  partesRelacionadas  Decimal @default(0) @db.Decimal(18, 2)
+
+  // Patrimônio Líquido
+  capitalSocial            Decimal @default(0) @db.Decimal(18, 2)
+  reservasLucrosAcumulados Decimal @default(0) @db.Decimal(18, 2)
+
+  // DRE Complementar
+  deducoesReceitaPercent   Decimal  @default(0) @db.Decimal(5, 2)
+  despesasOperacionais     Decimal  @default(0) @db.Decimal(18, 2)
+  despesasAdministrativas  Decimal  @default(0) @db.Decimal(18, 2)
+  // Só usado quando não há preço de Soja definido em Cotações para a safra —
+  // fallback confirmado pelo texto de ajuda do campo na spec (seção 5.1).
+  despesaComercialFallback Decimal? @db.Decimal(18, 2)
+  // Configurável — corrige a suposição de SPEC_TELA_FLUXO_DE_SAFRA.md de que
+  // "3 sc/ha" seria hardcoded (spec desta tela confirma que é parametrizável,
+  // com 3 como valor default).
+  despesaComercialScHa Decimal @default(3) @db.Decimal(6, 2)
+  dividendos           Decimal @default(0) @db.Decimal(18, 2)
+  depreciacaoPeriodo   Decimal @default(0) @db.Decimal(18, 2)
+  aliquotaIrCsllPercent Decimal @default(0) @db.Decimal(5, 2)
+
+  // Fluxo de Caixa / Cobertura
+  capex Decimal @default(0) @db.Decimal(18, 2)
+  // Override do Serviço da Dívida usado no DSCR/Capacidade de Pagamento;
+  // default (quando null) = juros + amortização do cronograma bancário do ano.
+  servicoDividaManual Decimal? @db.Decimal(18, 2)
+
+  ativo Boolean @default(true)
+
+  propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   createdById String?
   updatedById String?
 
-  @@unique([contaId, safra])
-  @@index([contaId, ativo])
-  @@map("balancos_patrimoniais")
+  @@unique([propriedadeId, safra])
+  @@index([propriedadeId, ativo])
+  @@map("dados_complementares_financeiro")
 }
 
 // ============================================================

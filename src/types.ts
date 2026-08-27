@@ -329,33 +329,193 @@ export interface ContratoBancario {
 }
 
 // ---- Análise Financeira ----
+// Réplica confirmada de docs/demandas/SPEC_TELA_ANALISE_FINANCEIRA.md — Ativo/
+// Passivo/DRE/32 indicadores são SEMPRE computados ao vivo (src/lib/balanco-calc.ts)
+// a partir de Bancos/Fornecedores/Arrendamentos/Aquisição de Fazenda/Quadro de
+// Safra/Bens e Direitos, nunca persistidos como número solto. O único model
+// próprio é `DadosComplementaresFinanceiro`, abaixo — os campos que nenhum
+// módulo de origem cobre (spec seção 5.1).
 
-export interface BalancoPatrimonial {
+/** Único registro de escrita própria desta tela (aba "Dados Complementares") — um por (propriedade, safra). */
+export interface DadosComplementaresFinanceiro {
   safra: string; // "2026/2027"
-  ativoCirculante: number;
-  ativoNaoCirculante: number;
-  passivoCirculante: number;
-  passivoNaoCirculante: number;
-  capitalReservas: number;
-  resultadoSafra: number;
+  caixaEquivalentes: number;
+  estoqueGraos: number;
+  estoqueInsumos: number;
+  outrosCreditosCp: number;
+  contasReceberLp: number;
+  outrosCreditosLp: number;
+  investimentos: number;
+  maquinasEquipamentos: number;
+  benfeitorias: number;
+  depreciacaoAcumulada: number;
+  obrigTrabalhistasCp: number;
+  obrigFiscaisCp: number;
+  outrasObrigCp: number;
+  obrigFiscaisLp: number;
+  outrasObrigLp: number;
+  partesRelacionadas: number;
+  capitalSocial: number;
+  reservasLucrosAcumulados: number;
+  deducoesReceitaPercent: number;
+  despesasOperacionais: number;
+  despesasAdministrativas: number;
+  despesaComercialFallback?: number;
+  despesaComercialScHa: number;
+  dividendos: number;
+  depreciacaoPeriodo: number;
+  aliquotaIrCsllPercent: number;
+  capex: number;
+  servicoDividaManual?: number;
 }
 
-export type StatusIndicador = 'Excelente' | 'Bom' | 'Atenção' | 'Crítico';
+/**
+ * 5 níveis (spec) + 'Sem dados' — usado quando o denominador de um indicador é
+ * zero por ausência de operação (ex.: Cobertura Arrendamento sem arrendamento
+ * cadastrado), nunca 'Crítico' nesse caso (corrige o BUG #4 da spec: um "—"
+ * não é uma situação financeira ruim, é a ausência de uma operação).
+ */
+export type StatusIndicador = 'Excelente' | 'Bom' | 'Adequado' | 'Atenção' | 'Crítico' | 'Sem dados';
 
-export interface IndicadorFinanceiro {
+export type GrupoIndicador =
+  | 'Liquidez'
+  | 'Estrutura de Capital'
+  | 'Rentabilidade'
+  | 'Cobertura'
+  | 'Eficiência'
+  | 'Agronegócio';
+
+export interface IndicadorCalculado {
   id: string;
-  grupo: 'Liquidez' | 'Estrutura de Capital';
+  grupo: GrupoIndicador;
   nome: string;
-  valor: number;
-  unidade: string; // "", "%", "x"
+  valor: number | null; // null = "—" (ver StatusIndicador acima)
+  unidade: string; // "", "%", "x", "dias", "R$"
   status: StatusIndicador;
   formula: string;
   referencia: string;
 }
 
-export interface IndicadorSaudeFinanceira {
-  dimensao: string; // Liquidez, Solvência, Eficiência, Rentabilidade, Endividamento, Cobertura
-  valor: number; // 0-100
+export interface DreCalculada {
+  receitaBruta: number;
+  deducoes: number;
+  receitaLiquida: number;
+  custos: number;
+  arrendamentos: number;
+  lucroBruto: number;
+  despesasOperacionais: number;
+  despesasAdministrativas: number;
+  /** null = sem preço de Soja em Cotações e sem fallback manual definido — nunca um 0 que mente. */
+  despesaComercial: number | null;
+  resultadoOperacional: number;
+  dividendos: number;
+  ebitda: number;
+  custoFinanceiro: number;
+  depreciacao: number;
+  ebit: number;
+  lair: number;
+  irCsll: number;
+  resultadoLiquido: number;
+}
+
+export interface AtivoCalculado {
+  caixaEquivalentes: number;
+  aplicacoesFinanceiras: number; // BemDireito grupoIrpf='Aplicações e Investimentos'
+  contasReceberSafra: number; // = Receita Bruta da safra (Quadro de Safra)
+  estoqueGraos: number;
+  estoqueInsumos: number;
+  outrosCreditosCp: number;
+  totalCirculante: number;
+
+  contasReceberLp: number;
+  outrosCreditosLp: number;
+  investimentos: number;
+  maquinasEquipamentos: number;
+  benfeitorias: number;
+  fazendas: number; // Aquisição de Fazenda (imobilizado da empresa, distinto do IRPF pessoal)
+  depreciacaoAcumulada: number;
+  bensIrpf: number; // linha explícita (resolve o BUG #1 da spec) — Fazendas Próprias + Máquinas + Outros Bens do IRPF, sem contar Aplicações (já no Circulante)
+  totalNaoCirculante: number;
+
+  total: number;
+}
+
+export interface PassivoCalculado {
+  bancosCp: number;
+  fornecedoresCp: number;
+  arrendamentos: number; // só Circulante — spec seção 4.3
+  aquisicaoFazendasCp: number;
+  obrigTrabalhistasCp: number;
+  obrigFiscaisCp: number;
+  outrasObrigCp: number;
+  totalCirculante: number;
+
+  bancosLp: number;
+  aquisicaoFazendasLp: number;
+  fornecedoresLp: number;
+  obrigFiscaisLp: number;
+  outrasObrigLp: number;
+  partesRelacionadas: number;
+  totalNaoCirculante: number;
+
+  total: number;
+}
+
+export interface PlCalculado {
+  capitalSocial: number;
+  reservasLucrosAcumulados: number;
+  resultadoSafra: number; // = Resultado Líquido da DRE
+  bensIrpf: number; // mesma linha do Ativo — resolve o BUG #1 em ambas as pontas do balanço
+  total: number;
+}
+
+/** Um item de `BemDireito` agrupado por categoria, pra listagem detalhada (spec seção 4.6.2-4.6.4). */
+export interface ItemPatrimonioIrpf {
+  descricao: string;
+  valor: number;
+}
+
+export interface CategoriaPatrimonioIrpf {
+  categoria: string; // "Imóveis Rurais (IRPF)", "Imóveis Urbanos (IRPF)", "Máquinas e Equipamentos (IRPF)", "Aplicações Financeiras", "Outros Bens e Direitos (IRPF)"
+  itens: ItemPatrimonioIrpf[];
+  subtotal: number;
+}
+
+/**
+ * Bloco "Bens e Direitos IRPF — Detalhamento por Categoria" (spec seção 4.6).
+ * Os 4 cards-resumo já nascem corretos aqui — os BUGs #2/#3 da spec (cards
+ * zerados, "Maquinários" categorizado como imóvel urbano) não se reproduzem
+ * porque `BemDireito.grupoIrpf` já é a taxonomia certa desde a origem.
+ */
+export interface PatrimonioIrpfResumo {
+  fazendasProprias: { valor: number; itens: number };
+  maquinasEquipamentos: { valor: number; itens: number };
+  aplicacoesFinanceiras: { valor: number; itens: number };
+  outrosBens: { valor: number; itens: number };
+  totalBensIrpf: number; // soma dos 4 grupos acima
+  patrimonioTotal: number; // totalBensIrpf + Ativo.fazendas (imobilizado via Aquisição)
+  categorias: CategoriaPatrimonioIrpf[];
+}
+
+export interface ReceitaPorCultura {
+  cultura: string;
+  receita: number;
+  percentual: number;
+}
+
+export interface BalancoCalculado {
+  safra: string;
+  areaTotalHa: number;
+  ativo: AtivoCalculado;
+  passivo: PassivoCalculado;
+  pl: PlCalculado;
+  ccl: number; // Capital de Giro Líquido = Ativo Circulante - Passivo Circulante
+  dre: DreCalculada;
+  servicoDivida: number;
+  indicadores: IndicadorCalculado[];
+  radar: { dimensao: string; valor: number }[];
+  patrimonioIrpf: PatrimonioIrpfResumo;
+  receitaPorCultura: ReceitaPorCultura[];
 }
 
 // ---- Aquisição de Fazendas ----

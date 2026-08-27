@@ -16,7 +16,7 @@ import { listIndices } from '@/server/indices';
 import { listAquisicoes, listFluxoConsolidadoAquisicoes, listImpactoPorSafra } from '@/server/aquisicoes';
 import { listArrendamentos, listFluxoConsolidadoArrendamentos, listImpactoPorSafraArrendamentos } from '@/server/arrendamentos';
 import { listContratosComerciais } from '@/server/contratos-comerciais';
-import { getBalancoAtual } from '@/server/balanco';
+import { listDadosComplementares } from '@/server/balanco';
 import { listCotacoes, listPrecosDefinidos } from '@/server/cotacoes';
 import { listItensFluxoManual } from '@/server/fluxo-safra';
 import { listItensLancamentoManualMensal } from '@/server/lancamentos-manuais';
@@ -69,26 +69,38 @@ export default async function TabPage({ params }: TabPageProps) {
   ]);
 
   // Só importam à própria aba — buscados sob demanda.
-  const initialBalanco = tab === 'analise_financeira' ? await getBalancoAtual() : undefined;
+  const initialDadosComplementares = tab === 'analise_financeira' ? await listDadosComplementares() : undefined;
   // Comercialização também precisa das cotações (PrecoDefinidoSafra
   // alimenta a coluna "Cotação" da Posição por Cultura, src/lib/comercializacao.ts).
-  // Fluxo de Safra usa a cotação de Soja pra estimar a Despesa Comercial (3 sc/ha).
+  // Fluxo de Safra e Análise Financeira usam a cotação de Soja pra estimar a
+  // Despesa Comercial (3 sc/ha, configurável em Análise Financeira).
   const cotacoes =
-    tab === 'cotacoes' || tab === 'comercializacao' || tab === 'fluxo_safra' ? await listCotacoes() : undefined;
-  // Preço travado por safra — mesmas 3 abas, mesma decisão de "carrega a lista
+    tab === 'cotacoes' || tab === 'comercializacao' || tab === 'fluxo_safra' || tab === 'analise_financeira'
+      ? await listCotacoes()
+      : undefined;
+  // Preço travado por safra — mesmas abas, mesma decisão de "carrega a lista
   // inteira e filtra no client" já usada para culturaSafras/contratos.
   const initialPrecosDefinidos =
-    tab === 'cotacoes' || tab === 'comercializacao' || tab === 'fluxo_safra' ? await listPrecosDefinidos() : undefined;
+    tab === 'cotacoes' || tab === 'comercializacao' || tab === 'fluxo_safra' || tab === 'analise_financeira'
+      ? await listPrecosDefinidos()
+      : undefined;
   const [cronogramaConsolidado, indices, fluxoDetalhadoBancos] =
     tab === 'bancos'
       ? await Promise.all([listCronogramaConsolidado(), listIndices(), listFluxoDetalhado()])
       : [undefined, undefined, undefined];
-  // Fluxo Mensal também consome o Fluxo Detalhado (parcelas de cada contrato
-  // ativo, já com data real) para as linhas "Vinculado" de Bancos.
-  const fluxoDetalhado = tab === 'fluxo_mensal' && !fluxoDetalhadoBancos ? await listFluxoDetalhado() : fluxoDetalhadoBancos;
-  // Fluxo de Safra também consome o cronograma consolidado (linhas "Amortização"/"Juros" do demonstrativo).
+  // Fluxo Mensal e Análise Financeira também consomem o Fluxo Detalhado
+  // (parcelas de cada contrato ativo, já com data real) — Fluxo Mensal pras
+  // linhas "Vinculado" de Bancos, Análise Financeira pro split CP/LP real.
+  const fluxoDetalhado =
+    (tab === 'fluxo_mensal' || tab === 'analise_financeira') && !fluxoDetalhadoBancos
+      ? await listFluxoDetalhado()
+      : fluxoDetalhadoBancos;
+  // Fluxo de Safra e Análise Financeira também consomem o cronograma
+  // consolidado (linhas "Amortização"/"Juros" do demonstrativo/DRE).
   const cronogramaBancario =
-    tab === 'fluxo_safra' && !cronogramaConsolidado ? await listCronogramaConsolidado() : cronogramaConsolidado;
+    (tab === 'fluxo_safra' || tab === 'analise_financeira') && !cronogramaConsolidado
+      ? await listCronogramaConsolidado()
+      : cronogramaConsolidado;
   const [fluxoConsolidadoAquisicoes, impactoPorSafraAquisicoes] =
     tab === 'aquisicao_fazenda'
       ? await Promise.all([listFluxoConsolidadoAquisicoes(), listImpactoPorSafra()])
@@ -135,7 +147,7 @@ export default async function TabPage({ params }: TabPageProps) {
       fluxoConsolidadoArrendamentos={fluxoArrendamentosSafra}
       impactoPorSafraArrendamentos={impactoPorSafraArrendamentos}
       initialContratosComerciais={initialContratosComerciais}
-      initialBalanco={initialBalanco}
+      initialDadosComplementares={initialDadosComplementares}
       initialCotacaoDolar={cotacoes?.dolar}
       initialCotacoesCommodities={cotacoes?.commodities}
       initialPrecosDefinidos={initialPrecosDefinidos}

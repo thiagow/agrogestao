@@ -445,14 +445,38 @@ export const itemLancamentoManualMensalSchema = z.object({
   observacoes: z.string().trim().optional().or(z.literal(''))
 });
 
-export const balancoPatrimonialSchema = z.object({
+// "Dados Complementares" da tela Análise Financeira — só os campos que nenhum
+// módulo de origem cobre automaticamente (ver src/lib/balanco-calc.ts).
+export const dadosComplementaresFinanceiroSchema = z.object({
   safra: z.string().trim().regex(/^\d{4}\/\d{4}$/, 'Formato esperado: AAAA/AAAA'),
-  ativoCirculante: z.coerce.number().nonnegative(),
-  ativoNaoCirculante: z.coerce.number().nonnegative(),
-  passivoCirculante: z.coerce.number().nonnegative(),
-  passivoNaoCirculante: z.coerce.number().nonnegative(),
-  capitalReservas: z.coerce.number(),
-  resultadoSafra: z.coerce.number()
+  caixaEquivalentes: z.coerce.number().nonnegative().default(0),
+  estoqueGraos: z.coerce.number().nonnegative().default(0),
+  estoqueInsumos: z.coerce.number().nonnegative().default(0),
+  outrosCreditosCp: z.coerce.number().nonnegative().default(0),
+  contasReceberLp: z.coerce.number().nonnegative().default(0),
+  outrosCreditosLp: z.coerce.number().nonnegative().default(0),
+  investimentos: z.coerce.number().nonnegative().default(0),
+  maquinasEquipamentos: z.coerce.number().nonnegative().default(0),
+  benfeitorias: z.coerce.number().nonnegative().default(0),
+  depreciacaoAcumulada: z.coerce.number().nonnegative().default(0),
+  obrigTrabalhistasCp: z.coerce.number().nonnegative().default(0),
+  obrigFiscaisCp: z.coerce.number().nonnegative().default(0),
+  outrasObrigCp: z.coerce.number().nonnegative().default(0),
+  obrigFiscaisLp: z.coerce.number().nonnegative().default(0),
+  outrasObrigLp: z.coerce.number().nonnegative().default(0),
+  partesRelacionadas: z.coerce.number().nonnegative().default(0),
+  capitalSocial: z.coerce.number().default(0),
+  reservasLucrosAcumulados: z.coerce.number().default(0),
+  deducoesReceitaPercent: z.coerce.number().min(0).max(100).default(0),
+  despesasOperacionais: z.coerce.number().nonnegative().default(0),
+  despesasAdministrativas: z.coerce.number().nonnegative().default(0),
+  despesaComercialFallback: z.coerce.number().nonnegative().optional(),
+  despesaComercialScHa: z.coerce.number().positive().default(3),
+  dividendos: z.coerce.number().nonnegative().default(0),
+  depreciacaoPeriodo: z.coerce.number().nonnegative().default(0),
+  aliquotaIrCsllPercent: z.coerce.number().min(0).max(100).default(0),
+  capex: z.coerce.number().nonnegative().default(0),
+  servicoDividaManual: z.coerce.number().nonnegative().optional()
 });
 
 export type ContaInput = z.infer<typeof contaSchema>;

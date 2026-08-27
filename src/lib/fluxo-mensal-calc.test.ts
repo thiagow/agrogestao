@@ -170,6 +170,10 @@ describe('gerarLancamentosVinculados', () => {
       dataVencimento: '2026-06-01',
       tipoPagamento: 'SACAS',
       periodicidade: 'Anual',
+      status: 'ATIVO',
+      possuiPagamentoAntecipado: false,
+      valorTotalFluxo: 0,
+      totalSacas: 0,
       parcelas: [{ id: 'p1', safra: SAFRA, sacasBrutas: 0, sacasAntecipadas: 0, sacasLiquidas: 0, valorTotal: undefined }]
     };
     const lancamentos = gerarLancamentosVinculados({
@@ -196,6 +200,8 @@ describe('gerarLancamentosVinculados', () => {
       dataVencimento: '2031-06-01',
       tipoPagamento: 'REAIS',
       periodicidade: 'Anual',
+      valorTotalFluxo: 19_170_000,
+      totalSacas: 0,
       parcelas: [{ id: 'pa1', safra: SAFRA, tipo: 'PARCELA', sacas: 0, usaPrecoReferencia: false, valorTotal: 19_170_000, dataPagamento: '2027-02-10' }]
     };
     const lancamentos = gerarLancamentosVinculados({

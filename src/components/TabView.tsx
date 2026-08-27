@@ -17,7 +17,7 @@ import {
   Aquisicao,
   ContratoArrendamento,
   ContratoComercial,
-  BalancoPatrimonial,
+  DadosComplementaresFinanceiro,
   Cotacao,
   PrecoDefinidoSafra,
   ItemFluxoManual,
@@ -30,10 +30,9 @@ import { saveContratoBancario, deleteContratoBancario } from '../server/contrato
 import { saveAquisicao, deleteAquisicao } from '../server/aquisicoes';
 import { saveArrendamento, deleteArrendamento } from '../server/arrendamentos';
 import { saveContratoComercial, deleteContratoComercial } from '../server/contratos-comerciais';
-import { saveBalanco } from '../server/balanco';
+import { saveDadosComplementares } from '../server/balanco';
 import { saveItemFluxoManual, deleteItemFluxoManual } from '../server/fluxo-safra';
 import { saveItemLancamentoManualMensal, deleteItemLancamentoManualMensal } from '../server/lancamentos-manuais';
-import { initialSaudeFinanceira } from '../data/initialData';
 import { Header } from './Header';
 import { MetricCards } from './MetricCards';
 import { SupplierTable } from './SupplierTable';
@@ -89,7 +88,8 @@ interface TabViewProps {
   /** Aba "Análise de Impacto" de Arrendamentos — computada no servidor. */
   impactoPorSafraArrendamentos?: ImpactoSafraArrendamento[];
   initialContratosComerciais?: ContratoComercial[];
-  initialBalanco?: BalancoPatrimonial | null;
+  /** Um por safra já salva — Análise Financeira escolhe qual usar no client pelo seletor de safra. */
+  initialDadosComplementares?: DadosComplementaresFinanceiro[];
   initialCotacaoDolar?: Cotacao | null;
   initialCotacoesCommodities?: Cotacao[];
   /** Preço travado por commodity + safra (src/server/cotacoes.ts) — consumido por Comercialização, Fluxo de Safra e pela própria tela Cotações. */
@@ -125,7 +125,7 @@ export const TabView: React.FC<TabViewProps> = ({
   fluxoConsolidadoArrendamentos = [],
   impactoPorSafraArrendamentos = [],
   initialContratosComerciais = [],
-  initialBalanco = null,
+  initialDadosComplementares = [],
   initialCotacaoDolar = null,
   initialCotacoesCommodities = [],
   initialPrecosDefinidos = [],
@@ -155,8 +155,10 @@ export const TabView: React.FC<TabViewProps> = ({
   // Comercialização — persistido via src/server/contratos-comerciais.ts
   const [contratosComerciais, setContratosComerciais] = useState<ContratoComercial[]>(initialContratosComerciais);
 
-  // Análise Financeira — persistido via src/server/balanco.ts (indicadores computados ao vivo)
-  const [balanco, setBalanco] = useState<BalancoPatrimonial | null>(initialBalanco);
+  // Análise Financeira — só os Dados Complementares são persistidos
+  // (src/server/balanco.ts); Ativo/Passivo/DRE/indicadores são recomputados ao
+  // vivo no client (src/lib/balanco-calc.ts).
+  const [dadosComplementares, setDadosComplementares] = useState<DadosComplementaresFinanceiro[]>(initialDadosComplementares);
 
   // Fluxo de Safra — itens manuais extraordinários, persistido via src/server/fluxo-safra.ts
   // (o demonstrativo em si é agregado no client, ver src/lib/fluxo-safra-calc.ts)
@@ -430,12 +432,15 @@ export const TabView: React.FC<TabViewProps> = ({
     }
   };
 
-  const handleSaveBalanco = async (data: BalancoPatrimonial) => {
+  const handleSaveDadosComplementares = async (data: DadosComplementaresFinanceiro) => {
     try {
-      const saved = await saveBalanco(data);
-      setBalanco(saved);
+      const saved = await saveDadosComplementares(data);
+      setDadosComplementares((prev) => {
+        const existe = prev.some((d) => d.safra === saved.safra);
+        return existe ? prev.map((d) => (d.safra === saved.safra ? saved : d)) : [...prev, saved];
+      });
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'Erro ao salvar balanço.');
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar dados complementares.');
     }
   };
 
@@ -625,9 +630,16 @@ export const TabView: React.FC<TabViewProps> = ({
       )}
       {tab === 'analise_financeira' && (
         <AnaliseFinanceiraView
-          balanco={balanco}
-          saudeFinanceira={initialSaudeFinanceira}
-          onSaveBalanco={handleSaveBalanco}
+          culturaSafras={culturaSafras}
+          suppliers={suppliers}
+          fluxoDetalhado={fluxoDetalhado}
+          cronograma={cronogramaConsolidado}
+          arrendamentos={arrendamentos}
+          aquisicoes={aquisicoes}
+          bensDireitos={initialBensDireitos}
+          precosDefinidos={initialPrecosDefinidos}
+          dadosComplementares={dadosComplementares}
+          onSaveDadosComplementares={handleSaveDadosComplementares}
         />
       )}
       {tab === 'fluxo_mensal' && (

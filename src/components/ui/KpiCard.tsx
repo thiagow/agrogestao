@@ -1,13 +1,15 @@
 import React from 'react';
 import { Badge } from './Badge';
 
-type KpiStatus = 'Excelente' | 'Bom' | 'Atenção' | 'Crítico';
+type KpiStatus = 'Excelente' | 'Bom' | 'Adequado' | 'Atenção' | 'Crítico' | 'Sem dados';
 
-const statusTone: Record<KpiStatus, 'emerald' | 'blue' | 'amber' | 'rose'> = {
+const statusTone: Record<KpiStatus, 'emerald' | 'blue' | 'indigo' | 'amber' | 'rose' | 'slate'> = {
   Excelente: 'emerald',
   Bom: 'blue',
+  Adequado: 'indigo',
   Atenção: 'amber',
-  Crítico: 'rose'
+  Crítico: 'rose',
+  'Sem dados': 'slate'
 };
 
 interface KpiCardProps {

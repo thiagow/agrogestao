@@ -1,11 +1,4 @@
-import {
-  Supplier,
-  CulturaSafraAno,
-  ContratoBancario,
-  BalancoPatrimonial,
-  IndicadorFinanceiro,
-  IndicadorSaudeFinanceira
-} from '../types';
+import { Supplier, CulturaSafraAno, ContratoBancario } from '../types';
 
 export const initialSuppliers: Supplier[] = [
   {
@@ -132,39 +125,10 @@ export function calcularSafra(registro: CulturaSafraAno) {
 // ContratoBancario que existia aqui foi removido; a fonte real é
 // src/server/contratos-bancarios.ts.)
 
-export const initialBalanco: BalancoPatrimonial = {
-  safra: '2026/2027',
-  ativoCirculante: 443003709,
-  ativoNaoCirculante: 2228194990,
-  passivoCirculante: 64800239,
-  passivoNaoCirculante: 261548518,
-  capitalReservas: 0,
-  resultadoSafra: 2244901902
-};
-
-export const initialIndicadores: IndicadorFinanceiro[] = [
-  { id: 'ind-1', grupo: 'Liquidez', nome: 'Liquidez Corrente', valor: 6.84, unidade: 'x', status: 'Excelente', formula: 'Ativo Circulante / Passivo Circulante', referencia: 'Agro: 1,5 (bom)' },
-  { id: 'ind-2', grupo: 'Liquidez', nome: 'Liquidez Seca', valor: 6.84, unidade: 'x', status: 'Excelente', formula: '(Ativo Circulante - Estoques) / Passivo Circulante', referencia: 'Agro: 1,0 (bom)' },
-  { id: 'ind-3', grupo: 'Liquidez', nome: 'Liquidez Imediata', valor: 0.0, unidade: 'x', status: 'Crítico', formula: 'Caixa / Passivo Circulante', referencia: '0,3 (bom)' },
-  { id: 'ind-4', grupo: 'Liquidez', nome: 'Liquidez Geral', valor: 1.36, unidade: 'x', status: 'Bom', formula: '(AC + Ativo Realizável LP) / (PC + Exigível LP)', referencia: '1,0 (bom)' },
-  { id: 'ind-5', grupo: 'Estrutura de Capital', nome: 'Endividamento Geral', valor: 12.22, unidade: '%', status: 'Excelente', formula: 'Passivo Total / Ativo Total', referencia: '< 30% (bom)' },
-  { id: 'ind-6', grupo: 'Estrutura de Capital', nome: 'Composição CP/LP', valor: 19.86, unidade: '%', status: 'Excelente', formula: 'Passivo Circulante / Passivo Total', referencia: '< 40% (bom)' },
-  { id: 'ind-7', grupo: 'Estrutura de Capital', nome: 'Dívida / EBITDA', valor: 1.29, unidade: 'x', status: 'Excelente', formula: 'Passivo Total / EBITDA', referencia: '< 3,0x (bom)' },
-  { id: 'ind-8', grupo: 'Estrutura de Capital', nome: 'Imobilização do PL', valor: 95.03, unidade: '%', status: 'Atenção', formula: 'Ativo Não Circulante / Patrimônio Líquido', referencia: '< 90% (bom)' },
-  { id: 'ind-9', grupo: 'Estrutura de Capital', nome: 'Grau de Endividamento', valor: 0.14, unidade: 'x', status: 'Excelente', formula: 'Passivo Total / Patrimônio Líquido', referencia: '< 1,0x (bom)' },
-  { id: 'ind-10', grupo: 'Estrutura de Capital', nome: 'Alavancagem Financeira', valor: 1.14, unidade: 'x', status: 'Excelente', formula: 'Ativo Total / Patrimônio Líquido', referencia: '< 2,0x (bom)' },
-  { id: 'ind-11', grupo: 'Estrutura de Capital', nome: 'Cobertura de Juros', valor: 35.33, unidade: 'x', status: 'Excelente', formula: 'EBIT / Despesas Financeiras', referencia: '> 3,0x (bom)' },
-  { id: 'ind-12', grupo: 'Estrutura de Capital', nome: 'Endividamento CP', valor: 19.86, unidade: '%', status: 'Excelente', formula: 'Passivo Circulante / Passivo Total', referencia: '< 40% (bom)' }
-];
-
-export const initialSaudeFinanceira: IndicadorSaudeFinanceira[] = [
-  { dimensao: 'Liquidez', valor: 85 },
-  { dimensao: 'Solvência', valor: 90 },
-  { dimensao: 'Eficiência', valor: 70 },
-  { dimensao: 'Rentabilidade', valor: 75 },
-  { dimensao: 'Endividamento', valor: 88 },
-  { dimensao: 'Cobertura', valor: 95 }
-];
+// Análise Financeira migrou para agregação ao vivo (Bancos + Fornecedores +
+// Arrendamentos + Aquisição de Fazenda + Quadro de Safra + Bens e Direitos),
+// montada no client a partir dos dados já carregados por page.tsx —
+// src/lib/balanco-calc.ts. Sem mock aqui, mesmo critério de Fluxo de Safra.
 
 // Aquisição de Fazendas e Arrendamentos migraram para persistência real
 // (src/server/aquisicoes.ts, src/server/arrendamentos.ts) — sem mock aqui,
