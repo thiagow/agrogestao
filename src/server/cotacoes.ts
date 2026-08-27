@@ -73,7 +73,15 @@ export async function refreshCotacoes(): Promise<{ atualizados: number; falhas: 
     falhas.push('Dólar Americano');
   }
 
-  const taxaCambio = dolar?.precoBrl ?? null;
+  // Câmbio ao vivo desta rodada; se a busca falhar (blip passageiro da
+  // AwesomeAPI), cai pro último câmbio já salvo no banco em vez de derrubar
+  // as 6 commodities em cascata — o Yahoo Finance pode ter respondido
+  // perfeitamente mesmo com o dólar falhando nesta rodada específica.
+  let taxaCambio = dolar?.precoBrl ?? null;
+  if (taxaCambio == null) {
+    const dolarSalvo = await db.cotacao.findUnique({ where: { commodity: 'Dólar Americano' } });
+    taxaCambio = dolarSalvo ? Number(dolarSalvo.precoBrl) : null;
+  }
 
   for (const c of COMMODITIES) {
     const quote = await fetchYahooQuote(c.ticker, null); // null: não converte aqui, a conversão de unidade é feita abaixo
@@ -82,8 +90,8 @@ export async function refreshCotacoes(): Promise<{ atualizados: number; falhas: 
       continue;
     }
 
-    // Sem câmbio disponível nesta rodada, não há como converter pra R$ —
-    // marca falha em vez de gravar um preço incompleto/inconsistente.
+    // Sem NENHUM câmbio disponível (nem ao vivo, nem salvo antes) não há como
+    // converter pra R$ — marca falha em vez de gravar um preço incompleto.
     if (taxaCambio == null) {
       falhas.push(c.commodity);
       continue;

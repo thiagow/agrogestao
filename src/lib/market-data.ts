@@ -23,7 +23,8 @@ export interface QuoteResult {
   volume: number;
 }
 
-export async function fetchDolarBRL(): Promise<QuoteResult | null> {
+/** Uma tentativa de buscar o câmbio na AwesomeAPI — `null` em qualquer falha (nunca lança). */
+async function tentarFetchDolarBRL(): Promise<QuoteResult | null> {
   try {
     const res = await fetch('https://economia.awesomeapi.com.br/last/USD-BRL', {
       next: { revalidate: 0 },
@@ -44,6 +45,16 @@ export async function fetchDolarBRL(): Promise<QuoteResult | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Câmbio USD/BRL via AwesomeAPI, com uma retentativa imediata em caso de
+ * falha — a fonte é sujeita a blips passageiros (timeout/rate limit) que uma
+ * segunda tentativa costuma resolver sozinha. Continua fail-soft: `null` se
+ * as duas tentativas falharem, nunca lança.
+ */
+export async function fetchDolarBRL(): Promise<QuoteResult | null> {
+  return (await tentarFetchDolarBRL()) ?? (await tentarFetchDolarBRL());
 }
 
 /** `usdBrl` converte o preço em USD do contrato futuro para BRL, quando aplicável. */
