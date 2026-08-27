@@ -23,17 +23,35 @@ export interface QuoteResult {
   volume: number;
 }
 
-/** Uma tentativa de buscar o câmbio na AwesomeAPI — `null` em qualquer falha (nunca lança). */
+/**
+ * Uma tentativa de buscar o câmbio na AwesomeAPI — `null` em qualquer falha
+ * (nunca lança). Envia `User-Agent`/`Accept` explícitos: sem eles, chamadas
+ * saindo de IPs de datacenter (como as funções serverless da Netlify) têm
+ * sido rejeitadas de forma silenciosa por essa fonte, mesmo com o endpoint
+ * no ar — o mesmo request funciona sem esses cabeçalhos de uma rede
+ * residencial/de desenvolvimento. `fetchYahooQuote` já manda User-Agent por
+ * este mesmo motivo; aqui não mandava nenhum cabeçalho.
+ */
 async function tentarFetchDolarBRL(): Promise<QuoteResult | null> {
   try {
     const res = await fetch('https://economia.awesomeapi.com.br/last/USD-BRL', {
       next: { revalidate: 0 },
-      signal: AbortSignal.timeout(8000)
+      signal: AbortSignal.timeout(8000),
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; AgroGestaoBot/1.0)',
+        Accept: 'application/json'
+      }
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`[market-data] AwesomeAPI USD-BRL respondeu ${res.status} ${res.statusText}`);
+      return null;
+    }
     const data = await res.json();
     const q = data?.USDBRL;
-    if (!q) return null;
+    if (!q) {
+      console.error('[market-data] AwesomeAPI USD-BRL respondeu 200 mas sem o campo USDBRL esperado');
+      return null;
+    }
 
     return {
       precoBrl: Number(q.bid),
@@ -42,7 +60,8 @@ async function tentarFetchDolarBRL(): Promise<QuoteResult | null> {
       minima: Number(q.low),
       volume: 0
     };
-  } catch {
+  } catch (e) {
+    console.error('[market-data] AwesomeAPI USD-BRL falhou:', e instanceof Error ? e.message : e);
     return null;
   }
 }
