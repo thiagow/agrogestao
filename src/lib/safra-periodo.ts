@@ -47,3 +47,49 @@ export function listarSafrasCobertas(dataInicioISO: string, dataFimISO: string):
   const anoInicio = anoMes(dataInicioISO).ano;
   return Array.from({ length: numAnos }, (_, i) => safraDoAno(anoInicio + i));
 }
+
+// ── Janela do ano agrícola (23/08/2026, review do cliente) ─────────────────
+//
+// Distinto de `dataReferenciaDaSafra`/`listarSafrasCobertas` acima (que
+// convencionam UM ponto no tempo pra um evento de parcelamento — 31/03 do 2º
+// ano) e também distinto da janela fixa de 18 meses do Fluxo Mensal
+// (horizonte de EXIBIÇÃO, não o ano agrícola de uma safra específica — não
+// reaproveitar um pelo outro). Aqui é o INTERVALO real do ano agrícola: a
+// safra "2026/2027" cobre 01/07/2026 a 30/06/2027, calendário usado nos
+// grandes produtores de grão do Centro-Oeste (mesma convenção documentada em
+// docs/demandas/SPEC_TELA_FLUXO_DE_SAFRA.md). Usado por fluxo-safra-calc.ts
+// pra filtrar Bancos/Fornecedores pela data real, em vez de "ano calendário"
+// ou o campo de texto livre `Supplier.safra`.
+
+/** Janela [início, fim] (YYYY-MM-DD, ambos inclusivos) do ano agrícola de uma safra. "2026/2027" -> 01/07/2026 .. 30/06/2027. */
+export function janelaSafra(safra: string): { inicio: string; fim: string } {
+  const anoInicio = anoInicioSafra(safra);
+  return { inicio: `${anoInicio}-07-01`, fim: `${anoInicio + 1}-06-30` };
+}
+
+/** Bucketing inverso: em qual safra (ano agrícola jul-jun) uma data cai. Jan-Jun -> safra iniciada no ano anterior; Jul-Dez -> safra iniciada no ano corrente. */
+export function safraDaData(dataISO: string): string {
+  const { ano, mes } = anoMes(dataISO); // mes 0-indexado: 0=Jan .. 11=Dez
+  const anoInicio = mes >= 6 ? ano : ano - 1; // mes 6 = Julho
+  return safraDoAno(anoInicio);
+}
+
+// ── Ponte ano civil <-> safra (02/09/2026, módulo de Pecuária) ─────────────
+//
+// Pecuária/Suinocultura/Avicultura são organizadas por ANO CIVIL (confirmado
+// com o cliente — atividade contínua, sem plantio/colheita, diferente do
+// resto do sistema que pensa em safra). Para essas linhas continuarem
+// alimentando Fluxo de Safra/Mensal e Análise Financeira (todos pensados em
+// safra), usamos a mesma convenção já estabelecida no projeto: "o ano
+// relevante de uma safra é o segundo ano" (ver CLAUDE.md, Fluxo de Safra).
+// Ou seja, o ano civil 2026 corresponde à safra "2025/2026".
+
+/** Ano civil (2º ano da safra) -> safra. 2026 -> "2025/2026". */
+export function safraDoAnoCivil(anoCivil: number): string {
+  return safraDoAno(anoCivil - 1);
+}
+
+/** Safra -> ano civil (2º ano da safra). "2025/2026" -> 2026. */
+export function anoCivilDaSafra(safra: string): number {
+  return anoInicioSafra(safra) + 1;
+}

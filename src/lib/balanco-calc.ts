@@ -25,8 +25,9 @@
 //    SPEC_TELA_FLUXO_DE_SAFRA.md).
 
 import { calcularSafra, isCurtoPrazo } from '@/lib/agro';
-import { anoInicioSafra } from '@/lib/safra-periodo';
+import { anoInicioSafra, anoCivilDaSafra } from '@/lib/safra-periodo';
 import { commodityDaCultura } from '@/lib/cultura-commodity';
+import { receitaCustoPecuariaDaSafra, valorEstoqueBovino } from '@/lib/pecuaria-calc';
 import type { AnoFluxo, FluxoContrato } from '@/server/contratos-bancarios';
 import type {
   AtivoCalculado,
@@ -41,8 +42,10 @@ import type {
   IndicadorCalculado,
   PassivoCalculado,
   PatrimonioIrpfResumo,
+  PecuariaBovinaAno,
   PlCalculado,
   PrecoDefinidoSafra,
+  ProducaoAnimalAno,
   ReceitaPorCultura,
   StatusIndicador,
   Supplier
@@ -146,6 +149,9 @@ const LIMIAR_SOJA_SCHA_DEFAULT = 3;
 export interface MontarBalancoInput {
   safra: string;
   quadroSafra: CulturaSafraAno[];
+  /** Pecuária/Suinocultura/Avicultura (organizadas por ano civil) — somam em receitaBruta/custos e, só o Bovino, no estoque do Ativo Circulante. */
+  pecuariaBovina: PecuariaBovinaAno[];
+  producaoAnimal: ProducaoAnimalAno[];
   suppliers: Supplier[];
   fluxoDetalhadoBancos: Pick<FluxoContrato, 'anos'>[];
   /** Mesma forma de AnoCronograma (listCronogramaConsolidado) — o ano bancário é resolvido aqui, mesma convenção de fluxo-safra-calc.ts. */
@@ -167,19 +173,35 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
 
   const registrosSafra = input.quadroSafra.filter((r) => r.anoSafra === safra);
   const areaTotalHa = registrosSafra.reduce((s, r) => s + r.hectares, 0);
-  const receitaBruta = registrosSafra.reduce((s, r) => s + calcularSafra(r).receitaBruta, 0);
-  const custos = registrosSafra.reduce((s, r) => s + calcularSafra(r).despesa, 0);
+  const pecuaria = receitaCustoPecuariaDaSafra(safra, input.pecuariaBovina, input.producaoAnimal);
+  const receitaBruta = registrosSafra.reduce((s, r) => s + calcularSafra(r).receitaBruta, 0) + pecuaria.receitaBruta;
+  const custos = registrosSafra.reduce((s, r) => s + calcularSafra(r).despesa, 0) + pecuaria.despesa;
+
+  // Estoque de rebanho bovino do ano civil correspondente (2º ano da safra) —
+  // única fonte de "quantidade de animais" que alimenta o Ativo Circulante
+  // (decisão confirmada com o usuário: valorizado ao preço médio de
+  // aquisição já digitado no cadastro; Suínos/Aves não têm estoque).
+  const registroBovinoDoAno = input.pecuariaBovina.find((r) => r.anoCivil === anoCivilDaSafra(safra));
+  const estoqueRebanhoBovino = registroBovinoDoAno ? valorEstoqueBovino(registroBovinoDoAno) : 0;
 
   // ---- DRE ----
   const deducoes = receitaBruta * (complementares.deducoesReceitaPercent / 100);
   const receitaLiquida = receitaBruta - deducoes;
 
-  const arrendamentosDre = input.arrendamentos
-    .flatMap((c) => c.parcelas)
-    .filter((p) => p.safra === safra && p.valorTotal != null)
+  // Direção (23/08/2026, review do cliente): A_PAGAR continua custo (como
+  // sempre foi); A_RECEBER passa a somar como receita, nunca mais entra
+  // junto no mesmo total — dobraria a subtração se ainda estivesse aqui.
+  const parcelasArrendamentoSafra = input.arrendamentos.flatMap((c) =>
+    c.parcelas.filter((p) => p.safra === safra && p.valorTotal != null).map((p) => ({ ...p, direcao: c.direcao }))
+  );
+  const arrendamentosDre = parcelasArrendamentoSafra
+    .filter((p) => p.direcao === 'A_PAGAR')
+    .reduce((s, p) => s + (p.valorTotal ?? 0), 0);
+  const arrendamentosReceberDre = parcelasArrendamentoSafra
+    .filter((p) => p.direcao === 'A_RECEBER')
     .reduce((s, p) => s + (p.valorTotal ?? 0), 0);
 
-  const lucroBruto = receitaLiquida - custos - arrendamentosDre;
+  const lucroBruto = receitaLiquida + arrendamentosReceberDre - custos - arrendamentosDre;
 
   const areaSoja = registrosSafra.filter((r) => r.cultura.toLowerCase().includes('soja')).reduce((s, r) => s + r.hectares, 0);
   const nomeCommoditySoja = commodityDaCultura('Soja');
@@ -210,6 +232,7 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
     receitaLiquida,
     custos,
     arrendamentos: arrendamentosDre,
+    arrendamentosReceber: arrendamentosReceberDre,
     lucroBruto,
     despesasOperacionais: complementares.despesasOperacionais,
     despesasAdministrativas: complementares.despesasAdministrativas,
@@ -239,6 +262,7 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
     receitaBruta +
     complementares.estoqueGraos +
     complementares.estoqueInsumos +
+    estoqueRebanhoBovino +
     complementares.outrosCreditosCp;
 
   const totalNaoCirculante =
@@ -257,6 +281,7 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
     contasReceberSafra: receitaBruta,
     estoqueGraos: complementares.estoqueGraos,
     estoqueInsumos: complementares.estoqueInsumos,
+    estoqueRebanhoBovino,
     outrosCreditosCp: complementares.outrosCreditosCp,
     totalCirculante,
     contasReceberLp: complementares.contasReceberLp,
@@ -386,7 +411,7 @@ export function calcularIndicadores(input: CalcularIndicadoresInput): IndicadorC
   const push = (i: IndicadorCalculado) => indicadores.push(i);
 
   // GRUPO 1 — Liquidez
-  const estoques = ativo.estoqueGraos + ativo.estoqueInsumos;
+  const estoques = ativo.estoqueGraos + ativo.estoqueInsumos + ativo.estoqueRebanhoBovino;
   const liquidezCorrente = passivo.totalCirculante > 0 ? ativo.totalCirculante / passivo.totalCirculante : 0;
   const liquidezSeca = passivo.totalCirculante > 0 ? (ativo.totalCirculante - estoques) / passivo.totalCirculante : 0;
   const liquidezImediata = passivo.totalCirculante > 0 ? ativo.caixaEquivalentes / passivo.totalCirculante : 0;

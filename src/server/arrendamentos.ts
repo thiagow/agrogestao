@@ -37,6 +37,7 @@ interface SaveArrendamentoInput {
   dataInicio: string;
   dataVencimento: string;
   culturaReferenciaId?: string;
+  direcao: ContratoArrendamento['direcao'];
   tipoPagamento: 'SACAS' | 'REAIS';
   periodicidade: ContratoArrendamento['periodicidade'];
   sacasHa?: number;
@@ -101,6 +102,7 @@ export async function saveArrendamento(input: SaveArrendamentoInput): Promise<Co
     dataInicio: new Date(parsed.dataInicio),
     dataVencimento: new Date(parsed.dataVencimento),
     culturaReferenciaId: parsed.culturaReferenciaId || null,
+    direcao: parsed.direcao,
     tipoPagamento: parsed.tipoPagamento,
     periodicidade: PERIODICIDADE_ARRENDAMENTO_TO_DB[parsed.periodicidade],
     sacasHa: parsed.sacasHa ?? null,
@@ -175,6 +177,9 @@ export interface LinhaFluxoConsolidadoArrendamento {
   safra: string;
   fazenda: string;
   cultura: string;
+  /** A propriedade paga ou recebe este arrendamento (23/08/2026) — consumido
+   *  por fluxo-safra-calc.ts pra separar entradas de saídas. */
+  direcao: ContratoArrendamento['direcao'];
   sacasBrutas: number;
   sacasAntecipadas: number;
   sacasLiquidas: number;
@@ -193,6 +198,7 @@ export async function listFluxoConsolidadoArrendamentos(): Promise<LinhaFluxoCon
         safra: p.safra,
         fazenda: a.nomeFazenda,
         cultura: a.culturaNome ?? '—',
+        direcao: a.direcao,
         sacasBrutas: p.sacasBrutas,
         sacasAntecipadas: p.sacasAntecipadas,
         sacasLiquidas: p.sacasLiquidas,
@@ -280,6 +286,7 @@ async function listArrendamentosComCultura() {
     id: row.id,
     nomeFazenda: row.nomeFazenda,
     culturaNome: row.culturaReferencia?.nome ?? null,
+    direcao: row.direcao as ContratoArrendamento['direcao'],
     parcelas: row.parcelas.map(toParcelaDTO)
   }));
 }
@@ -320,6 +327,7 @@ function toDTO(row: {
   dataVencimento: Date;
   culturaReferenciaId: string | null;
   culturaReferencia: { nome: string } | null;
+  direcao: string;
   tipoPagamento: string;
   periodicidade: string;
   sacasHa: unknown;
@@ -348,6 +356,7 @@ function toDTO(row: {
     areaArrendadaHa: row.areaArrendadaHa,
     dataInicio: row.dataInicio.toISOString().slice(0, 10),
     dataVencimento: row.dataVencimento.toISOString().slice(0, 10),
+    direcao: row.direcao as ContratoArrendamento['direcao'],
     tipoPagamento: row.tipoPagamento as ContratoArrendamento['tipoPagamento'],
     periodicidade: PERIODICIDADE_ARRENDAMENTO_FROM_DB[row.periodicidade as keyof typeof PERIODICIDADE_ARRENDAMENTO_FROM_DB],
     culturaReferenciaId: row.culturaReferenciaId ?? undefined,

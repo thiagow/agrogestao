@@ -235,6 +235,57 @@ export const quadroSafraSchema = z.object({
   producaoFixadaPercent: z.coerce.number().min(0).max(100).optional()
 });
 
+// Pecuária (Bovinocultura) / Suinocultura / Avicultura (02/09/2026) — réplica
+// confirmada da planilha real do cliente. Organizadas por ano civil, não
+// safra (ver src/lib/safra-periodo.ts, safraDoAnoCivil/anoCivilDaSafra).
+export const quadroPecuariaBovinaSchema = z.object({
+  anoCivil: z.coerce.number().int().min(2000).max(2100),
+
+  femeas0a12: z.coerce.number().int().nonnegative(),
+  femeas12a24: z.coerce.number().int().nonnegative(),
+  femeas24a36: z.coerce.number().int().nonnegative(),
+  femeasAcima36: z.coerce.number().int().nonnegative(),
+  machos0a12: z.coerce.number().int().nonnegative(),
+  machos12a24: z.coerce.number().int().nonnegative(),
+  machos24a36: z.coerce.number().int().nonnegative(),
+  machosAcima36: z.coerce.number().int().nonnegative(),
+
+  cicloProdutivo: z.string().trim().min(1, 'Informe o ciclo produtivo'),
+  areaPastagemPropria: z.coerce.number().nonnegative(),
+  areaPastagemArrendada: z.coerce.number().nonnegative(),
+  tipoTerminacao: z.string().trim().min(1, 'Informe o tipo de terminação'),
+
+  custoAquisicaoPorCabeca: z.coerce.number().nonnegative(),
+  custoPastagemPorHectare: z.coerce.number().nonnegative(),
+  diariaConfinamento: z.coerce.number().nonnegative(),
+  diasConfinamento: z.coerce.number().int().nonnegative(),
+  qtdAnimaisConfinados: z.coerce.number().int().nonnegative(),
+
+  qtdMachosComercializados: z.coerce.number().int().nonnegative(),
+  pesoMedioMachos: z.coerce.number().nonnegative(),
+  precoMedioMachos: z.coerce.number().nonnegative(),
+  qtdFemeasComercializadas: z.coerce.number().int().nonnegative(),
+  pesoMedioFemeas: z.coerce.number().nonnegative(),
+  precoMedioFemeas: z.coerce.number().nonnegative(),
+  qtdOutrasComercializadas: z.coerce.number().int().nonnegative(),
+  pesoMedioOutras: z.coerce.number().nonnegative(),
+  precoMedioOutras: z.coerce.number().nonnegative(),
+
+  capacidadeLotacaoConfinamento: z.coerce.number().int().nonnegative(),
+  ganhoPesoMedioDiarioKg: z.coerce.number().nonnegative(),
+  diasConfinamentoPorLote: z.coerce.number().int().nonnegative()
+});
+
+const TIPO_PRODUCAO_ANIMAL_VALUES = ['Avicultura', 'Suinocultura'] as const;
+
+export const producaoAnimalSchema = z.object({
+  tipo: z.enum(TIPO_PRODUCAO_ANIMAL_VALUES),
+  anoCivil: z.coerce.number().int().min(2000).max(2100),
+  producaoCabecas: z.coerce.number().int().nonnegative(),
+  precoMedioPorCabeca: z.coerce.number().nonnegative(),
+  custoMedioPorCabeca: z.coerce.number().nonnegative()
+});
+
 const PERIODICIDADE_LIQUIDACAO_VALUES = ['Mensal', 'Bimestral', 'Trimestral', 'Quadrimestral', 'Semestral', 'Anual', 'Final'] as const;
 
 export const contratoBancarioSchema = z
@@ -350,6 +401,7 @@ export const arrendamentoSchema = z
     dataVencimento: z.string().min(1, 'Informe a data de vencimento'),
     // 4. Condições Econômicas e Pagamento
     culturaReferenciaId: z.string().trim().optional().or(z.literal('')),
+    direcao: z.enum(['A_PAGAR', 'A_RECEBER']).default('A_PAGAR'),
     tipoPagamento: z.enum(['SACAS', 'REAIS']),
     periodicidade: z.enum(['Anual', 'Mensal', 'Por Safra']).default('Anual'),
     sacasHa: z.coerce.number().nonnegative().optional(),

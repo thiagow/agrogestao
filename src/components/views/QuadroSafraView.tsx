@@ -2,10 +2,13 @@
 
 import React, { useState } from 'react';
 import { Plus, Edit2, Trash2, Star } from 'lucide-react';
-import { CulturaSafraAno, Cultura, UnidadeMedida } from '../../types';
+import { CulturaSafraAno, Cultura, PecuariaBovinaAno, ProducaoAnimalAno, UnidadeMedida } from '../../types';
 import { formatCurrency, calcularSafra } from '../../data/initialData';
+import { calcularPecuariaBovina, calcularProducaoAnimal, estoqueTotalBovino, custoTotalPorCabecaBovino, anosPecuariaVisiveis } from '../../lib/pecuaria-calc';
 import { Card, Button } from '../ui';
 import { SafraDrawer } from '../SafraDrawer';
+import { PecuariaBovinaDrawer } from '../PecuariaBovinaDrawer';
+import { ProducaoAnimalDrawer } from '../ProducaoAnimalDrawer';
 
 interface QuadroSafraViewProps {
   culturaSafras: CulturaSafraAno[];
@@ -14,9 +17,15 @@ interface QuadroSafraViewProps {
   onDelete: (id: string) => void;
   onSaveCultura: (input: { nome: string; unidadeMedida: string }) => Promise<Cultura>;
   onDeleteCultura: (id: string) => Promise<void>;
+  pecuariaBovina: PecuariaBovinaAno[];
+  producaoAnimal: ProducaoAnimalAno[];
+  onSavePecuariaBovina: (data: Partial<PecuariaBovinaAno>) => void;
+  onDeletePecuariaBovina: (id: string) => void;
+  onSaveProducaoAnimal: (data: Partial<ProducaoAnimalAno>) => void;
+  onDeleteProducaoAnimal: (id: string) => void;
 }
 
-const ANOS_SAFRA = ['2024/2025', '2025/2026', '2026/2027', '2027/2028'];
+const ANOS_SAFRA = ['2022/2023', '2024/2025', '2025/2026', '2026/2027', '2027/2028'];
 
 type OrigemLinha = 'usuario' | 'calculado';
 type DestaqueLinha = 'positivo' | 'total' | 'highlight' | undefined;
@@ -41,17 +50,65 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
   onSave,
   onDelete,
   onSaveCultura,
-  onDeleteCultura
+  onDeleteCultura,
+  pecuariaBovina,
+  producaoAnimal,
+  onSavePecuariaBovina,
+  onDeletePecuariaBovina,
+  onSaveProducaoAnimal,
+  onDeleteProducaoAnimal
 }) => {
   const culturasComRegistro = Array.from(new Set(culturaSafras.map((s) => s.cultura)));
   const [culturaFiltro, setCulturaFiltro] = useState('Todas');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<CulturaSafraAno | null>(null);
+  // Pré-seleção de cultura/ano ao clicar em "Adicionar" numa coluna de ano vazia (só usada em modo "novo").
+  const [presetSafra, setPresetSafra] = useState<{ cultura: string; ano: string } | null>(null);
+
+  // Pecuária/Suinocultura/Avicultura — 3 tabelas fixas, sempre exibidas
+  // abaixo do Quadro de Safra (grãos), janela rolante de anos civis
+  // (anosPecuariaVisiveis), nunca uma lista fixa de safras.
+  const anosPecuaria = anosPecuariaVisiveis();
+  const [isPecuariaDrawerOpen, setIsPecuariaDrawerOpen] = useState(false);
+  const [editingPecuaria, setEditingPecuaria] = useState<PecuariaBovinaAno | null>(null);
+  const [presetAnoPecuaria, setPresetAnoPecuaria] = useState<number | null>(null);
+  const [producaoAnimalDrawer, setProducaoAnimalDrawer] = useState<{
+    tipo: 'Avicultura' | 'Suinocultura';
+    editing: ProducaoAnimalAno | null;
+    presetAno?: number;
+  } | null>(null);
+
+  const handleOpenNewPecuaria = () => {
+    setEditingPecuaria(null);
+    setPresetAnoPecuaria(null);
+    setIsPecuariaDrawerOpen(true);
+  };
+  const handleOpenNewPecuariaForAno = (ano: number) => {
+    setEditingPecuaria(null);
+    setPresetAnoPecuaria(ano);
+    setIsPecuariaDrawerOpen(true);
+  };
+  const handleOpenEditPecuaria = (registro: PecuariaBovinaAno) => {
+    setEditingPecuaria(registro);
+    setIsPecuariaDrawerOpen(true);
+  };
+  const handleOpenNewProducaoAnimal = (tipo: 'Avicultura' | 'Suinocultura') => setProducaoAnimalDrawer({ tipo, editing: null });
+  const handleOpenNewProducaoAnimalForAno = (tipo: 'Avicultura' | 'Suinocultura', ano: number) =>
+    setProducaoAnimalDrawer({ tipo, editing: null, presetAno: ano });
+  const handleOpenEditProducaoAnimal = (tipo: 'Avicultura' | 'Suinocultura', registro: ProducaoAnimalAno) =>
+    setProducaoAnimalDrawer({ tipo, editing: registro });
 
   const culturasVisiveis = culturaFiltro === 'Todas' ? culturasComRegistro : [culturaFiltro];
 
   const handleOpenNew = () => {
     setEditing(null);
+    setPresetSafra(null);
+    setIsDrawerOpen(true);
+  };
+
+  const handleOpenNewForAno = (cultura: string, ano: string) => {
+    setEditing(null);
+    setPresetSafra({ cultura, ano });
     setIsDrawerOpen(true);
   };
 
@@ -149,14 +206,13 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
                     )}
                   </th>
                 ))}
-                <th className="bg-slate-900 py-3 px-4 text-right whitespace-nowrap">Ações</th>
               </tr>
             </thead>
 
             {culturasVisiveis.length === 0 && (
               <tbody>
                 <tr>
-                  <td colSpan={ANOS_SAFRA.length + 3} className="py-8 px-4 text-center text-slate-400">
+                  <td colSpan={ANOS_SAFRA.length + 2} className="py-8 px-4 text-center text-slate-400">
                     Nenhum registro de safra cadastrado ainda.
                   </td>
                 </tr>
@@ -262,7 +318,6 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
                           </td>
                         );
                       })}
-                      <td className="py-2.5 px-4" />
                     </tr>
                   ))}
                   <tr>
@@ -271,28 +326,37 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
                       const registro = porAno.get(ano);
                       return (
                         <td key={ano} className="py-2 px-4 text-right">
-                          {registro && (
-                            <div className="flex items-center justify-end gap-1.5">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {registro ? (
+                              <>
+                                <button
+                                  onClick={() => handleOpenEdit(registro)}
+                                  title="Editar"
+                                  className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => onDelete(registro.id)}
+                                  title="Deletar"
+                                  className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md transition"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            ) : (
                               <button
-                                onClick={() => handleOpenEdit(registro)}
-                                title="Editar"
-                                className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition"
+                                onClick={() => handleOpenNewForAno(cultura, ano)}
+                                title="Adicionar"
+                                className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-md transition"
                               >
-                                <Edit2 className="w-3.5 h-3.5" />
+                                <Plus className="w-3.5 h-3.5" />
                               </button>
-                              <button
-                                onClick={() => onDelete(registro.id)}
-                                title="Deletar"
-                                className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md transition"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </td>
                       );
                     })}
-                    <td className="py-2 px-4" />
                   </tr>
                 </tbody>
               );
@@ -302,7 +366,7 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
               <tbody>
                 <tr>
                   <td
-                    colSpan={ANOS_SAFRA.length + 3}
+                    colSpan={ANOS_SAFRA.length + 2}
                     className="bg-slate-900 text-white font-bold uppercase tracking-wider text-[11px] py-2.5 px-4"
                   >
                     Totais por Safra
@@ -318,7 +382,6 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
                         {tot.formatar(totaisPorAno[ano][tot.key])}
                       </td>
                     ))}
-                    <td className="py-2.5 px-4" />
                   </tr>
                 ))}
               </tbody>
@@ -336,6 +399,170 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
         </div>
       </Card>
 
+      {/* Quadro Pecuária (Bovino) — tabela fixa, sempre exibida, janela rolante de 3 anos civis. */}
+      <Card className="overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/80">
+          <h3 className="text-sm font-bold text-slate-900">Quadro Pecuária</h3>
+          <Button variant="primary" onClick={handleOpenNewPecuaria} className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs">
+            <Plus className="w-3.5 h-3.5" /> Novo Ano
+          </Button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-wider text-white font-bold">
+                <th className="bg-slate-900 py-3 px-4 whitespace-nowrap">Indicador</th>
+                {anosPecuaria.map((ano) => (
+                  <th key={ano} className="bg-slate-900 py-3 px-4 text-right whitespace-nowrap">
+                    {ano}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {[
+                { label: 'Estoque Total (cabeças)', render: (r: PecuariaBovinaAno) => `${estoqueTotalBovino(r).toLocaleString('pt-BR')} cab.` },
+                { label: 'Ciclo Produtivo', render: (r: PecuariaBovinaAno) => r.cicloProdutivo || '—' },
+                { label: 'Tipo de Terminação', render: (r: PecuariaBovinaAno) => r.tipoTerminacao || '—' },
+                { label: 'Custo Total (R$/cabeça)', render: (r: PecuariaBovinaAno) => formatCurrency(custoTotalPorCabecaBovino(r)) },
+                {
+                  label: 'RECEITA BRUTA (R$)',
+                  render: (r: PecuariaBovinaAno) => formatCurrency(calcularPecuariaBovina(r).receitaBruta),
+                  destaque: true
+                },
+                {
+                  label: 'CUSTO TOTAL DE PRODUÇÃO (R$)',
+                  render: (r: PecuariaBovinaAno) => formatCurrency(calcularPecuariaBovina(r).despesa)
+                },
+                {
+                  label: 'RESULTADO BRUTO (R$)',
+                  render: (r: PecuariaBovinaAno) => formatCurrency(calcularPecuariaBovina(r).receitaLiquida),
+                  destaque: true
+                },
+                { label: 'MARGEM BRUTA (%)', render: (r: PecuariaBovinaAno) => `${calcularPecuariaBovina(r).margem.toFixed(1)}%` }
+              ].map((linha) => (
+                <tr key={linha.label} className={linha.destaque ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}>
+                  <td className={`py-2.5 px-4 whitespace-nowrap ${linha.destaque ? 'font-bold text-slate-900' : 'font-semibold text-slate-700'}`}>
+                    {linha.label}
+                  </td>
+                  {anosPecuaria.map((ano) => {
+                    const registro = pecuariaBovina.find((r) => r.anoCivil === ano);
+                    return (
+                      <td key={ano} className={`py-2.5 px-4 text-right whitespace-nowrap ${linha.destaque ? 'font-bold text-slate-900' : 'font-medium text-slate-700'}`}>
+                        {registro ? linha.render(registro) : '—'}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              <tr>
+                <td className="py-2 px-4 text-slate-400 text-[11px]">Ações por ano:</td>
+                {anosPecuaria.map((ano) => {
+                  const registro = pecuariaBovina.find((r) => r.anoCivil === ano);
+                  return (
+                    <td key={ano} className="py-2 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {registro ? (
+                          <>
+                            <button onClick={() => handleOpenEditPecuaria(registro)} title="Editar" className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition">
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => onDeletePecuariaBovina(registro.id)} title="Deletar" className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md transition">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        ) : (
+                          <button onClick={() => handleOpenNewPecuariaForAno(ano)} title="Adicionar" className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-md transition">
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Avicultura / Suinocultura — tabelas fixas, mesma estrutura simples entre si. */}
+      {(['Avicultura', 'Suinocultura'] as const).map((tipo) => (
+        <Card key={tipo} className="overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/80">
+            <h3 className="text-sm font-bold text-slate-900">{tipo}</h3>
+            <Button variant="primary" onClick={() => handleOpenNewProducaoAnimal(tipo)} className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs">
+              <Plus className="w-3.5 h-3.5" /> Novo Ano
+            </Button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="text-[11px] uppercase tracking-wider text-white font-bold">
+                  <th className="bg-slate-900 py-3 px-4 whitespace-nowrap">Indicador</th>
+                  {anosPecuaria.map((ano) => (
+                    <th key={ano} className="bg-slate-900 py-3 px-4 text-right whitespace-nowrap">
+                      {ano}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {[
+                  { label: 'Produção (cabeças)', render: (r: ProducaoAnimalAno) => `${r.producaoCabecas.toLocaleString('pt-BR')} cab.` },
+                  { label: 'Preço Médio (R$/cabeça)', render: (r: ProducaoAnimalAno) => formatCurrency(r.precoMedioPorCabeca) },
+                  { label: 'Custo Médio (R$/cabeça)', render: (r: ProducaoAnimalAno) => formatCurrency(r.custoMedioPorCabeca) },
+                  { label: 'RECEITA TOTAL (R$)', render: (r: ProducaoAnimalAno) => formatCurrency(calcularProducaoAnimal(r).receitaBruta), destaque: true },
+                  { label: 'CUSTO TOTAL DE PRODUÇÃO (R$)', render: (r: ProducaoAnimalAno) => formatCurrency(calcularProducaoAnimal(r).despesa) },
+                  { label: 'RESULTADO BRUTO (R$)', render: (r: ProducaoAnimalAno) => formatCurrency(calcularProducaoAnimal(r).receitaLiquida), destaque: true },
+                  { label: 'MARGEM BRUTA (%)', render: (r: ProducaoAnimalAno) => `${calcularProducaoAnimal(r).margem.toFixed(1)}%` }
+                ].map((linha) => (
+                  <tr key={linha.label} className={linha.destaque ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}>
+                    <td className={`py-2.5 px-4 whitespace-nowrap ${linha.destaque ? 'font-bold text-slate-900' : 'font-semibold text-slate-700'}`}>
+                      {linha.label}
+                    </td>
+                    {anosPecuaria.map((ano) => {
+                      const registro = producaoAnimal.find((r) => r.tipo === tipo && r.anoCivil === ano);
+                      return (
+                        <td key={ano} className={`py-2.5 px-4 text-right whitespace-nowrap ${linha.destaque ? 'font-bold text-slate-900' : 'font-medium text-slate-700'}`}>
+                          {registro ? linha.render(registro) : '—'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+                <tr>
+                  <td className="py-2 px-4 text-slate-400 text-[11px]">Ações por ano:</td>
+                  {anosPecuaria.map((ano) => {
+                    const registro = producaoAnimal.find((r) => r.tipo === tipo && r.anoCivil === ano);
+                    return (
+                      <td key={ano} className="py-2 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {registro ? (
+                            <>
+                              <button onClick={() => handleOpenEditProducaoAnimal(tipo, registro)} title="Editar" className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition">
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => onDeleteProducaoAnimal(registro.id)} title="Deletar" className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md transition">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          ) : (
+                            <button onClick={() => handleOpenNewProducaoAnimalForAno(tipo, ano)} title="Adicionar" className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-md transition">
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ))}
+
       <SafraDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
@@ -345,7 +572,30 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
         onSaveCultura={onSaveCultura}
         onDeleteCultura={onDeleteCultura}
         anosSafraDisponiveis={ANOS_SAFRA}
+        presetCultura={presetSafra?.cultura}
+        presetAnoSafra={presetSafra?.ano}
       />
+
+      <PecuariaBovinaDrawer
+        isOpen={isPecuariaDrawerOpen}
+        onClose={() => setIsPecuariaDrawerOpen(false)}
+        onSave={onSavePecuariaBovina}
+        editingRegistro={editingPecuaria}
+        anosDisponiveis={anosPecuaria}
+        presetAnoCivil={presetAnoPecuaria ?? undefined}
+      />
+
+      {producaoAnimalDrawer && (
+        <ProducaoAnimalDrawer
+          isOpen={true}
+          onClose={() => setProducaoAnimalDrawer(null)}
+          onSave={onSaveProducaoAnimal}
+          editingRegistro={producaoAnimalDrawer.editing}
+          tipo={producaoAnimalDrawer.tipo}
+          anosDisponiveis={anosPecuaria}
+          presetAnoCivil={producaoAnimalDrawer.presetAno}
+        />
+      )}
     </div>
   );
 };

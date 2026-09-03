@@ -14,6 +14,9 @@ interface SafraDrawerProps {
   onSaveCultura: (input: { nome: string; unidadeMedida: string }) => Promise<Cultura>;
   onDeleteCultura: (id: string) => Promise<void>;
   anosSafraDisponiveis: string[];
+  /** Pré-seleciona cultura/ano ao abrir em modo "novo" (atalho de "Adicionar" numa coluna de ano vazia) — ignorado se `editingSafra` estiver definido. */
+  presetCultura?: string;
+  presetAnoSafra?: string;
 }
 
 export const SafraDrawer: React.FC<SafraDrawerProps> = ({
@@ -24,7 +27,9 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
   culturas,
   onSaveCultura,
   onDeleteCultura,
-  anosSafraDisponiveis
+  anosSafraDisponiveis,
+  presetCultura,
+  presetAnoSafra
 }) => {
   const [cultura, setCultura] = useState('');
   const [anoSafra, setAnoSafra] = useState('');
@@ -54,10 +59,10 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
       setPrecoMedio(editingSafra.precoMedio.toString());
       setCustoProducao(editingSafra.custoProducao.toString());
     } else {
-      const primeiraCultura = culturasState[0];
-      setCultura(primeiraCultura?.nome ?? '');
-      setUnidadeProducao(primeiraCultura?.unidadeMedida ?? 'sc');
-      setAnoSafra(anosSafraDisponiveis[anosSafraDisponiveis.length - 1] ?? '');
+      const culturaSelecionada = presetCultura ? culturasState.find((c) => c.nome === presetCultura) : culturasState[0];
+      setCultura(culturaSelecionada?.nome ?? presetCultura ?? '');
+      setUnidadeProducao(culturaSelecionada?.unidadeMedida ?? 'sc');
+      setAnoSafra(presetAnoSafra ?? anosSafraDisponiveis[anosSafraDisponiveis.length - 1] ?? '');
       setHectares('');
       setHaPropria('');
       setHaArrendada('0');
@@ -65,7 +70,7 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
       setPrecoMedio('');
       setCustoProducao('');
     }
-  }, [editingSafra, isOpen, culturasState, anosSafraDisponiveis]);
+  }, [editingSafra, isOpen, culturasState, anosSafraDisponiveis, presetCultura, presetAnoSafra]);
 
   const handleCulturaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const valor = e.target.value;

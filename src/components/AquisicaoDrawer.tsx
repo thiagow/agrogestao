@@ -153,8 +153,13 @@ export const AquisicaoDrawer: React.FC<AquisicaoDrawerProps> = ({
   const areaTotalNum = parseFloat(areaTotalHa) || 0;
   const sacasHaNum = parseFloat(sacasHa) || 0;
   const precoReferenciaNum = parseFloat(precoReferencia) || 0;
-  const totalSacasSafra = sacasHaNum * areaTotalNum;
-  const valorEstimadoTotal = totalSacasSafra * precoReferenciaNum;
+  // Total do negócio (decisão de 23/08/2026, review do cliente): Sacas/ha × área
+  // é o TOTAL do parcelamento, dividido pelas safras cobertas pelo intervalo de
+  // datas — não um valor repetido em cada safra (ver aquisicao-engine.ts).
+  const totalSacasNegocio = sacasHaNum * areaTotalNum;
+  const numeroSafras = safrasCobertas.length;
+  const sacasPorSafra = numeroSafras > 0 ? totalSacasNegocio / numeroSafras : 0;
+  const valorEstimadoTotal = totalSacasNegocio * precoReferenciaNum;
   const precoHaEquivalente = sacasHaNum * precoReferenciaNum;
 
   const precoHaNum = parseFloat(precoHa) || 0;
@@ -409,9 +414,9 @@ export const AquisicaoDrawer: React.FC<AquisicaoDrawerProps> = ({
                     value={sacasHa}
                     onChange={(e) => setSacasHa(e.target.value)}
                   />
-                  {totalSacasSafra > 0 && (
+                  {totalSacasNegocio > 0 && (
                     <p className="text-[11px] text-slate-500 mt-1">
-                      Total: <span className="font-bold text-slate-700">{Math.round(totalSacasSafra).toLocaleString('pt-BR')} sc/safra</span>
+                      Total do negócio: <span className="font-bold text-slate-700">{Math.round(totalSacasNegocio).toLocaleString('pt-BR')} sc</span>
                     </p>
                   )}
                 </div>
@@ -426,11 +431,20 @@ export const AquisicaoDrawer: React.FC<AquisicaoDrawerProps> = ({
               />
               {valorEstimadoTotal > 0 && (
                 <div className="rounded-xl bg-slate-50 border border-slate-200/80 px-4 py-3">
-                  <p className="text-[11px] text-slate-500">Valor estimado total</p>
+                  <p className="text-[11px] text-slate-500">Valor estimado total do negócio</p>
                   <p className="text-lg font-extrabold text-slate-900">{formatCurrency(valorEstimadoTotal)}</p>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    {precoHaEquivalente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/ha × {areaTotalNum.toLocaleString('pt-BR')} ha
+                    {Math.round(totalSacasNegocio).toLocaleString('pt-BR')} sc ({precoHaEquivalente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/ha × {areaTotalNum.toLocaleString('pt-BR')} ha) × R$ {precoReferenciaNum.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/sc
                   </p>
+                  {numeroSafras > 0 && (
+                    <p className="text-[11px] text-slate-500 mt-1 pt-1 border-t border-slate-200/80">
+                      ÷ {numeroSafras} {numeroSafras === 1 ? 'safra' : 'safras'} ={' '}
+                      <span className="font-bold text-slate-700">
+                        {Math.round(sacasPorSafra).toLocaleString('pt-BR')} sc/safra
+                      </span>{' '}
+                      ({formatCurrency(sacasPorSafra * precoReferenciaNum)}/safra)
+                    </p>
+                  )}
                 </div>
               )}
             </>

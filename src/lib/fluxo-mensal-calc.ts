@@ -18,8 +18,9 @@
 //    isolado (resolve o BUG #2 candidato da spec).
 
 import { calcularSafra, mesLabel } from '@/lib/agro';
-import { anoInicioSafra } from '@/lib/safra-periodo';
+import { anoInicioSafra, safraDoAnoCivil } from '@/lib/safra-periodo';
 import { categoriaCalendarioDaCultura, etapaCalendarioDaCategoria, type FaseCalendarioAgricola } from '@/lib/calendario-agricola';
+import { calcularPecuariaBovina, calcularProducaoAnimal } from '@/lib/pecuaria-calc';
 import type {
   Aquisicao,
   CategoriaLancamentoMensal,
@@ -27,6 +28,8 @@ import type {
   CulturaSafraAno,
   ItemLancamentoManualMensal,
   LancamentoMensal,
+  PecuariaBovinaAno,
+  ProducaoAnimalAno,
   Supplier,
   TipoLancamentoMensal
 } from '@/types';
@@ -134,78 +137,124 @@ function mesesDaFase(
   return meses;
 }
 
+/** Gera os lançamentos CUSTEIO/SAFRA/PROJEÇÃO de uma linha de distribuição contínua (todo mês do horizonte, sem fase de plantio/colheita) — usado por Pecuária Bovina de Quadro Safra e pelos registros dedicados de Pecuária/Suinocultura/Avicultura. */
+function gerarLancamentosContinuos(
+  cultura: string,
+  despesa: number,
+  receitaBruta: number,
+  horizonte: MesHorizonte[],
+  horizonteSet: Set<string>,
+  seqRef: { current: number }
+): LancamentoMensal[] {
+  const lancamentos: LancamentoMensal[] = [];
+  const valorCusteioMes = despesa / 12;
+  const valorReceitaMes = receitaBruta / 12;
+
+  for (const { mes, ano } of horizonte) {
+    if (valorCusteioMes > 0) {
+      lancamentos.push({
+        id: `custeio-${seqRef.current++}`,
+        mes,
+        ano,
+        tipo: 'SAIDA',
+        origem: 'CUSTEIO',
+        categoriaLabel: `Custeio ${cultura}`,
+        descricao: `Custeio ${cultura}`,
+        cultura,
+        valor: valorCusteioMes,
+        contaComoCaixa: true
+      });
+    }
+    if (valorReceitaMes > 0) {
+      lancamentos.push({
+        id: `safra-${seqRef.current++}`,
+        mes,
+        ano,
+        tipo: 'ENTRADA',
+        origem: 'SAFRA',
+        categoriaLabel: `Receita ${cultura} (estimativa safra)`,
+        descricao: `Receita ${cultura} (estimativa safra)`,
+        cultura,
+        valor: valorReceitaMes,
+        contaComoCaixa: false
+      });
+      const projecao = deslocaUmMes({ mes, ano });
+      if (horizonteSet.has(chaveMes(projecao))) {
+        lancamentos.push({
+          id: `projecao-${seqRef.current++}`,
+          mes: projecao.mes,
+          ano: projecao.ano,
+          tipo: 'ENTRADA',
+          origem: 'PROJECAO',
+          categoriaLabel: `[PROJEÇÃO] ${cultura} — 30d após colheita`,
+          descricao: `[PROJEÇÃO] ${cultura} — 30d após colheita`,
+          cultura,
+          valor: valorReceitaMes,
+          contaComoCaixa: true
+        });
+      }
+    }
+  }
+
+  return lancamentos;
+}
+
+const LABEL_TIPO_PRODUCAO_ANIMAL: Record<ProducaoAnimalAno['tipo'], string> = {
+  Avicultura: 'Avicultura',
+  Suinocultura: 'Suinocultura'
+};
+
 interface GerarCusteioSafraInput {
   quadroSafra: CulturaSafraAno[];
+  /** Pecuária/Suinocultura/Avicultura — organizadas por ano civil (safraDoAnoCivil converte pra safra), sempre distribuição contínua (1/12 por mês, sem fase de plantio/colheita). */
+  pecuariaBovina: PecuariaBovinaAno[];
+  producaoAnimal: ProducaoAnimalAno[];
   safraSelecionada: string;
   multiSafra: boolean;
   horizonte: MesHorizonte[];
 }
 
-/** Gera os lançamentos CUSTEIO (saída)/SAFRA (entrada informativa)/PROJEÇÃO (entrada de caixa, +1 mês) a partir do Quadro de Safra + Calendário Agrícola. */
+/** Gera os lançamentos CUSTEIO (saída)/SAFRA (entrada informativa)/PROJEÇÃO (entrada de caixa, +1 mês) a partir do Quadro de Safra + Calendário Agrícola + Pecuária/Suinocultura/Avicultura. */
 export function gerarLancamentosCusteioSafraProjecao(input: GerarCusteioSafraInput): LancamentoMensal[] {
   const registros = input.multiSafra
     ? input.quadroSafra
     : input.quadroSafra.filter((q) => q.anoSafra === input.safraSelecionada);
 
   const horizonteSet = new Set(input.horizonte.map(chaveMes));
+  const seqRef = { current: 1 };
   const lancamentos: LancamentoMensal[] = [];
-  let seq = 1;
+
+  const dentroDaSafra = (anoCivil: number) =>
+    input.multiSafra || safraDoAnoCivil(anoCivil) === input.safraSelecionada;
+
+  for (const registro of input.pecuariaBovina.filter((r) => dentroDaSafra(r.anoCivil))) {
+    const { despesa, receitaBruta } = calcularPecuariaBovina(registro);
+    lancamentos.push(...gerarLancamentosContinuos('Bovino', despesa, receitaBruta, input.horizonte, horizonteSet, seqRef));
+  }
+  for (const registro of input.producaoAnimal.filter((r) => dentroDaSafra(r.anoCivil))) {
+    const { despesa, receitaBruta } = calcularProducaoAnimal(registro);
+    lancamentos.push(
+      ...gerarLancamentosContinuos(
+        LABEL_TIPO_PRODUCAO_ANIMAL[registro.tipo],
+        despesa,
+        receitaBruta,
+        input.horizonte,
+        horizonteSet,
+        seqRef
+      )
+    );
+  }
 
   for (const registro of registros) {
     const { despesa, receitaBruta } = calcularSafra(registro);
     const categoria = categoriaCalendarioDaCultura(registro.cultura);
     const etapa = etapaCalendarioDaCategoria(categoria);
 
-    // Pecuária (e qualquer categoria marcada como contínua): custeio/receita
-    // recorrentes em todos os meses do horizonte, não por fase de calendário.
+    // Qualquer categoria marcada como contínua (hoje nenhuma cultura de grão
+    // cai aqui — Bovino saiu de Quadro Safra e passou a ser tratado acima):
+    // custeio/receita recorrentes em todos os meses do horizonte.
     if (etapa.distribuicaoContinua) {
-      const valorCusteioMes = despesa / 12;
-      const valorReceitaMes = receitaBruta / 12;
-      for (const { mes, ano } of input.horizonte) {
-        if (valorCusteioMes > 0) {
-          lancamentos.push({
-            id: `custeio-${seq++}`,
-            mes,
-            ano,
-            tipo: 'SAIDA',
-            origem: 'CUSTEIO',
-            categoriaLabel: `Custeio ${registro.cultura}`,
-            descricao: `Custeio ${registro.cultura}`,
-            cultura: registro.cultura,
-            valor: valorCusteioMes,
-            contaComoCaixa: true
-          });
-        }
-        if (valorReceitaMes > 0) {
-          lancamentos.push({
-            id: `safra-${seq++}`,
-            mes,
-            ano,
-            tipo: 'ENTRADA',
-            origem: 'SAFRA',
-            categoriaLabel: `Receita ${registro.cultura} (estimativa safra)`,
-            descricao: `Receita ${registro.cultura} (estimativa safra)`,
-            cultura: registro.cultura,
-            valor: valorReceitaMes,
-            contaComoCaixa: false
-          });
-          const projecao = deslocaUmMes({ mes, ano });
-          if (horizonteSet.has(chaveMes(projecao))) {
-            lancamentos.push({
-              id: `projecao-${seq++}`,
-              mes: projecao.mes,
-              ano: projecao.ano,
-              tipo: 'ENTRADA',
-              origem: 'PROJECAO',
-              categoriaLabel: `[PROJEÇÃO] ${registro.cultura} — 30d após colheita`,
-              descricao: `[PROJEÇÃO] ${registro.cultura} — 30d após colheita`,
-              cultura: registro.cultura,
-              valor: valorReceitaMes,
-              contaComoCaixa: true
-            });
-          }
-        }
-      }
+      lancamentos.push(...gerarLancamentosContinuos(registro.cultura, despesa, receitaBruta, input.horizonte, horizonteSet, seqRef));
       continue;
     }
 
@@ -220,7 +269,7 @@ export function gerarLancamentosCusteioSafraProjecao(input: GerarCusteioSafraInp
       const valorPorMes = despesa / mesesCusteio.length;
       for (const { mes, ano } of mesesCusteio) {
         lancamentos.push({
-          id: `custeio-${seq++}`,
+          id: `custeio-${seqRef.current++}`,
           mes,
           ano,
           tipo: 'SAIDA',
@@ -238,7 +287,7 @@ export function gerarLancamentosCusteioSafraProjecao(input: GerarCusteioSafraInp
       const valorPorMes = receitaBruta / mesesColheita.length;
       for (const { mes, ano } of mesesColheita) {
         lancamentos.push({
-          id: `safra-${seq++}`,
+          id: `safra-${seqRef.current++}`,
           mes,
           ano,
           tipo: 'ENTRADA',
@@ -252,7 +301,7 @@ export function gerarLancamentosCusteioSafraProjecao(input: GerarCusteioSafraInp
         const projecao = deslocaUmMes({ mes, ano });
         if (horizonteSet.has(chaveMes(projecao))) {
           lancamentos.push({
-            id: `projecao-${seq++}`,
+            id: `projecao-${seqRef.current++}`,
             mes: projecao.mes,
             ano: projecao.ano,
             tipo: 'ENTRADA',
@@ -338,13 +387,16 @@ export function gerarLancamentosVinculados(input: GerarVinculadosInput): Lancame
       if (!input.multiSafra && parcela.safra !== input.safraSelecionada) continue;
       // Preço de referência não definido -> sem valor a lançar (nunca um 0 que mente, mesmo critério do BUG #1 de Arrendamentos).
       if (parcela.valorTotal == null) continue;
+      // Direção (23/08/2026): reaproveita as categorias ARRENDAMENTO_PAGO/
+      // ARRENDAMENTO_RECEBIDO já existentes (antes só usadas em lançamento manual).
+      const aReceber = contrato.direcao === 'A_RECEBER';
       lancamentos.push({
         id: `vinc-arr-${seq++}`,
         mes: mesRef,
         ano: anoInicioSafra(parcela.safra) + 1,
-        tipo: 'SAIDA',
+        tipo: aReceber ? 'ENTRADA' : 'SAIDA',
         origem: 'VINCULADO',
-        categoriaLabel: 'Arrendamento',
+        categoriaLabel: aReceber ? 'Arrendamento Recebido' : 'Arrendamento Pago',
         descricao: `${contrato.nomeFazenda} — Arrendamento Anual`,
         cultura: contrato.culturaNome,
         valor: parcela.valorTotal,

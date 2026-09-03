@@ -9,10 +9,13 @@ import type {
   PrecoDefinidoSafra,
   CulturaSafraAno,
   ItemFluxoManual,
+  PecuariaBovinaAno,
+  ProducaoAnimalAno,
   Supplier
 } from '../../types';
 import { formatCurrency } from '../../data/initialData';
 import { montarFluxoSafraDTO, calcularFluxoSafra } from '../../lib/fluxo-safra-calc';
+import { safraDoAnoCivil } from '../../lib/safra-periodo';
 import { commodityDaCultura } from '../../lib/cultura-commodity';
 import { Card, KpiCard, Badge, Select, Button, Tooltip } from '../ui';
 import { FluxoManualItemModal } from '../FluxoManualItemModal';
@@ -22,6 +25,8 @@ import type { LinhaFluxoConsolidado } from '../../server/aquisicoes';
 
 interface FluxoSafraViewProps {
   culturaSafras: CulturaSafraAno[];
+  pecuariaBovina: PecuariaBovinaAno[];
+  producaoAnimal: ProducaoAnimalAno[];
   suppliers: Supplier[];
   contratosBancarios: ContratoBancario[];
   cronograma?: CronogramaConsolidado;
@@ -48,6 +53,8 @@ const BADGE_ANALISE: Record<'Saudável' | 'Atenção' | 'Crítico', { tone: 'eme
 
 export const FluxoSafraView: React.FC<FluxoSafraViewProps> = ({
   culturaSafras,
+  pecuariaBovina,
+  producaoAnimal,
   suppliers,
   contratosBancarios,
   cronograma,
@@ -59,7 +66,17 @@ export const FluxoSafraView: React.FC<FluxoSafraViewProps> = ({
   onSaveItem,
   onDeleteItem
 }) => {
-  const safrasDisponiveis = useMemo(() => Array.from(new Set(culturaSafras.map((r) => r.anoSafra))).sort(), [culturaSafras]);
+  const safrasDisponiveis = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...culturaSafras.map((r) => r.anoSafra),
+          ...pecuariaBovina.map((r) => safraDoAnoCivil(r.anoCivil)),
+          ...producaoAnimal.map((r) => safraDoAnoCivil(r.anoCivil))
+        ])
+      ).sort(),
+    [culturaSafras, pecuariaBovina, producaoAnimal]
+  );
   const [safraSelecionada, setSafraSelecionada] = useState('');
   const safraAtiva = safraSelecionada || safrasDisponiveis[safrasDisponiveis.length - 1] || '';
 
@@ -80,16 +97,31 @@ export const FluxoSafraView: React.FC<FluxoSafraViewProps> = ({
       montarFluxoSafraDTO({
         safra: safraAtiva,
         quadroSafra: culturaSafras,
+        pecuariaBovina,
+        producaoAnimal,
         suppliers,
         contratosBancarios,
-        anosCronograma: cronograma?.anos ?? [],
+        parcelasBancos: cronograma?.parcelas ?? [],
         linhasArrendamento,
         linhasAquisicao,
         contratosComerciais,
         itensManuais,
         precoSoja
       }),
-    [safraAtiva, culturaSafras, suppliers, contratosBancarios, cronograma, linhasArrendamento, linhasAquisicao, contratosComerciais, itensManuais, precoSoja]
+    [
+      safraAtiva,
+      culturaSafras,
+      pecuariaBovina,
+      producaoAnimal,
+      suppliers,
+      contratosBancarios,
+      cronograma,
+      linhasArrendamento,
+      linhasAquisicao,
+      contratosComerciais,
+      itensManuais,
+      precoSoja
+    ]
   );
 
   const calculado = useMemo(() => calcularFluxoSafra(dto), [dto]);
@@ -97,6 +129,7 @@ export const FluxoSafraView: React.FC<FluxoSafraViewProps> = ({
 
   const chartData = [
     { nome: 'Receita', valor: dto.receitaProjetada, entrada: true },
+    ...(dto.arrendamentosReceber > 0 ? [{ nome: 'Arrend. a Receber', valor: dto.arrendamentosReceber, entrada: true }] : []),
     { nome: 'Custo Safra', valor: dto.custoProducao, entrada: false },
     { nome: 'Fornecedores', valor: dto.fornecedores, entrada: false },
     { nome: 'Amort. Bancos', valor: dto.amortizacaoBancos, entrada: false },

@@ -44,17 +44,18 @@ describe('gerarParcelasAquisicao — modo SACAS (dataset Fazenda Pedra)', () => 
     expect(parcelas.filter((p) => p.tipo === 'ENTRADA')).toHaveLength(1);
   });
 
-  it('fecha a soma de sacas em 4.086.957 (1.000.000/safra + 86.957 da entrada)', () => {
+  it('fecha a soma de sacas em 1.000.000 — total do negócio (200sc/ha × 5.000ha), dividido pelas 4 safras (decisão de 23/08/2026)', () => {
     const totalSacas = parcelas.reduce((s, p) => s + p.sacas, 0);
-    // Entrada não carrega sacas próprias no modo Sacas (valor fixo em R$) — a
-    // spec mostra 86.957 sc só como equivalência informativa, não como um
-    // valor gerado por este motor.
-    expect(totalSacas).toBe(4_000_000);
+    // Entrada não carrega sacas próprias no modo Sacas (valor fixo em R$).
+    // Antes desta mudança, o total repetia 1.000.000sc EM CADA safra
+    // (4.000.000 no total) — agora é o negócio inteiro dividido pelas safras.
+    expect(totalSacas).toBe(1_000_000);
+    expect(parcelas.filter((p) => p.tipo === 'PARCELA').every((p) => p.sacas === 250_000)).toBe(true);
   });
 
-  it('fecha o valor total em R$ 470.000.000 (4x R$115M de parcela + R$10M de entrada)', () => {
+  it('fecha o valor total em R$ 125.000.000 (R$115M de parcelas + R$10M de entrada)', () => {
     const total = parcelas.reduce((s, p) => s + p.valorTotal, 0);
-    expect(total).toBe(470_000_000);
+    expect(total).toBe(125_000_000);
   });
 
   it('nunca gera uma dataPagamento inválida (corrige o BUG #1 da spec)', () => {
@@ -71,6 +72,31 @@ describe('gerarParcelasAquisicao — modo SACAS (dataset Fazenda Pedra)', () => 
 
   it('marca todas as parcelas do modo Sacas com o selo de preço de referência', () => {
     expect(parcelas.filter((p) => p.tipo === 'PARCELA').every((p) => p.usaPrecoReferencia)).toBe(true);
+  });
+});
+
+describe('gerarParcelasAquisicao — modo SACAS, exemplo do cliente (review 23/08/2026)', () => {
+  // "FAZENDA TESTE. Valor por ha são de 200 sacas, multiplicado pelo valor da
+  // sacar de 120,00, e por mil - tamanho da fazenda, daria o total de
+  // R$ 24 milhões, para pagamento em 4 safras daria 50 mil sacas por safra."
+  const parcelas = gerarParcelasAquisicao({
+    tipoPagamento: 'SACAS',
+    areaTotalHa: 1000,
+    dataInicioPagamento: '2026-01-01',
+    dataVencimento: '2030-01-01',
+    sacasHa: 200,
+    precoReferencia: 120
+  });
+
+  it('divide o total do negócio (200sc/ha × 1.000ha = 200.000sc) pelas 4 safras: 50.000sc/safra', () => {
+    expect(parcelas).toHaveLength(4);
+    expect(parcelas.every((p) => p.sacas === 50_000)).toBe(true);
+    expect(parcelas.reduce((s, p) => s + p.sacas, 0)).toBe(200_000);
+  });
+
+  it('fecha o valor total do negócio em R$ 24.000.000', () => {
+    const total = parcelas.reduce((s, p) => s + p.valorTotal, 0);
+    expect(total).toBe(24_000_000);
   });
 });
 

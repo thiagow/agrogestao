@@ -6,7 +6,14 @@ import {
   gerarLancamentosVinculados,
   horizonteMeses
 } from './fluxo-mensal-calc';
-import type { Aquisicao, ContratoArrendamento, CulturaSafraAno, ItemLancamentoManualMensal, Supplier } from '@/types';
+import type {
+  Aquisicao,
+  ContratoArrendamento,
+  CulturaSafraAno,
+  ItemLancamentoManualMensal,
+  PecuariaBovinaAno,
+  Supplier
+} from '@/types';
 
 const SAFRA = '2026/2027';
 
@@ -26,18 +33,40 @@ function registroSoja(overrides: Partial<CulturaSafraAno> = {}): CulturaSafraAno
   };
 }
 
-function registroBovino(overrides: Partial<CulturaSafraAno> = {}): CulturaSafraAno {
+// SAFRA "2026/2027" -> ano civil 2027 (2º ano da safra, safraDoAnoCivil).
+function registroPecuariaBovina(overrides: Partial<PecuariaBovinaAno> = {}): PecuariaBovinaAno {
   return {
-    id: 'r2',
-    cultura: 'Bovino',
-    anoSafra: SAFRA,
-    hectares: 50,
-    haPropria: 50,
-    haArrendada: 0,
-    rendimento: 10,
-    unidadeProducao: '@',
-    precoMedio: 300,
-    custoProducao: 1200, // despesa total 60.000
+    id: 'p1',
+    anoCivil: 2027,
+    femeas0a12: 0,
+    femeas12a24: 0,
+    femeas24a36: 0,
+    femeasAcima36: 0,
+    machos0a12: 0,
+    machos12a24: 0,
+    machos24a36: 0,
+    machosAcima36: 0,
+    cicloProdutivo: 'Ciclo Completo',
+    areaPastagemPropria: 50,
+    areaPastagemArrendada: 0,
+    tipoTerminacao: 'A Pasto',
+    custoAquisicaoPorCabeca: 1200,
+    custoPastagemPorHectare: 0,
+    diariaConfinamento: 0,
+    diasConfinamento: 0,
+    qtdAnimaisConfinados: 0,
+    qtdMachosComercializados: 50,
+    pesoMedioMachos: 10,
+    precoMedioMachos: 300,
+    qtdFemeasComercializadas: 0,
+    pesoMedioFemeas: 0,
+    precoMedioFemeas: 0,
+    qtdOutrasComercializadas: 0,
+    pesoMedioOutras: 0,
+    precoMedioOutras: 0,
+    capacidadeLotacaoConfinamento: 0,
+    ganhoPesoMedioDiarioKg: 0,
+    diasConfinamentoPorLote: 0,
     ...overrides
   };
 }
@@ -58,6 +87,8 @@ describe('gerarLancamentosCusteioSafraProjecao', () => {
     const horizonte = horizonteMeses(SAFRA);
     const lancamentos = gerarLancamentosCusteioSafraProjecao({
       quadroSafra: [registroSoja()],
+      pecuariaBovina: [],
+      producaoAnimal: [],
       safraSelecionada: SAFRA,
       multiSafra: false,
       horizonte
@@ -75,6 +106,8 @@ describe('gerarLancamentosCusteioSafraProjecao', () => {
     const horizonte = horizonteMeses(SAFRA);
     const lancamentos = gerarLancamentosCusteioSafraProjecao({
       quadroSafra: [registroSoja()],
+      pecuariaBovina: [],
+      producaoAnimal: [],
       safraSelecionada: SAFRA,
       multiSafra: false,
       horizonte
@@ -99,7 +132,9 @@ describe('gerarLancamentosCusteioSafraProjecao', () => {
   it('Pecuária (categoria contínua) distribui custeio/receita em todos os 18 meses do horizonte', () => {
     const horizonte = horizonteMeses(SAFRA);
     const lancamentos = gerarLancamentosCusteioSafraProjecao({
-      quadroSafra: [registroBovino()],
+      quadroSafra: [],
+      pecuariaBovina: [registroPecuariaBovina()],
+      producaoAnimal: [],
       safraSelecionada: SAFRA,
       multiSafra: false,
       horizonte
@@ -115,6 +150,8 @@ describe('gerarLancamentosCusteioSafraProjecao', () => {
     const horizonte = horizonteMeses(SAFRA);
     const lancamentos = gerarLancamentosCusteioSafraProjecao({
       quadroSafra: [registroSoja({ id: 'outra', anoSafra: '2024/2025' })],
+      pecuariaBovina: [],
+      producaoAnimal: [],
       safraSelecionada: SAFRA,
       multiSafra: false,
       horizonte
@@ -168,6 +205,7 @@ describe('gerarLancamentosVinculados', () => {
       areaArrendadaHa: 100,
       dataInicio: '2025-01-01',
       dataVencimento: '2026-06-01',
+      direcao: 'A_PAGAR',
       tipoPagamento: 'SACAS',
       periodicidade: 'Anual',
       status: 'ATIVO',
@@ -185,6 +223,36 @@ describe('gerarLancamentosVinculados', () => {
       multiSafra: false
     });
     expect(lancamentos).toHaveLength(0);
+  });
+
+  it('arrendamento com direcao A_RECEBER lança ENTRADA/Arrendamento Recebido, não SAIDA (23/08/2026)', () => {
+    const contrato: ContratoArrendamento = {
+      id: 'a2',
+      nomeFazenda: 'Fazenda Terceiro',
+      areaArrendadaHa: 100,
+      dataInicio: '2025-01-01',
+      dataVencimento: '2026-06-01',
+      direcao: 'A_RECEBER',
+      tipoPagamento: 'SACAS',
+      periodicidade: 'Anual',
+      status: 'ATIVO',
+      possuiPagamentoAntecipado: false,
+      valorTotalFluxo: 0,
+      totalSacas: 0,
+      parcelas: [{ id: 'p2', safra: SAFRA, sacasBrutas: 100, sacasAntecipadas: 0, sacasLiquidas: 100, valorTotal: 12_000 }]
+    };
+    const lancamentos = gerarLancamentosVinculados({
+      suppliers: [],
+      contratosBancarios: [],
+      arrendamentos: [contrato],
+      aquisicoes: [],
+      safraSelecionada: SAFRA,
+      multiSafra: false
+    });
+    expect(lancamentos).toHaveLength(1);
+    expect(lancamentos[0].tipo).toBe('ENTRADA');
+    expect(lancamentos[0].categoriaLabel).toBe('Arrendamento Recebido');
+    expect(lancamentos[0].valor).toBe(12_000);
   });
 
   it('lança a parcela de Aquisição de Fazenda pela data real, sempre (independente de Multi-Safra)', () => {
@@ -241,6 +309,8 @@ describe('calcularFluxoMensal', () => {
   it('não soma linhas SAFRA (contaComoCaixa=false) no total de entradas — evita dupla contagem com a PROJEÇÃO', () => {
     const lancamentos = gerarLancamentosCusteioSafraProjecao({
       quadroSafra: [registroSoja()],
+      pecuariaBovina: [],
+      producaoAnimal: [],
       safraSelecionada: SAFRA,
       multiSafra: false,
       horizonte
@@ -253,6 +323,8 @@ describe('calcularFluxoMensal', () => {
   it('conta meses com saldo ACUMULADO negativo, não meses com saldo isolado negativo (critério do badge Situação)', () => {
     const lancamentos = gerarLancamentosCusteioSafraProjecao({
       quadroSafra: [registroSoja()],
+      pecuariaBovina: [],
+      producaoAnimal: [],
       safraSelecionada: SAFRA,
       multiSafra: false,
       horizonte

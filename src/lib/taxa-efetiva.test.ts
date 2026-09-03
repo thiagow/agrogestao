@@ -6,6 +6,7 @@ import {
   ptaxVigenteNoCiclo,
   resolverIndiceNaData,
   criarTaxaPorData,
+  cenarioTaxaDe,
   INDICES_VAZIOS,
   type IndicesVigentes,
   type SerieIndice,
@@ -320,5 +321,26 @@ describe('composição taxa efetiva → cronograma', () => {
     expect(efetiva.moedaCalculo).toBe('USD');
     expect(efetiva.cotacaoAplicada).toBe(5.2);
     expect(emBrl[0].valorTotal).toBeCloseTo(emUsd[0].valorTotal * 5.2, 2);
+  });
+});
+
+describe('cenarioTaxaDe', () => {
+  it('pré-fixado em BRL é PADRAO', () => {
+    expect(cenarioTaxaDe('Pré-fixado (% a.a.)', 'BRL', false)).toBe('PADRAO');
+  });
+
+  it('CDI/IPCA + spread são PADRAO mesmo indisponíveis (não são cenário cambial)', () => {
+    expect(cenarioTaxaDe('CDI + spread', 'BRL', true)).toBe('PADRAO');
+    expect(cenarioTaxaDe('IPCA + spread', 'BRL', true)).toBe('PADRAO');
+  });
+
+  it('pré-fixado em USD é DOLAR_PURO, ou DOLAR_PURO_INDISPONIVEL sem PTAX', () => {
+    expect(cenarioTaxaDe('Pré-fixado (% a.a.)', 'USD', false)).toBe('DOLAR_PURO');
+    expect(cenarioTaxaDe('Pré-fixado (% a.a.)', 'USD', true)).toBe('DOLAR_PURO_INDISPONIVEL');
+  });
+
+  it('Dólar + juros é VARIACAO_CAMBIAL, ou VC_INDISPONIVEL sem PTAX/cotação', () => {
+    expect(cenarioTaxaDe('Dólar + juros', 'BRL', false)).toBe('VARIACAO_CAMBIAL');
+    expect(cenarioTaxaDe('Dólar + juros', 'BRL', true)).toBe('VC_INDISPONIVEL');
   });
 });

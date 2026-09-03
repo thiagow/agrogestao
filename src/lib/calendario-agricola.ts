@@ -88,14 +88,21 @@ export const CALENDARIO_AGRICOLA_CENTRO_OESTE: EtapaCalendarioAgricola[] = [
 
 const CALENDARIO_POR_CATEGORIA = new Map(CALENDARIO_AGRICOLA_CENTRO_OESTE.map((e) => [e.categoria, e]));
 
-/** Nomes de Cultura já usados em Cadastro Mestre/Quadro de Safra (ver cultura-commodity.ts) mapeados para uma categoria de calendário. */
+/**
+ * Nomes de Cultura já usados em Cadastro Mestre/Quadro de Safra (ver
+ * cultura-commodity.ts) mapeados para uma categoria de calendário. "Bovino"
+ * saiu daqui em 02/09/2026 — não é mais uma Cultura de Quadro Safra, virou
+ * módulo dedicado (QuadroPecuariaBovina); a categoria PECUARIA_BOVINA segue
+ * existindo só como referência de `distribuicaoContinua` para
+ * fluxo-mensal-calc.ts, alcançada diretamente pelos registros de Pecuária
+ * (não mais por nome de cultura).
+ */
 const CULTURA_CATEGORIA_MAP: Record<string, CategoriaCalendarioAgricola> = {
   Soja: 'SOJA',
   Milho: 'MILHO_1_SAFRA',
   'Milho Safrinha': 'MILHO_SAFRINHA',
   'Algodão Safra': 'ALGODAO',
-  'Algodão Safrinha': 'ALGODAO',
-  Bovino: 'PECUARIA_BOVINA'
+  'Algodão Safrinha': 'ALGODAO'
 };
 
 /** Cultura sem correspondência mapeada cai em OUTRAS_CULTURAS — nunca lança erro (mesmo critério de commodityDaCultura). */

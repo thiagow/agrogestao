@@ -23,17 +23,22 @@ import type {
   ContratoArrendamento,
   CulturaSafraAno,
   DadosComplementaresFinanceiro,
+  PecuariaBovinaAno,
   PrecoDefinidoSafra,
+  ProducaoAnimalAno,
   Supplier
 } from '../../types';
 import { formatCurrency } from '../../data/initialData';
 import { montarBalanco, complementaresVazio } from '../../lib/balanco-calc';
+import { safraDoAnoCivil } from '../../lib/safra-periodo';
 import { Card, KpiCard, Badge, Select, Tabs, Tooltip } from '../ui';
 import { DadosComplementaresForm } from '../DadosComplementaresForm';
 import type { FluxoDetalhado, CronogramaConsolidado } from '../../server/contratos-bancarios';
 
 interface AnaliseFinanceiraViewProps {
   culturaSafras: CulturaSafraAno[];
+  pecuariaBovina: PecuariaBovinaAno[];
+  producaoAnimal: ProducaoAnimalAno[];
   suppliers: Supplier[];
   fluxoDetalhado?: FluxoDetalhado;
   cronograma?: CronogramaConsolidado;
@@ -56,6 +61,8 @@ const linha = (label: string, valor: number, negativo = false, destaque = false)
 
 export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
   culturaSafras,
+  pecuariaBovina,
+  producaoAnimal,
   suppliers,
   fluxoDetalhado,
   cronograma,
@@ -66,7 +73,17 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
   dadosComplementares,
   onSaveDadosComplementares
 }) => {
-  const safrasDisponiveis = useMemo(() => Array.from(new Set(culturaSafras.map((r) => r.anoSafra))).sort(), [culturaSafras]);
+  const safrasDisponiveis = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...culturaSafras.map((r) => r.anoSafra),
+          ...pecuariaBovina.map((r) => safraDoAnoCivil(r.anoCivil)),
+          ...producaoAnimal.map((r) => safraDoAnoCivil(r.anoCivil))
+        ])
+      ).sort(),
+    [culturaSafras, pecuariaBovina, producaoAnimal]
+  );
   const [safraSelecionada, setSafraSelecionada] = useState('');
   const safraAtiva = safraSelecionada || safrasDisponiveis[safrasDisponiveis.length - 1] || '';
 
@@ -82,6 +99,8 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
       montarBalanco({
         safra: safraAtiva,
         quadroSafra: culturaSafras,
+        pecuariaBovina,
+        producaoAnimal,
         suppliers,
         fluxoDetalhadoBancos,
         anosCronograma: cronograma?.anos ?? [],
@@ -91,7 +110,20 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
         precosDefinidos,
         complementares: complementaresAtivo
       }),
-    [safraAtiva, culturaSafras, suppliers, fluxoDetalhadoBancos, cronograma, arrendamentos, aquisicoes, bensDireitos, precosDefinidos, complementaresAtivo]
+    [
+      safraAtiva,
+      culturaSafras,
+      pecuariaBovina,
+      producaoAnimal,
+      suppliers,
+      fluxoDetalhadoBancos,
+      cronograma,
+      arrendamentos,
+      aquisicoes,
+      bensDireitos,
+      precosDefinidos,
+      complementaresAtivo
+    ]
   );
 
   const dreChart = [
@@ -245,6 +277,7 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                         {linha('Contas a Receber (Safra)', balanco.ativo.contasReceberSafra)}
                         {linha('Estoque de Grãos', balanco.ativo.estoqueGraos)}
                         {linha('Estoque de Insumos', balanco.ativo.estoqueInsumos)}
+                        {linha('Estoque de Rebanho (Bovino)', balanco.ativo.estoqueRebanhoBovino)}
                         {linha('Outros Créditos CP', balanco.ativo.outrosCreditosCp)}
                         {linha('Total Ativo Circulante', balanco.ativo.totalCirculante, false, true)}
                       </div>
@@ -279,7 +312,9 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                         {linha('(-) Impostos / Deduções', balanco.dre.deducoes, true)}
                         {linha('= Receita Líquida', balanco.dre.receitaLiquida, false, true)}
                         {linha('(-) Custos (CPV / Custo Safra)', balanco.dre.custos, true)}
-                        {linha('(-) Arrendamentos (safra)', balanco.dre.arrendamentos, true)}
+                        {linha('(-) Arrendamentos a Pagar (safra)', balanco.dre.arrendamentos, true)}
+                        {balanco.dre.arrendamentosReceber > 0 &&
+                          linha('(+) Arrendamentos a Receber (safra)', balanco.dre.arrendamentosReceber)}
                         {linha('= Lucro Bruto', balanco.dre.lucroBruto, false, true)}
                         {linha('(-) Despesas Operacionais', balanco.dre.despesasOperacionais, true)}
                         {linha('(-) Despesas Administrativas', balanco.dre.despesasAdministrativas, true)}
@@ -315,7 +350,7 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                       <div className="space-y-1 text-sm mb-4">
                         {linha('Bancos CP', balanco.passivo.bancosCp)}
                         {linha('Fornecedores CP', balanco.passivo.fornecedoresCp)}
-                        {linha('Arrendamentos (anual)', balanco.passivo.arrendamentos)}
+                        {linha('Arrendamentos a Pagar (anual)', balanco.passivo.arrendamentos)}
                         {linha('Aquisição de Fazendas CP', balanco.passivo.aquisicaoFazendasCp)}
                         {linha('Obrigações Trabalhistas', balanco.passivo.obrigTrabalhistasCp)}
                         {linha('Obrigações Fiscais CP', balanco.passivo.obrigFiscaisCp)}

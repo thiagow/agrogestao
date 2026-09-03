@@ -53,12 +53,15 @@ const SOCIOS_DEMO: {
   }
 ];
 
+// "Bovino" saiu daqui em 02/09/2026 — Pecuária ganhou um módulo dedicado
+// (QuadroPecuariaBovina), não faz mais parte do catálogo de Cultura do
+// Quadro de Safra. Ver migration <timestamp>_quadro_pecuaria_suinocultura_avicultura
+// (soft-delete da linha "Bovino" já seedada em produção).
 const CULTURAS_PADRAO = [
   { nome: 'Soja', unidadeMedida: 'sc' },
   { nome: 'Milho', unidadeMedida: 'sc' },
   { nome: 'Algodão Safrinha', unidadeMedida: '@' },
   { nome: 'Algodão Safra', unidadeMedida: '@' },
-  { nome: 'Bovino', unidadeMedida: '@' },
   { nome: 'Outras Culturas', unidadeMedida: 'sc' }
 ];
 

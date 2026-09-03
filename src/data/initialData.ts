@@ -73,8 +73,8 @@ const CULTURA_BASES: CulturaBase[] = [
   { cultura: 'Cana de Açúcar', hectares2627: 2355, rendimento: 80, unidadeProducao: 'ton', precoMedio: 120, despesaPorHa: 5200, producaoFixadaPercent: 35 },
   { cultura: 'Café Irrigado', hectares2627: 1801, rendimento: 40, unidadeProducao: 'sc', precoMedio: 950, despesaPorHa: 12000, producaoFixadaPercent: 55 },
   { cultura: 'Eucalipto', hectares2627: 1801, rendimento: 25, unidadeProducao: 'm³', precoMedio: 140, despesaPorHa: 3000, producaoFixadaPercent: 15 },
-  { cultura: 'Arroz', hectares2627: 1701, rendimento: 130, unidadeProducao: 'sc', precoMedio: 78, despesaPorHa: 6200, producaoFixadaPercent: 40 },
-  { cultura: 'Bovino', hectares2627: 20637, rendimento: 1.2, unidadeProducao: '@', precoMedio: 310, despesaPorHa: 350, producaoFixadaPercent: 10 }
+  { cultura: 'Arroz', hectares2627: 1701, rendimento: 130, unidadeProducao: 'sc', precoMedio: 78, despesaPorHa: 6200, producaoFixadaPercent: 40 }
+  // "Bovino" saiu daqui em 02/09/2026 — virou QuadroPecuariaBovina (módulo dedicado).
 ];
 
 const ANOS_SAFRA = ['2024/2025', '2025/2026', '2026/2027', '2027/2028'];

@@ -19,7 +19,7 @@ import { Card, Tabs, Button, Badge, KpiCard } from '../ui';
 import { ContratoBancarioDrawer, LABEL_TIPO_TAXA } from '../ContratoBancarioDrawer';
 import type { CronogramaConsolidado, FluxoContrato, FluxoDetalhado, AnoFluxo } from '../../server/contratos-bancarios';
 import { atualizarIndices } from '../../server/indices';
-import { INDICES_VAZIOS, type IndicesVigentes } from '../../lib/taxa-efetiva';
+import { INDICES_VAZIOS, type IndicesVigentes, type CenarioTaxa } from '../../lib/taxa-efetiva';
 
 /** Faixa de índices vigentes + gatilho de atualização das fontes externas. */
 const FaixaIndices: React.FC<{ indices: IndicesVigentes; contratosSemIndice: number }> = ({
@@ -281,6 +281,27 @@ const TabelaFluxo: React.FC<{ fluxo: FluxoContrato }> = ({ fluxo }) => {
   );
 };
 
+/**
+ * Badge do cenário cambial do contrato (Dólar Puro / Variação Cambial), com
+ * variante de alerta quando falta PTAX Inicial/cotação pra projetar — pedido
+ * de review do cliente em 23/08/2026 (o dado já chegava pronto do server,
+ * só não era exibido em lugar nenhum do Fluxo Detalhado).
+ */
+const BadgeCenarioTaxa: React.FC<{ cenario: CenarioTaxa }> = ({ cenario }) => {
+  switch (cenario) {
+    case 'DOLAR_PURO':
+      return <Badge tone="indigo">Dólar Puro (USD)</Badge>;
+    case 'DOLAR_PURO_INDISPONIVEL':
+      return <Badge tone="rose">Dólar Puro (USD) · PTAX pendente</Badge>;
+    case 'VARIACAO_CAMBIAL':
+      return <Badge tone="indigo">Variação Cambial (VC)</Badge>;
+    case 'VC_INDISPONIVEL':
+      return <Badge tone="rose">VC · PTAX pendente</Badge>;
+    default:
+      return null;
+  }
+};
+
 /** Card recolhível de um contrato — cabeçalho sempre visível, tabela expande ao clicar. */
 const CardContratoFluxo: React.FC<{ fluxo: FluxoContrato; aberto: boolean; onToggle: () => void }> = ({
   fluxo,
@@ -303,6 +324,7 @@ const CardContratoFluxo: React.FC<{ fluxo: FluxoContrato; aberto: boolean; onTog
               {fluxo.sistemaAmortizacao} / Principal {fluxo.periodicidadePrincipal}
               {fluxo.periodicidadeJuros !== fluxo.periodicidadePrincipal ? ` · Juros ${fluxo.periodicidadeJuros}` : ''}
             </Badge>
+            <BadgeCenarioTaxa cenario={fluxo.cenarioTaxa} />
           </div>
           <p className="text-xs text-slate-500 mt-1">
             Saldo: <span className="font-semibold text-slate-700">{formatCurrency(fluxo.saldoAtual)}</span>
@@ -482,6 +504,7 @@ interface BancosViewProps {
 
 const CRONOGRAMA_VAZIO: CronogramaConsolidado = {
   anos: [],
+  parcelas: [],
   totalJuros: 0,
   totalAmortizacao: 0,
   totalGeral: 0,

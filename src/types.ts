@@ -253,6 +253,63 @@ export interface CulturaSafraAno {
   producaoFixadaPercent?: number; // % da produção já fixada em contrato
 }
 
+// ---- Quadro de Safra: Pecuária (Bovinocultura) / Suinocultura / Avicultura ----
+// Réplica confirmada da planilha real do cliente
+// (docs/demandas/Template Agro_Banco_PECUARIA.xlsx). Organizado por ANO CIVIL
+// (não safra) — ver src/lib/pecuaria-calc.ts e src/lib/safra-periodo.ts
+// (safraDoAnoCivil/anoCivilDaSafra) para a ponte com os módulos por safra.
+
+export interface PecuariaBovinaAno {
+  id: string;
+  anoCivil: number;
+
+  // Estoque de rebanho (cabeças)
+  femeas0a12: number;
+  femeas12a24: number;
+  femeas24a36: number;
+  femeasAcima36: number;
+  machos0a12: number;
+  machos12a24: number;
+  machos24a36: number;
+  machosAcima36: number;
+
+  cicloProdutivo: string; // texto livre — ex. "Ciclo Completo"
+  areaPastagemPropria: number;
+  areaPastagemArrendada: number;
+  tipoTerminacao: string; // texto livre — ex. "A Pasto"
+
+  custoAquisicaoPorCabeca: number;
+  custoPastagemPorHectare: number;
+  diariaConfinamento: number;
+  diasConfinamento: number;
+  qtdAnimaisConfinados: number;
+
+  qtdMachosComercializados: number;
+  pesoMedioMachos: number; // @
+  precoMedioMachos: number; // R$/@
+  qtdFemeasComercializadas: number;
+  pesoMedioFemeas: number;
+  precoMedioFemeas: number;
+  qtdOutrasComercializadas: number;
+  pesoMedioOutras: number;
+  precoMedioOutras: number;
+
+  capacidadeLotacaoConfinamento: number;
+  ganhoPesoMedioDiarioKg: number;
+  diasConfinamentoPorLote: number;
+}
+
+export type TipoProducaoAnimal = 'Avicultura' | 'Suinocultura';
+
+export interface ProducaoAnimalAno {
+  id: string;
+  tipo: TipoProducaoAnimal;
+  anoCivil: number;
+  producaoCabecas: number;
+  precoMedioPorCabeca: number;
+  custoMedioPorCabeca: number;
+}
+
 // ---- Bancos e Financiamentos: Contrato Bancário ----
 // Réplica confirmada do formulário "Cadastrar Contrato Bancário" (print fotografado
 // pelo usuário em 07/08/2026). Absorve o antigo "Tipo de Contrato" + "Finalidade" num
@@ -401,7 +458,10 @@ export interface DreCalculada {
   deducoes: number;
   receitaLiquida: number;
   custos: number;
+  /** Só arrendamentos com `direcao='A_PAGAR'` (custo). 23/08/2026: os "A_RECEBER" saíram daqui, ver `arrendamentosReceber`. */
   arrendamentos: number;
+  /** Arrendamentos com `direcao='A_RECEBER'` — receita, soma no lucro bruto em vez de subtrair (23/08/2026). */
+  arrendamentosReceber: number;
   lucroBruto: number;
   despesasOperacionais: number;
   despesasAdministrativas: number;
@@ -424,6 +484,7 @@ export interface AtivoCalculado {
   contasReceberSafra: number; // = Receita Bruta da safra (Quadro de Safra)
   estoqueGraos: number;
   estoqueInsumos: number;
+  estoqueRebanhoBovino: number; // Quadro Pecuária — cabeças em estoque x custo médio de aquisição (02/09/2026); Suínos/Aves não têm estoque
   outrosCreditosCp: number;
   totalCirculante: number;
 
@@ -579,6 +640,8 @@ export interface Aquisicao {
 
 export type PeriodicidadeArrendamento = 'Anual' | 'Mensal' | 'Por Safra';
 export type StatusArrendamento = 'ATIVO' | 'ENCERRADO';
+/** A propriedade paga (arrenda de terceiro) ou recebe (arrenda pra terceiro)? 23/08/2026, review do cliente. */
+export type DirecaoArrendamento = 'A_PAGAR' | 'A_RECEBER';
 export type OrigemPrecoArrendamento = 'CONTRATO' | 'COTACAO';
 
 export interface ParcelaArrendamento {
@@ -608,6 +671,7 @@ export interface ContratoArrendamento {
   dataInicio: string; // YYYY-MM-DD
   dataVencimento: string;
   // 4. Condições Econômicas e Pagamento
+  direcao: DirecaoArrendamento;
   tipoPagamento: TipoPagamentoAquisicao;
   periodicidade: string; // só "Anual" confirmado, mesmo critério de Aquisição
 
@@ -701,7 +765,10 @@ export interface FluxoSafraDTO {
   fornecedores: number;
   amortizacaoBancos: number;
   jurosBancos: number;
+  /** Só arrendamentos com direcao='A_PAGAR' — custo (saída). */
   arrendamentos: number;
+  /** Arrendamentos com direcao='A_RECEBER' — receita (entrada). 23/08/2026. */
+  arrendamentosReceber: number;
   /** null quando não há cotação de Soja disponível para estimar a despesa comercial (3 sc/ha). */
   despesaComercial: number | null;
   parcelasAquisicao: number;

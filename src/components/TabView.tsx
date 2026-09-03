@@ -13,6 +13,8 @@ import {
   PerfilGrupoEconomico,
   CulturaSafraAno,
   Cultura,
+  PecuariaBovinaAno,
+  ProducaoAnimalAno,
   ContratoBancario,
   Aquisicao,
   ContratoArrendamento,
@@ -25,6 +27,8 @@ import {
 } from '../types';
 import { saveSupplier, deleteSupplier } from '../server/suppliers';
 import { saveQuadroSafra, deleteQuadroSafra } from '../server/quadro-safra';
+import { saveQuadroPecuariaBovina, deleteQuadroPecuariaBovina } from '../server/quadro-pecuaria';
+import { saveQuadroProducaoAnimal, deleteQuadroProducaoAnimal } from '../server/producao-animal';
 import { saveCultura, deleteCultura } from '../server/culturas';
 import { saveContratoBancario, deleteContratoBancario } from '../server/contratos-bancarios';
 import { saveAquisicao, deleteAquisicao } from '../server/aquisicoes';
@@ -70,6 +74,9 @@ interface TabViewProps {
   contaCnpj?: string;
   initialCulturas?: Cultura[];
   initialCulturaSafras?: CulturaSafraAno[];
+  /** Pecuária (Bovino) / Suinocultura / Avicultura — persistidas via src/server/quadro-pecuaria.ts e src/server/producao-animal.ts. */
+  initialPecuariaBovina?: PecuariaBovinaAno[];
+  initialProducaoAnimal?: ProducaoAnimalAno[];
   initialContratosBancarios?: ContratoBancario[];
   /** Projeção consolidada por ano da aba Cronograma — computada no servidor. */
   cronogramaConsolidado?: CronogramaConsolidado;
@@ -114,6 +121,8 @@ export const TabView: React.FC<TabViewProps> = ({
   contaCnpj,
   initialCulturas = [],
   initialCulturaSafras = [],
+  initialPecuariaBovina = [],
+  initialProducaoAnimal = [],
   initialContratosBancarios = [],
   cronogramaConsolidado,
   indices,
@@ -142,6 +151,11 @@ export const TabView: React.FC<TabViewProps> = ({
 
   // Quadro de Safra (usado também no Resumo) — persistido via src/server/quadro-safra.ts
   const [culturaSafras, setCulturaSafras] = useState<CulturaSafraAno[]>(initialCulturaSafras);
+
+  // Pecuária (Bovino) / Suinocultura / Avicultura — persistido via
+  // src/server/quadro-pecuaria.ts e src/server/producao-animal.ts.
+  const [pecuariaBovina, setPecuariaBovina] = useState<PecuariaBovinaAno[]>(initialPecuariaBovina);
+  const [producaoAnimal, setProducaoAnimal] = useState<ProducaoAnimalAno[]>(initialProducaoAnimal);
 
   // Bancos (usado também no Resumo e Fluxo de Safra) — persistido via src/server/contratos-bancarios.ts
   const [contratosBancarios, setContratosBancarios] = useState<ContratoBancario[]>(initialContratosBancarios);
@@ -261,6 +275,83 @@ export const TabView: React.FC<TabViewProps> = ({
     }
   };
 
+  const handleSavePecuariaBovina = async (data: Partial<PecuariaBovinaAno>) => {
+    try {
+      const saved = await saveQuadroPecuariaBovina({
+        id: data.id,
+        anoCivil: data.anoCivil || new Date().getFullYear(),
+        femeas0a12: data.femeas0a12 || 0,
+        femeas12a24: data.femeas12a24 || 0,
+        femeas24a36: data.femeas24a36 || 0,
+        femeasAcima36: data.femeasAcima36 || 0,
+        machos0a12: data.machos0a12 || 0,
+        machos12a24: data.machos12a24 || 0,
+        machos24a36: data.machos24a36 || 0,
+        machosAcima36: data.machosAcima36 || 0,
+        cicloProdutivo: data.cicloProdutivo || '',
+        areaPastagemPropria: data.areaPastagemPropria || 0,
+        areaPastagemArrendada: data.areaPastagemArrendada || 0,
+        tipoTerminacao: data.tipoTerminacao || '',
+        custoAquisicaoPorCabeca: data.custoAquisicaoPorCabeca || 0,
+        custoPastagemPorHectare: data.custoPastagemPorHectare || 0,
+        diariaConfinamento: data.diariaConfinamento || 0,
+        diasConfinamento: data.diasConfinamento || 0,
+        qtdAnimaisConfinados: data.qtdAnimaisConfinados || 0,
+        qtdMachosComercializados: data.qtdMachosComercializados || 0,
+        pesoMedioMachos: data.pesoMedioMachos || 0,
+        precoMedioMachos: data.precoMedioMachos || 0,
+        qtdFemeasComercializadas: data.qtdFemeasComercializadas || 0,
+        pesoMedioFemeas: data.pesoMedioFemeas || 0,
+        precoMedioFemeas: data.precoMedioFemeas || 0,
+        qtdOutrasComercializadas: data.qtdOutrasComercializadas || 0,
+        pesoMedioOutras: data.pesoMedioOutras || 0,
+        precoMedioOutras: data.precoMedioOutras || 0,
+        capacidadeLotacaoConfinamento: data.capacidadeLotacaoConfinamento || 0,
+        ganhoPesoMedioDiarioKg: data.ganhoPesoMedioDiarioKg || 0,
+        diasConfinamentoPorLote: data.diasConfinamentoPorLote || 0
+      });
+      setPecuariaBovina((prev) => (data.id ? prev.map((r) => (r.id === saved.id ? saved : r)) : [saved, ...prev]));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar Pecuária (Bovino).');
+    }
+  };
+
+  const handleDeletePecuariaBovina = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este ano de Pecuária (Bovino)?')) return;
+    try {
+      await deleteQuadroPecuariaBovina(id);
+      setPecuariaBovina((prev) => prev.filter((r) => r.id !== id));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao excluir Pecuária (Bovino).');
+    }
+  };
+
+  const handleSaveProducaoAnimal = async (data: Partial<ProducaoAnimalAno>) => {
+    try {
+      const saved = await saveQuadroProducaoAnimal({
+        id: data.id,
+        tipo: data.tipo || 'Avicultura',
+        anoCivil: data.anoCivil || new Date().getFullYear(),
+        producaoCabecas: data.producaoCabecas || 0,
+        precoMedioPorCabeca: data.precoMedioPorCabeca || 0,
+        custoMedioPorCabeca: data.custoMedioPorCabeca || 0
+      });
+      setProducaoAnimal((prev) => (data.id ? prev.map((r) => (r.id === saved.id ? saved : r)) : [saved, ...prev]));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao salvar registro.');
+    }
+  };
+
+  const handleDeleteProducaoAnimal = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir este ano?')) return;
+    try {
+      await deleteQuadroProducaoAnimal(id);
+      setProducaoAnimal((prev) => prev.filter((r) => r.id !== id));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao excluir registro.');
+    }
+  };
+
   const handleSaveContrato = async (data: Partial<ContratoBancario>) => {
     try {
       const saved = await saveContratoBancario({
@@ -368,6 +459,7 @@ export const TabView: React.FC<TabViewProps> = ({
         dataInicio: data.dataInicio || new Date().toISOString().split('T')[0],
         dataVencimento: data.dataVencimento || '',
         culturaReferenciaId: data.culturaReferenciaId,
+        direcao: data.direcao || 'A_PAGAR',
         tipoPagamento: data.tipoPagamento || 'SACAS',
         periodicidade: data.periodicidade || 'Anual',
         sacasHa: data.sacasHa,
@@ -565,6 +657,12 @@ export const TabView: React.FC<TabViewProps> = ({
           onDelete={handleDeleteSafra}
           onSaveCultura={handleSaveCultura}
           onDeleteCultura={handleDeleteCultura}
+          pecuariaBovina={pecuariaBovina}
+          producaoAnimal={producaoAnimal}
+          onSavePecuariaBovina={handleSavePecuariaBovina}
+          onDeletePecuariaBovina={handleDeletePecuariaBovina}
+          onSaveProducaoAnimal={handleSaveProducaoAnimal}
+          onDeleteProducaoAnimal={handleDeleteProducaoAnimal}
         />
       )}
       {tab === 'bancos' && (
@@ -608,6 +706,8 @@ export const TabView: React.FC<TabViewProps> = ({
       {tab === 'fluxo_safra' && (
         <FluxoSafraView
           culturaSafras={culturaSafras}
+          pecuariaBovina={pecuariaBovina}
+          producaoAnimal={producaoAnimal}
           suppliers={suppliers}
           contratosBancarios={contratosBancarios}
           cronograma={cronogramaConsolidado}
@@ -631,6 +731,8 @@ export const TabView: React.FC<TabViewProps> = ({
       {tab === 'analise_financeira' && (
         <AnaliseFinanceiraView
           culturaSafras={culturaSafras}
+          pecuariaBovina={pecuariaBovina}
+          producaoAnimal={producaoAnimal}
           suppliers={suppliers}
           fluxoDetalhado={fluxoDetalhado}
           cronograma={cronogramaConsolidado}
@@ -645,6 +747,8 @@ export const TabView: React.FC<TabViewProps> = ({
       {tab === 'fluxo_mensal' && (
         <FluxoMensalView
           culturaSafras={culturaSafras}
+          pecuariaBovina={pecuariaBovina}
+          producaoAnimal={producaoAnimal}
           suppliers={suppliers}
           fluxoDetalhado={fluxoDetalhado}
           arrendamentos={arrendamentos}

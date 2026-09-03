@@ -17,8 +17,8 @@ import {
   PERIODICIDADE_LIQUIDACAO_FROM_DB
 } from '@/lib/enum-maps';
 import { carregarIndicesVigentes, carregarSerieIndices, regerarCronograma } from './cronograma-engine';
-import { calcularTaxaEfetiva } from '@/lib/taxa-efetiva';
-import type { ContratoBancario } from '@/types';
+import { calcularTaxaEfetiva, cenarioTaxaDe, type CenarioTaxa } from '@/lib/taxa-efetiva';
+import type { ContratoBancario, Currency } from '@/types';
 
 export async function listContratosBancarios(): Promise<ContratoBancario[]> {
   const ctx = await requireContext();
@@ -64,8 +64,17 @@ export interface AnoCronograma {
   porTipo: { tipoOperacao: string; total: number }[];
 }
 
+/** Uma parcela crua (sem agregação por ano) — usado pelo Fluxo de Safra pra filtrar pela janela jul-jun (23/08/2026), em vez do agregado por ano calendário. */
+export interface ParcelaCronograma {
+  data: string; // YYYY-MM-DD
+  juros: number;
+  amortizacao: number;
+}
+
 export interface CronogramaConsolidado {
   anos: AnoCronograma[];
+  /** Mesmas parcelas de `anos`, sem agregação por ano — Fluxo de Safra faz o bucketing por janela jul-jun (src/lib/safra-periodo.ts). */
+  parcelas: ParcelaCronograma[];
   totalJuros: number;
   totalAmortizacao: number;
   totalGeral: number;
@@ -145,8 +154,15 @@ export async function listCronogramaConsolidado(): Promise<CronogramaConsolidado
     (c) => c.tipoTaxa !== 'PRE_FIXADO' && c.indiceReferencia == null
   ).length;
 
+  const parcelasCruas: ParcelaCronograma[] = parcelas.map((p) => ({
+    data: p.dataPagamento.toISOString().slice(0, 10),
+    juros: Number(p.valorJuros),
+    amortizacao: Number(p.valorPrincipal)
+  }));
+
   return {
     anos,
+    parcelas: parcelasCruas,
     totalJuros: anos.reduce((s, a) => s + a.juros, 0),
     totalAmortizacao: anos.reduce((s, a) => s + a.amortizacao, 0),
     totalGeral: anos.reduce((s, a) => s + a.total, 0),
@@ -161,6 +177,7 @@ export async function listCronogramaConsolidado(): Promise<CronogramaConsolidado
 function vazio(): CronogramaConsolidado {
   return {
     anos: [],
+    parcelas: [],
     totalJuros: 0,
     totalAmortizacao: 0,
     totalGeral: 0,
@@ -207,6 +224,8 @@ export interface FluxoContrato {
   /** "CDI 13,90% + 4,00% = 17,90% a.a." — construída a partir do que foi
    *  efetivamente aplicado no contrato, não dos índices vigentes agora. */
   memoriaTaxa: string;
+  /** Cenário cambial do contrato — badge no cabeçalho do card (23/08/2026). */
+  cenarioTaxa: CenarioTaxa;
   /** true quando algum ano tem mais de uma parcela — a UI agrupa por ano nesse caso. */
   agrupadoPorAno: boolean;
   anos: AnoFluxo[];
@@ -252,9 +271,22 @@ export async function listFluxoDetalhado(): Promise<FluxoDetalhado> {
     const indicesDoContrato = {
       cdiAA: c.tipoTaxa === 'CDI_SPREAD' ? indiceRef : null,
       ipcaAA: c.tipoTaxa === 'IPCA_SPREAD' ? indiceRef : null,
-      usdBrl: c.tipoTaxa === 'DOLAR_JUROS' ? indiceRef : null
+      // Dólar Puro e VC consultam a mesma cotação PTAX vigente do índice USD.
+      usdBrl: c.tipoTaxa === 'DOLAR_JUROS' || c.moeda === 'USD' ? indiceRef : null
     };
-    const memoriaTaxa = calcularTaxaEfetiva(tipoTaxa, taxaCadastrada, indicesDoContrato).memoria;
+    // Bug corrigido em 23/08/2026 (review do cliente): esta chamada não
+    // passava `contexto` (moeda/ptaxInicial/dataContratacao) — Dólar Puro e VC
+    // sempre caíam no fallback "PTAX Inicial não cadastrada"/"só o spread",
+    // mesmo com ptaxInicial cadastrado, porque o cronograma real (que usa
+    // regerarCronograma, esse sim com o contexto certo) já tinha calculado
+    // certo. O texto explicativo é que estava desalinhado com a tabela.
+    const efetiva = calcularTaxaEfetiva(tipoTaxa, taxaCadastrada, indicesDoContrato, {
+      moeda: c.moeda as Currency,
+      ptaxInicial: c.ptaxInicial != null ? Number(c.ptaxInicial) : null,
+      dataContratacao: c.dataContratacao.toISOString().slice(0, 10)
+    });
+    const memoriaTaxa = efetiva.memoria;
+    const cenarioTaxa = cenarioTaxaDe(tipoTaxa, c.moeda as Currency, efetiva.indisponivel);
 
     let saldoAnterior = Number(c.saldoInicial);
     const parcelas: ParcelaFluxo[] = c.parcelas.map((p) => {
@@ -310,6 +342,7 @@ export async function listFluxoDetalhado(): Promise<FluxoDetalhado> {
       taxaCadastrada,
       taxaEfetiva: taxaEfetivaAplicada,
       memoriaTaxa,
+      cenarioTaxa,
       agrupadoPorAno: anos.some((a) => a.parcelas.length > 1),
       anos,
       totalJuros: parcelas.reduce((s, p) => s + p.juros, 0),

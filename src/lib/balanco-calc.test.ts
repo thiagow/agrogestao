@@ -1,6 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { montarBalanco, complementaresVazio, splitBancosCpLp, splitAquisicaoCpLp } from './balanco-calc';
-import type { Aquisicao, BemDireito, ContratoArrendamento, CulturaSafraAno, PrecoDefinidoSafra, Supplier } from '@/types';
+import type {
+  Aquisicao,
+  BemDireito,
+  ContratoArrendamento,
+  CulturaSafraAno,
+  PecuariaBovinaAno,
+  PrecoDefinidoSafra,
+  ProducaoAnimalAno,
+  Supplier
+} from '@/types';
 
 const SAFRA = '2026/2027';
 
@@ -38,6 +47,8 @@ function inputBase() {
   return {
     safra: SAFRA,
     quadroSafra: [registroSoja()],
+    pecuariaBovina: [] as PecuariaBovinaAno[],
+    producaoAnimal: [] as ProducaoAnimalAno[],
     suppliers: [] as Supplier[],
     fluxoDetalhadoBancos: [],
     anosCronograma: [],
@@ -180,5 +191,147 @@ describe('DRE — despesa comercial configurável (não mais "3" fixo)', () => {
   it('fica null (nunca um 0 que mente) quando não há preço de Soja nem fallback', () => {
     const balanco = montarBalanco(inputBase());
     expect(balanco.dre.despesaComercial).toBeNull();
+  });
+});
+
+function contratoArrendamento(overrides: Partial<ContratoArrendamento> = {}): ContratoArrendamento {
+  return {
+    id: 'arr1',
+    nomeFazenda: 'Fazenda X',
+    areaArrendadaHa: 50,
+    dataInicio: '2025-01-01',
+    dataVencimento: '2030-01-01',
+    direcao: 'A_PAGAR',
+    tipoPagamento: 'SACAS',
+    periodicidade: 'Anual',
+    status: 'ATIVO',
+    possuiPagamentoAntecipado: false,
+    valorTotalFluxo: 0,
+    totalSacas: 0,
+    parcelas: [{ id: 'pa1', safra: SAFRA, sacasBrutas: 0, sacasAntecipadas: 0, sacasLiquidas: 0, valorTotal: 20_000 }],
+    ...overrides
+  };
+}
+
+describe('DRE/Passivo — direção do Arrendamento (23/08/2026, review do cliente)', () => {
+  it('A_PAGAR (default) continua entrando como custo, subtraindo o lucro bruto e somando no passivo', () => {
+    const input = inputBase();
+    input.arrendamentos = [contratoArrendamento({ direcao: 'A_PAGAR' })];
+
+    const balanco = montarBalanco(input);
+
+    expect(balanco.dre.arrendamentos).toBe(20_000);
+    expect(balanco.dre.arrendamentosReceber).toBe(0);
+    expect(balanco.passivo.arrendamentos).toBe(20_000);
+  });
+
+  it('A_RECEBER soma no lucro bruto como receita, não entra no passivo nem na Cobertura Arrendamento', () => {
+    const semArrendamento = montarBalanco(inputBase());
+
+    const input = inputBase();
+    input.arrendamentos = [contratoArrendamento({ id: 'arr2', direcao: 'A_RECEBER' })];
+    const comReceber = montarBalanco(input);
+
+    expect(comReceber.dre.arrendamentosReceber).toBe(20_000);
+    expect(comReceber.dre.arrendamentos).toBe(0);
+    expect(comReceber.dre.lucroBruto).toBeCloseTo(semArrendamento.dre.lucroBruto + 20_000, 2);
+    expect(comReceber.passivo.arrendamentos).toBe(0);
+
+    const coberturaSem = semArrendamento.indicadores.find((i) => i.id === 'cobertura-arrendamento')!;
+    const coberturaCom = comReceber.indicadores.find((i) => i.id === 'cobertura-arrendamento')!;
+    // Sem nenhum arrendamento a pagar, o indicador continua "Sem dados" nos dois casos —
+    // o A_RECEBER não deve "inventar" uma cobertura que não existe.
+    expect(coberturaCom.status).toBe(coberturaSem.status);
+  });
+
+  it('fecha Ativo = Passivo + PL mesmo com arrendamento a receber', () => {
+    const input = inputBase();
+    input.arrendamentos = [contratoArrendamento({ direcao: 'A_RECEBER' })];
+    const balanco = montarBalanco(input);
+    expect(balanco.ativo.total).toBeCloseTo(balanco.passivo.total + balanco.pl.total, 2);
+  });
+});
+
+describe('Pecuária/Suinocultura/Avicultura (02/09/2026)', () => {
+  function pecuariaBovina(overrides: Partial<PecuariaBovinaAno> = {}): PecuariaBovinaAno {
+    return {
+      id: 'pb1',
+      anoCivil: 2027, // SAFRA "2026/2027" -> 2º ano civil = 2027
+      femeas0a12: 100,
+      femeas12a24: 0,
+      femeas24a36: 0,
+      femeasAcima36: 0,
+      machos0a12: 0,
+      machos12a24: 0,
+      machos24a36: 0,
+      machosAcima36: 0,
+      cicloProdutivo: 'Ciclo Completo',
+      areaPastagemPropria: 0,
+      areaPastagemArrendada: 0,
+      tipoTerminacao: 'A Pasto',
+      custoAquisicaoPorCabeca: 1000,
+      custoPastagemPorHectare: 0,
+      diariaConfinamento: 0,
+      diasConfinamento: 0,
+      qtdAnimaisConfinados: 0,
+      qtdMachosComercializados: 10,
+      pesoMedioMachos: 1,
+      precoMedioMachos: 500,
+      qtdFemeasComercializadas: 0,
+      pesoMedioFemeas: 0,
+      precoMedioFemeas: 0,
+      qtdOutrasComercializadas: 0,
+      pesoMedioOutras: 0,
+      precoMedioOutras: 0,
+      capacidadeLotacaoConfinamento: 0,
+      ganhoPesoMedioDiarioKg: 0,
+      diasConfinamentoPorLote: 0,
+      ...overrides
+    };
+  }
+
+  it('estoque de rebanho (cabeças x custo de aquisição) soma no Ativo Circulante', () => {
+    const sem = montarBalanco(inputBase());
+
+    const input = inputBase();
+    input.pecuariaBovina = [pecuariaBovina()];
+    const com = montarBalanco(input);
+
+    // 100 cabeças em estoque x R$1.000/cabeça = R$100.000
+    expect(com.ativo.estoqueRebanhoBovino).toBe(100_000);
+    // totalCirculante também sobe com a receita comercializada (contasReceberSafra):
+    // faturamentoMachos = 10 * 1 * 500 = 5.000.
+    expect(com.ativo.totalCirculante).toBeCloseTo(sem.ativo.totalCirculante + 100_000 + 5_000, 2);
+  });
+
+  it('registro de outro ano civil (fora da safra selecionada) não entra no estoque', () => {
+    const input = inputBase();
+    input.pecuariaBovina = [pecuariaBovina({ anoCivil: 2099, femeas0a12: 9999 })];
+    const balanco = montarBalanco(input);
+    expect(balanco.ativo.estoqueRebanhoBovino).toBe(0);
+  });
+
+  it('receita/custo de Bovino, Suinocultura e Avicultura somam na DRE (receitaBruta/custos)', () => {
+    const sem = montarBalanco(inputBase());
+
+    const input = inputBase();
+    input.pecuariaBovina = [pecuariaBovina()];
+    input.producaoAnimal = [
+      { id: 'a1', tipo: 'Avicultura', anoCivil: 2027, producaoCabecas: 100, precoMedioPorCabeca: 20, custoMedioPorCabeca: 12 }
+    ];
+    const com = montarBalanco(input);
+
+    // Bovino: receita 10*1*500=5.000, custo 1000*10=10.000. Aves: receita 100*20=2.000, custo 100*12=1.200.
+    expect(com.dre.receitaBruta).toBeCloseTo(sem.dre.receitaBruta + 5_000 + 2_000, 2);
+    expect(com.dre.custos).toBeCloseTo(sem.dre.custos + 10_000 + 1_200, 2);
+  });
+
+  it('Suínos/Aves não têm estoque — não entram no Ativo Circulante além da receita/custo', () => {
+    const input = inputBase();
+    input.producaoAnimal = [
+      { id: 'a1', tipo: 'Suinocultura', anoCivil: 2027, producaoCabecas: 500, precoMedioPorCabeca: 30, custoMedioPorCabeca: 20 }
+    ];
+    const balanco = montarBalanco(input);
+    expect(balanco.ativo.estoqueRebanhoBovino).toBe(0);
   });
 });

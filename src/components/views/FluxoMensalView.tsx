@@ -13,7 +13,16 @@ import {
   YAxis
 } from 'recharts';
 import { AlertTriangle, ChevronDown, Plus } from 'lucide-react';
-import type { Aquisicao, ContratoArrendamento, Cultura, CulturaSafraAno, ItemLancamentoManualMensal, Supplier } from '../../types';
+import type {
+  Aquisicao,
+  ContratoArrendamento,
+  Cultura,
+  CulturaSafraAno,
+  ItemLancamentoManualMensal,
+  PecuariaBovinaAno,
+  ProducaoAnimalAno,
+  Supplier
+} from '../../types';
 import { formatCurrency } from '../../data/initialData';
 import {
   calcularFluxoMensal,
@@ -28,6 +37,7 @@ import {
   categoriaCalendarioDaCultura,
   etapaCalendarioDaCategoria
 } from '../../lib/calendario-agricola';
+import { safraDoAnoCivil } from '../../lib/safra-periodo';
 import { Card, KpiCard, Badge, Select, Button } from '../ui';
 import { LancamentoMensalModal } from '../LancamentoMensalModal';
 import type { FluxoDetalhado } from '../../server/contratos-bancarios';
@@ -35,6 +45,8 @@ import type { TipoOrigemLancamentoMensal } from '../../types';
 
 interface FluxoMensalViewProps {
   culturaSafras: CulturaSafraAno[];
+  pecuariaBovina: PecuariaBovinaAno[];
+  producaoAnimal: ProducaoAnimalAno[];
   suppliers: Supplier[];
   fluxoDetalhado?: FluxoDetalhado;
   arrendamentos: ContratoArrendamento[];
@@ -55,6 +67,8 @@ const BADGE_ORIGEM: Record<TipoOrigemLancamentoMensal, { tone: 'slate' | 'blue' 
 
 export const FluxoMensalView: React.FC<FluxoMensalViewProps> = ({
   culturaSafras,
+  pecuariaBovina,
+  producaoAnimal,
   suppliers,
   fluxoDetalhado,
   arrendamentos,
@@ -64,7 +78,17 @@ export const FluxoMensalView: React.FC<FluxoMensalViewProps> = ({
   onSaveItem,
   onDeleteItem
 }) => {
-  const safrasDisponiveis = useMemo(() => Array.from(new Set(culturaSafras.map((r) => r.anoSafra))).sort(), [culturaSafras]);
+  const safrasDisponiveis = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...culturaSafras.map((r) => r.anoSafra),
+          ...pecuariaBovina.map((r) => safraDoAnoCivil(r.anoCivil)),
+          ...producaoAnimal.map((r) => safraDoAnoCivil(r.anoCivil))
+        ])
+      ).sort(),
+    [culturaSafras, pecuariaBovina, producaoAnimal]
+  );
   const [safraSelecionada, setSafraSelecionada] = useState('');
   const safraAtiva = safraSelecionada || safrasDisponiveis[safrasDisponiveis.length - 1] || '';
 
@@ -83,6 +107,8 @@ export const FluxoMensalView: React.FC<FluxoMensalViewProps> = ({
     if (!safraAtiva) return [];
     const custeioSafraProjecao = gerarLancamentosCusteioSafraProjecao({
       quadroSafra: culturaSafras,
+      pecuariaBovina,
+      producaoAnimal,
       safraSelecionada: safraAtiva,
       multiSafra,
       horizonte
@@ -97,7 +123,19 @@ export const FluxoMensalView: React.FC<FluxoMensalViewProps> = ({
     });
     const manuais = gerarLancamentosManuais(itensManuais.filter((i) => horizonte.some((h) => h.mes === i.mes && h.ano === i.ano)));
     return [...custeioSafraProjecao, ...vinculados, ...manuais];
-  }, [safraAtiva, culturaSafras, multiSafra, horizonte, suppliers, contratosBancarios, arrendamentos, aquisicoes, itensManuais]);
+  }, [
+    safraAtiva,
+    culturaSafras,
+    pecuariaBovina,
+    producaoAnimal,
+    multiSafra,
+    horizonte,
+    suppliers,
+    contratosBancarios,
+    arrendamentos,
+    aquisicoes,
+    itensManuais
+  ]);
 
   const calculado = useMemo(() => calcularFluxoMensal(lancamentos, horizonte), [lancamentos, horizonte]);
 

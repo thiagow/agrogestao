@@ -11,6 +11,8 @@ import { listCapex } from '@/server/capex';
 import { getPerfilGrupo } from '@/server/perfil-grupo';
 import { listCulturas } from '@/server/culturas';
 import { listQuadroSafra } from '@/server/quadro-safra';
+import { listQuadroPecuariaBovina } from '@/server/quadro-pecuaria';
+import { listQuadroProducaoAnimal } from '@/server/producao-animal';
 import { listContratosBancarios, listCronogramaConsolidado, listFluxoDetalhado } from '@/server/contratos-bancarios';
 import { listIndices } from '@/server/indices';
 import { listAquisicoes, listFluxoConsolidadoAquisicoes, listImpactoPorSafra } from '@/server/aquisicoes';
@@ -48,6 +50,8 @@ export default async function TabPage({ params }: TabPageProps) {
     initialPerfilGrupo,
     initialCulturas,
     initialCulturaSafras,
+    initialPecuariaBovina,
+    initialProducaoAnimal,
     initialContratosBancarios,
     initialAquisicoes,
     initialArrendamentos,
@@ -62,6 +66,8 @@ export default async function TabPage({ params }: TabPageProps) {
     getPerfilGrupo(),
     listCulturas(),
     listQuadroSafra(),
+    listQuadroPecuariaBovina(),
+    listQuadroProducaoAnimal(),
     listContratosBancarios(),
     listAquisicoes(),
     listArrendamentos(),
@@ -136,6 +142,8 @@ export default async function TabPage({ params }: TabPageProps) {
       contaCnpj={ctx.conta.cnpj ?? undefined}
       initialCulturas={initialCulturas}
       initialCulturaSafras={initialCulturaSafras}
+      initialPecuariaBovina={initialPecuariaBovina}
+      initialProducaoAnimal={initialProducaoAnimal}
       initialContratosBancarios={initialContratosBancarios}
       cronogramaConsolidado={cronogramaBancario}
       indices={indices}

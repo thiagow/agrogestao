@@ -17,7 +17,8 @@
 // seletor local é pura filtragem/soma no client — sem round-trip ao servidor.
 
 import { calcularSafra } from '@/lib/agro';
-import { anoInicioSafra, safraDoAno } from '@/lib/safra-periodo';
+import { anoInicioSafra, safraDoAno, janelaSafra } from '@/lib/safra-periodo';
+import { receitaCustoPecuariaDaSafra } from '@/lib/pecuaria-calc';
 import type {
   CategoriaItemFluxoManual,
   ContratoBancario,
@@ -27,6 +28,8 @@ import type {
   FluxoSafraDTO,
   FluxoSafraLinha,
   ItemFluxoManual,
+  PecuariaBovinaAno,
+  ProducaoAnimalAno,
   StatusIndiceCobertura,
   Supplier
 } from '@/types';
@@ -69,12 +72,15 @@ export function classificarCobertura(indice: number): StatusIndiceCobertura {
 export interface MontarFluxoSafraInput {
   safra: string;
   quadroSafra: CulturaSafraAno[];
+  /** Pecuária/Suinocultura/Avicultura (organizadas por ano civil) — somam em receitaProjetada/custoProducao via receitaCustoPecuariaDaSafra. */
+  pecuariaBovina: PecuariaBovinaAno[];
+  producaoAnimal: ProducaoAnimalAno[];
   suppliers: Supplier[];
   contratosBancarios: ContratoBancario[];
-  /** Um item por ano de calendário — mesma forma de AnoCronograma (listCronogramaConsolidado). */
-  anosCronograma: { ano: number; juros: number; amortizacao: number }[];
+  /** Parcelas cruas (sem agregação por ano) — mesma forma de ParcelaCronograma (listCronogramaConsolidado). Filtradas aqui pela janela jul-jun da safra (23/08/2026), não pelo ano calendário. */
+  parcelasBancos: { data: string; juros: number; amortizacao: number }[];
   /** Mesma forma de LinhaFluxoConsolidadoArrendamento (listFluxoConsolidadoArrendamentos). */
-  linhasArrendamento: { safra: string; valorTotal: number | null }[];
+  linhasArrendamento: { safra: string; direcao: 'A_PAGAR' | 'A_RECEBER'; valorTotal: number | null }[];
   /** Mesma forma de LinhaFluxoConsolidado (listFluxoConsolidadoAquisicoes). */
   linhasAquisicao: { safra: string; valorTotal: number }[];
   contratosComerciais: ContratoComercial[];
@@ -85,33 +91,50 @@ export interface MontarFluxoSafraInput {
 
 /**
  * Monta o FluxoSafraDTO de uma safra a partir das 6 telas de origem já
- * carregadas por completo — a conversão safra→ano de calendário para o
- * cronograma bancário usa a mesma convenção de dataReferenciaDaSafra()
- * (src/lib/safra-periodo.ts): o ano relevante é o segundo ano da safra.
+ * carregadas por completo.
+ *
+ * Período da safra (23/08/2026, review do cliente): o ano agrícola vai de
+ * julho a junho (janelaSafra/safraDaData, src/lib/safra-periodo.ts) — Bancos
+ * e Fornecedores são filtrados por essa janela real de datas, não mais por
+ * "ano calendário" (Bancos, era o BUG que perdia jul-dez do 1º ano da safra e
+ * ganhava jan-jun do ano seguinte) nem pelo campo de texto livre `safra` de
+ * Fornecedores (sujeito a inconsistência de digitação — usa `vencimento`
+ * agora, que é DateTime confiável).
  */
 export function montarFluxoSafraDTO(input: MontarFluxoSafraInput): FluxoSafraDTO {
   const { safra } = input;
   const proximaSafra = safraDoAno(anoInicioSafra(safra) + 1);
-  const anoBancario = anoInicioSafra(safra) + 1;
+  const janela = janelaSafra(safra);
+  const janelaProxima = janelaSafra(proximaSafra);
 
   const registrosSafra = input.quadroSafra.filter((q) => q.anoSafra === safra);
-  const receitaProjetada = registrosSafra.reduce((sum, q) => sum + calcularSafra(q).receitaBruta, 0);
-  const custoProducao = registrosSafra.reduce((sum, q) => sum + calcularSafra(q).despesa, 0);
+  const pecuaria = receitaCustoPecuariaDaSafra(safra, input.pecuariaBovina, input.producaoAnimal);
+  const receitaProjetada = registrosSafra.reduce((sum, q) => sum + calcularSafra(q).receitaBruta, 0) + pecuaria.receitaBruta;
+  const custoProducao = registrosSafra.reduce((sum, q) => sum + calcularSafra(q).despesa, 0) + pecuaria.despesa;
 
   const areaSoja = registrosSafra.filter((q) => q.cultura.toLowerCase().includes('soja')).reduce((sum, q) => sum + q.hectares, 0);
   const despesaComercial = areaSoja === 0 ? 0 : input.precoSoja !== null ? areaSoja * 3 * input.precoSoja : null;
 
-  const fornecedores = input.suppliers.filter((s) => s.safra === safra).reduce((sum, s) => sum + s.dividaTotal, 0);
+  const fornecedores = input.suppliers
+    .filter((s) => s.vencimento >= janela.inicio && s.vencimento <= janela.fim)
+    .reduce((sum, s) => sum + s.dividaTotal, 0);
   const fornecedoresProximaSafra = input.suppliers
-    .filter((s) => s.safra === proximaSafra)
+    .filter((s) => s.vencimento >= janelaProxima.inicio && s.vencimento <= janelaProxima.fim)
     .reduce((sum, s) => sum + s.dividaTotal, 0);
 
-  const anoCronograma = input.anosCronograma.find((a) => a.ano === anoBancario);
-  const amortizacaoBancos = anoCronograma?.amortizacao ?? 0;
-  const jurosBancos = anoCronograma?.juros ?? 0;
+  const parcelasBancosDaSafra = input.parcelasBancos.filter((p) => p.data >= janela.inicio && p.data <= janela.fim);
+  const amortizacaoBancos = parcelasBancosDaSafra.reduce((sum, p) => sum + p.amortizacao, 0);
+  const jurosBancos = parcelasBancosDaSafra.reduce((sum, p) => sum + p.juros, 0);
   const saldoDevedorBancos = input.contratosBancarios.reduce((sum, c) => sum + c.saldoAtual, 0);
 
-  const arrendamentos = input.linhasArrendamento.filter((l) => l.safra === safra).reduce((sum, l) => sum + (l.valorTotal ?? 0), 0);
+  const linhasArrendamentoSafra = input.linhasArrendamento.filter((l) => l.safra === safra);
+  const arrendamentos = linhasArrendamentoSafra
+    .filter((l) => l.direcao === 'A_PAGAR')
+    .reduce((sum, l) => sum + (l.valorTotal ?? 0), 0);
+  const arrendamentosReceber = linhasArrendamentoSafra
+    .filter((l) => l.direcao === 'A_RECEBER')
+    .reduce((sum, l) => sum + (l.valorTotal ?? 0), 0);
+
   const parcelasAquisicao = input.linhasAquisicao.filter((l) => l.safra === safra).reduce((sum, l) => sum + l.valorTotal, 0);
 
   const receitaRealizada = input.contratosComerciais
@@ -129,6 +152,7 @@ export function montarFluxoSafraDTO(input: MontarFluxoSafraInput): FluxoSafraDTO
     amortizacaoBancos,
     jurosBancos,
     arrendamentos,
+    arrendamentosReceber,
     despesaComercial,
     parcelasAquisicao,
     saldoDevedorBancos,
@@ -150,6 +174,16 @@ export function calcularFluxoSafra(dto: FluxoSafraDTO): FluxoSafraCalculado {
       valor: dto.receitaProjetada,
       origem: 'Soma da receita bruta de todas as culturas e pecuária cadastradas no Quadro Safra'
     },
+    ...(dto.arrendamentosReceber > 0
+      ? [
+          {
+            id: 'arrendamentos_receber',
+            label: 'Arrendamentos a Receber',
+            valor: dto.arrendamentosReceber,
+            origem: 'Total anual de contratos de arrendamento com direção "A Receber" cadastrados para esta safra'
+          }
+        ]
+      : []),
     ...itensEntrada.map((i) => ({
       id: i.id,
       label: i.descricao,
@@ -185,9 +219,9 @@ export function calcularFluxoSafra(dto: FluxoSafraDTO): FluxoSafraCalculado {
     },
     {
       id: 'arrendamentos',
-      label: 'Arrendamentos',
+      label: 'Arrendamentos a Pagar',
       valor: dto.arrendamentos,
-      origem: 'Custo total anual de arrendamentos cadastrados para esta safra'
+      origem: 'Custo total anual de arrendamentos com direção "A Pagar" cadastrados para esta safra'
     },
     {
       id: 'despesa_comercial',
@@ -212,7 +246,7 @@ export function calcularFluxoSafra(dto: FluxoSafraDTO): FluxoSafraCalculado {
     }))
   ];
 
-  const totalEntradas = dto.receitaProjetada + totalItensEntrada;
+  const totalEntradas = dto.receitaProjetada + dto.arrendamentosReceber + totalItensEntrada;
   const totalSaidas =
     dto.custoProducao +
     dto.fornecedores +

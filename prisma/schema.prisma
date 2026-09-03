@@ -164,6 +164,8 @@ model Propriedade {
   conta               Conta                  @relation(fields: [contaId], references: [id], onDelete: Cascade)
   suppliers           Supplier[]
   quadroSafras        QuadroSafra[]
+  quadroPecuariaBovina QuadroPecuariaBovina[]
+  quadroProducaoAnimal QuadroProducaoAnimal[]
   contratosBancarios  ContratoBancario[]
   aquisicoes          Aquisicao[]
   arrendamentos       ContratoArrendamento[]
@@ -257,6 +259,127 @@ model QuadroSafra {
   @@unique([propriedadeId, cultura, anoSafra])
   @@index([propriedadeId, ativo])
   @@map("quadro_safra")
+}
+
+// Pecuária/Suinocultura/Avicultura (02/09/2026) — réplica confirmada da
+// planilha real do cliente (docs/demandas/Template Agro_Banco_PECUARIA.xlsx,
+// aba "Quadro Pecuaria"). "Bovino" saiu do catálogo de Cultura de QuadroSafra
+// (não fazia sentido usar hectares/rendimento para gado) para dar lugar a
+// este model dedicado. Diferente de QuadroSafra (organizado por safra),
+// pecuária é atividade contínua sem plantio/colheita — o cliente confirmou
+// que o período aqui é ANO CIVIL, sempre "o ano atual e os últimos 2 anos"
+// (janela rolante de 3 anos, ver anosPecuariaVisiveis() em pecuaria-calc.ts),
+// nunca uma lista fixa de safras. safraDoAnoCivil()/anoCivilDaSafra()
+// (src/lib/safra-periodo.ts) fazem a ponte com os módulos pensados em safra
+// (Fluxo de Safra/Mensal, Análise Financeira), reaproveitando a convenção já
+// usada no projeto de que "o ano relevante de uma safra é o segundo ano".
+//
+// Custo Total (R$/cabeça) = soma direta de custoAquisicaoPorCabeca +
+// custoPastagemPorHectare + diariaConfinamento + diasConfinamento +
+// qtdAnimaisConfinados — unidades diferentes somadas, réplica literal da
+// fórmula da planilha do cliente (aprovada mesmo assim; funciona hoje porque
+// os 3 últimos ficam zerados quando a terminação é "A Pasto"). Ver
+// calcularPecuariaBovina() em src/lib/pecuaria-calc.ts.
+//
+// custoTotalProducao = custoTotalPorCabeca * (qtdMachosComercializados +
+// qtdFemeasComercializadas) — "Outras Categorias" fica de fora dessa conta,
+// exatamente como na planilha do cliente (B43 = B23*(B31+B35)).
+//
+// Estoque de rebanho (8 categorias por sexo/faixa etária) é a única fonte que
+// alimenta o Ativo Circulante do Balanço (valorEstoqueBovino() em
+// pecuaria-calc.ts, valorizado ao preço médio de aquisição já digitado aqui
+// — decisão confirmada com o usuário, sem depender de cotação nem de preço
+// de venda). Suínos/Aves (QuadroProducaoAnimal) não têm estoque — só Bovino
+// entra no Ativo Circulante.
+model QuadroPecuariaBovina {
+  id            String @id @default(cuid())
+  propriedadeId String
+  anoCivil      Int
+
+  // Estoque de rebanho (cabeças)
+  femeas0a12    Int @default(0)
+  femeas12a24   Int @default(0)
+  femeas24a36   Int @default(0)
+  femeasAcima36 Int @default(0)
+  machos0a12    Int @default(0)
+  machos12a24   Int @default(0)
+  machos24a36   Int @default(0)
+  machosAcima36 Int @default(0)
+
+  cicloProdutivo        String // texto livre — ex. "Ciclo Completo" (opções não confirmadas com o cliente)
+  areaPastagemPropria   Decimal @default(0) @db.Decimal(12, 2)
+  areaPastagemArrendada Decimal @default(0) @db.Decimal(12, 2)
+  tipoTerminacao        String // texto livre — ex. "A Pasto" (opções não confirmadas com o cliente)
+
+  // Custos de produção
+  custoAquisicaoPorCabeca Decimal @default(0) @db.Decimal(12, 2)
+  custoPastagemPorHectare Decimal @default(0) @db.Decimal(12, 2)
+  diariaConfinamento      Decimal @default(0) @db.Decimal(12, 2)
+  diasConfinamento        Int     @default(0)
+  qtdAnimaisConfinados    Int     @default(0)
+
+  // Animais comercializados
+  qtdMachosComercializados Int     @default(0)
+  pesoMedioMachos          Decimal @default(0) @db.Decimal(8, 2) // @ (arrobas)
+  precoMedioMachos         Decimal @default(0) @db.Decimal(12, 2) // R$/@
+  qtdFemeasComercializadas Int     @default(0)
+  pesoMedioFemeas          Decimal @default(0) @db.Decimal(8, 2)
+  precoMedioFemeas         Decimal @default(0) @db.Decimal(12, 2)
+  qtdOutrasComercializadas Int     @default(0)
+  pesoMedioOutras          Decimal @default(0) @db.Decimal(8, 2)
+  precoMedioOutras         Decimal @default(0) @db.Decimal(12, 2)
+
+  // Dados Confinamento — presentes na planilha do cliente sem uso em nenhuma
+  // fórmula hoje (reservados para uma extensão futura por GMD); persistidos
+  // só como informativo.
+  capacidadeLotacaoConfinamento Int     @default(0)
+  ganhoPesoMedioDiarioKg        Decimal @default(0) @db.Decimal(6, 3)
+  diasConfinamentoPorLote       Int     @default(0)
+
+  ativo Boolean @default(true)
+
+  propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@unique([propriedadeId, anoCivil])
+  @@index([propriedadeId, ativo])
+  @@map("quadro_pecuaria_bovina")
+}
+
+enum TipoProducaoAnimal {
+  AVICULTURA   @map("Avicultura")
+  SUINOCULTURA @map("Suinocultura")
+}
+
+// Suinocultura/Avicultura — estrutura idêntica entre si na planilha do
+// cliente (Produção em cabeças × Preço Médio/Custo Médio por cabeça, sem
+// estoque, sem peso), por isso um único model discriminado por `tipo` em vez
+// de duas tabelas gêmeas. Ver calcularProducaoAnimal() em
+// src/lib/pecuaria-calc.ts.
+model QuadroProducaoAnimal {
+  id                  String             @id @default(cuid())
+  propriedadeId       String
+  tipo                TipoProducaoAnimal
+  anoCivil            Int
+  producaoCabecas     Int     @default(0)
+  precoMedioPorCabeca Decimal @default(0) @db.Decimal(12, 2)
+  custoMedioPorCabeca Decimal @default(0) @db.Decimal(12, 2)
+  ativo               Boolean @default(true)
+
+  propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  updatedById String?
+
+  @@unique([propriedadeId, tipo, anoCivil])
+  @@index([propriedadeId, ativo])
+  @@map("quadro_producao_animal")
 }
 
 enum EstadoCivil {
@@ -973,6 +1096,17 @@ enum StatusArrendamento {
   ENCERRADO
 }
 
+// Direção do contrato (23/08/2026, review do cliente) — falta esse campo
+// era o motivo de todo arrendamento entrar hardcoded como custo em
+// balanco-calc.ts/fluxo-safra-calc.ts/fluxo-mensal-calc.ts, mesmo quando a
+// propriedade é quem arrenda terra PARA terceiros (receita, não despesa).
+// Default A_PAGAR preserva o comportamento atual de 100% dos contratos já
+// cadastrados (todos eram implicitamente "a pagar").
+enum DirecaoArrendamento {
+  A_PAGAR
+  A_RECEBER
+}
+
 // null = sem preço disponível (N/D em toda a UI, nunca "R$ 0" — corrige o
 // BUG #2 da spec).
 enum OrigemPrecoArrendamento {
@@ -1007,6 +1141,7 @@ model ContratoArrendamento {
 
   // 4. Condições Econômicas e Pagamento
   culturaReferenciaId String?
+  direcao             DirecaoArrendamento       @default(A_PAGAR) // A propriedade paga (arrenda de terceiro) ou recebe (arrenda pra terceiro)?
   tipoPagamento       TipoPagamentoAquisicao   @default(SACAS)
   periodicidade       PeriodicidadeArrendamento @default(ANUAL)
   sacasHa             Decimal?                 @db.Decimal(12, 4) // modo SACAS

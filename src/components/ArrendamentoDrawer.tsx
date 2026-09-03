@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ContratoArrendamento, TipoPagamentoAquisicao, StatusArrendamento, Cultura } from '../types';
+import { ContratoArrendamento, TipoPagamentoAquisicao, StatusArrendamento, DirecaoArrendamento, Cultura } from '../types';
 import { Drawer, Input, Select, Textarea, Button, Badge } from './ui';
 import { listCulturas } from '../server/culturas';
 import { listarSafrasCobertas } from '../lib/safra-periodo';
@@ -37,6 +37,7 @@ export const ArrendamentoDrawer: React.FC<ArrendamentoDrawerProps> = ({
   const [dataVencimento, setDataVencimento] = useState('');
 
   // 4. Condições Econômicas e Pagamento
+  const [direcao, setDirecao] = useState<DirecaoArrendamento>('A_PAGAR');
   const [tipoPagamento, setTipoPagamento] = useState<TipoPagamentoAquisicao>('SACAS');
   const [periodicidade, setPeriodicidade] = useState<ContratoArrendamento['periodicidade']>('Anual');
   const [culturaReferenciaId, setCulturaReferenciaId] = useState('');
@@ -74,6 +75,7 @@ export const ArrendamentoDrawer: React.FC<ArrendamentoDrawerProps> = ({
       setAreaArrendadaHa(editingArrendamento.areaArrendadaHa.toString());
       setDataInicio(editingArrendamento.dataInicio);
       setDataVencimento(editingArrendamento.dataVencimento);
+      setDirecao(editingArrendamento.direcao);
       setTipoPagamento(editingArrendamento.tipoPagamento);
       setPeriodicidade(editingArrendamento.periodicidade as ContratoArrendamento['periodicidade']);
       setCulturaReferenciaId(editingArrendamento.culturaReferenciaId ?? '');
@@ -99,6 +101,7 @@ export const ArrendamentoDrawer: React.FC<ArrendamentoDrawerProps> = ({
       setAreaArrendadaHa('');
       setDataInicio(new Date().toISOString().split('T')[0]);
       setDataVencimento('');
+      setDirecao('A_PAGAR');
       setTipoPagamento('SACAS');
       setPeriodicidade('Anual');
       setCulturaReferenciaId('');
@@ -158,6 +161,7 @@ export const ArrendamentoDrawer: React.FC<ArrendamentoDrawerProps> = ({
       areaArrendadaHa: areaArrendadaNum,
       dataInicio,
       dataVencimento,
+      direcao,
       tipoPagamento,
       periodicidade,
       culturaReferenciaId: tipoPagamento === 'SACAS' ? culturaReferenciaId || undefined : undefined,
@@ -181,7 +185,7 @@ export const ArrendamentoDrawer: React.FC<ArrendamentoDrawerProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={editingArrendamento ? 'Editar Contrato de Arrendamento' : 'Cadastrar Contrato de Arrendamento'}
-      subtitle="Terras arrendadas de terceiros para produção"
+      subtitle="Terras arrendadas de ou para terceiros"
     >
       <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
         <section className="space-y-4">
@@ -301,6 +305,15 @@ export const ArrendamentoDrawer: React.FC<ArrendamentoDrawerProps> = ({
           <h3 className="text-sm font-bold text-emerald-700 border-b border-slate-200 pb-1.5">
             4. Condições Econômicas e Pagamento
           </h3>
+          <Select
+            label="Direção"
+            hint="A propriedade paga este arrendamento (arrenda terra de terceiro) ou recebe (arrenda terra pra terceiro)?"
+            value={direcao}
+            onChange={(e) => setDirecao(e.target.value as DirecaoArrendamento)}
+          >
+            <option value="A_PAGAR">A Pagar (arrendo terra de terceiro)</option>
+            <option value="A_RECEBER">A Receber (arrendo terra pra terceiro)</option>
+          </Select>
           <div className="grid grid-cols-2 gap-3">
             <Select
               label="Tipo de Pagamento"

@@ -224,6 +224,26 @@ export function ehIndexado(tipoTaxa: TipoTaxaBancaria): boolean {
   return tipoTaxa !== 'Pré-fixado (% a.a.)';
 }
 
+/**
+ * Cenário cambial de um contrato, pra sinalização na UI (badges do Fluxo
+ * Detalhado — ver src/components/views/BancosView.tsx). Derivado de
+ * tipoTaxa/moeda (a combinação que já define o cenário em
+ * `calcularTaxaEfetiva`) + `indisponivel` do resultado de `TaxaEfetiva`
+ * (23/08/2026, pedido de review do cliente).
+ */
+export type CenarioTaxa =
+  | 'PADRAO'
+  | 'DOLAR_PURO'
+  | 'DOLAR_PURO_INDISPONIVEL'
+  | 'VARIACAO_CAMBIAL'
+  | 'VC_INDISPONIVEL';
+
+export function cenarioTaxaDe(tipoTaxa: TipoTaxaBancaria, moeda: Currency, indisponivel: boolean): CenarioTaxa {
+  if (tipoTaxa === 'Dólar + juros') return indisponivel ? 'VC_INDISPONIVEL' : 'VARIACAO_CAMBIAL';
+  if (moeda === 'USD') return indisponivel ? 'DOLAR_PURO_INDISPONIVEL' : 'DOLAR_PURO';
+  return 'PADRAO';
+}
+
 // ── Fase 5 (19/08/2026) — taxa por período: realizado no passado, projeção no futuro ──
 //
 // Escopo: só CDI + spread e IPCA + spread consultam a série temporal abaixo.

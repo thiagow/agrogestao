@@ -119,14 +119,14 @@ describe('calcularPosicaoComercializacao — Posição por Cultura', () => {
     expect(porCultura[0].cotacao).toBeNull();
   });
 
-  it('resolve o cruzamento Bovino -> Boi Gordo (nomes que não batem por substring)', () => {
+  it('resolve o cruzamento Café Irrigado -> Café Arábica (nomes que não batem por substring)', () => {
     const { porCultura } = calcularPosicaoComercializacao({
-      quadroSafra: [quadroSafra({ cultura: 'Bovino', rendimento: 10 })],
+      quadroSafra: [quadroSafra({ cultura: 'Café Irrigado', rendimento: 10 })],
       contratos: [],
-      precosDefinidos: [precoDefinido({ commodity: 'Boi Gordo', precoBrl: 365 })],
+      precosDefinidos: [precoDefinido({ commodity: 'Café Arábica', precoBrl: 2127 })],
       safra: '2026/2027'
     });
-    expect(porCultura[0].cotacao).toBe(365);
+    expect(porCultura[0].cotacao).toBe(2127);
   });
 
   it('quantidadeAFixar nunca fica negativa quando fixado excede a produção', () => {

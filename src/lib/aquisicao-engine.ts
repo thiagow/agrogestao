@@ -28,6 +28,17 @@
 // documenta um seletor de Sistema de Amortização para Aquisição — PRICE
 // (parcela constante) foi a convenção assumida (decisão confirmada com o
 // usuário), com periodicidade Anual, mesma cadência do modo Sacas.
+//
+// ── Modo SACAS — desvio deliberado da spec (decisão registrada em 23/08/2026) ──
+// A spec fotografada (seção "Exemplo", linha ~101) documenta e valida como
+// correto o comportamento em que "Sacas/ha" × área é repetido INTEGRALMENTE
+// em cada safra do intervalo — ou seja, réplica fiel do AgroFlow original.
+// A pedido do cliente (review de 23/08/2026), esse comportamento muda: o
+// negócio inteiro (Sacas/ha × área) passa a ser o TOTAL do parcelamento,
+// dividido pelo número de safras cobertas (mesmo critério de
+// `listarSafrasCobertas`, sem campo novo — decisão confirmada com o usuário).
+// Aquisições já cadastradas em SACAS precisam ser reprocessadas com
+// `scripts/regerar-parcelas-aquisicao.ts` após o deploy.
 
 import { gerarCronograma } from '@/lib/amortizacao';
 import { listarSafrasCobertas, dataReferenciaDaSafra } from '@/lib/safra-periodo';
@@ -69,7 +80,8 @@ export function gerarParcelasAquisicao(input: GerarParcelasAquisicaoInput): Parc
   if (input.tipoPagamento === 'SACAS') {
     const sacasHa = input.sacasHa ?? 0;
     const precoReferencia = input.precoReferencia ?? 0;
-    const sacasPorSafra = sacasHa * input.areaTotalHa;
+    const totalSacas = sacasHa * input.areaTotalHa;
+    const sacasPorSafra = safras.length > 0 ? totalSacas / safras.length : 0;
 
     for (const safra of safras) {
       parcelas.push({
