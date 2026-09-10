@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CulturaSafraAno } from '../types';
-import { calcularSafra, formatCurrency } from '../data/initialData';
+import { calcularSafra } from '../lib/agro';
+import { formatCurrency } from '../data/initialData';
 import { Drawer, Input, Select, Button } from './ui';
 import { GerenciarCulturasModal } from './GerenciarCulturasModal';
 import type { Cultura } from '../types';
@@ -13,7 +14,10 @@ interface SafraDrawerProps {
   culturas: Cultura[];
   onSaveCultura: (input: { nome: string; unidadeMedida: string }) => Promise<Cultura>;
   onDeleteCultura: (id: string) => Promise<void>;
+  /** Opções fechadas de "Ano Safra" (safras já cadastradas + atual + próxima) — nunca texto livre (10/09/2026). */
   anosSafraDisponiveis: string[];
+  /** Safra vigente da conta — default do select ao criar (sem preset). */
+  safraAtual?: string | null;
   /** Pré-seleciona cultura/ano ao abrir em modo "novo" (atalho de "Adicionar" numa coluna de ano vazia) — ignorado se `editingSafra` estiver definido. */
   presetCultura?: string;
   presetAnoSafra?: string;
@@ -28,12 +32,12 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
   onSaveCultura,
   onDeleteCultura,
   anosSafraDisponiveis,
+  safraAtual,
   presetCultura,
   presetAnoSafra
 }) => {
   const [cultura, setCultura] = useState('');
   const [anoSafra, setAnoSafra] = useState('');
-  const [hectares, setHectares] = useState('');
   const [haPropria, setHaPropria] = useState('');
   const [haArrendada, setHaArrendada] = useState('0');
   const [rendimento, setRendimento] = useState('');
@@ -51,7 +55,6 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
     if (editingSafra) {
       setCultura(editingSafra.cultura);
       setAnoSafra(editingSafra.anoSafra);
-      setHectares(editingSafra.hectares.toString());
       setHaPropria(editingSafra.haPropria.toString());
       setHaArrendada(editingSafra.haArrendada.toString());
       setRendimento(editingSafra.rendimento.toString());
@@ -62,15 +65,14 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
       const culturaSelecionada = presetCultura ? culturasState.find((c) => c.nome === presetCultura) : culturasState[0];
       setCultura(culturaSelecionada?.nome ?? presetCultura ?? '');
       setUnidadeProducao(culturaSelecionada?.unidadeMedida ?? 'sc');
-      setAnoSafra(presetAnoSafra ?? anosSafraDisponiveis[anosSafraDisponiveis.length - 1] ?? '');
-      setHectares('');
+      setAnoSafra(presetAnoSafra ?? safraAtual ?? anosSafraDisponiveis[anosSafraDisponiveis.length - 1] ?? '');
       setHaPropria('');
       setHaArrendada('0');
       setRendimento('');
       setPrecoMedio('');
       setCustoProducao('');
     }
-  }, [editingSafra, isOpen, culturasState, anosSafraDisponiveis, presetCultura, presetAnoSafra]);
+  }, [editingSafra, isOpen, culturasState, anosSafraDisponiveis, safraAtual, presetCultura, presetAnoSafra]);
 
   const handleCulturaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const valor = e.target.value;
@@ -92,15 +94,13 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
     setUnidadeProducao(novaCultura.unidadeMedida);
   };
 
+  // Total de Hectares deixou de ser digitado: é sempre a soma de Própria +
+  // Arrendada, calculada ao vivo (10/09/2026) — nunca pode divergir da soma.
+  const hectares = (parseFloat(haPropria) || 0) + (parseFloat(haArrendada) || 0);
+
   const preview = calcularSafra({
-    id: 'preview',
-    cultura,
-    anoSafra,
-    hectares: parseFloat(hectares) || 0,
-    haPropria: parseFloat(haPropria) || 0,
-    haArrendada: parseFloat(haArrendada) || 0,
+    hectares,
     rendimento: parseFloat(rendimento) || 0,
-    unidadeProducao,
     precoMedio: parseFloat(precoMedio) || 0,
     custoProducao: parseFloat(custoProducao) || 0
   });
@@ -113,7 +113,7 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
       id: editingSafra?.id,
       cultura,
       anoSafra,
-      hectares: parseFloat(hectares) || 0,
+      hectares,
       haPropria: parseFloat(haPropria) || 0,
       haArrendada: parseFloat(haArrendada) || 0,
       rendimento: parseFloat(rendimento) || 0,
@@ -162,24 +162,22 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
           )}
         </Select>
 
-        <Input
-          label="Ano Safra"
-          type="text"
-          required
-          placeholder="2026/2027"
-          value={anoSafra}
-          onChange={(e) => setAnoSafra(e.target.value)}
-        />
+        <Select label="Ano Safra" required value={anoSafra} onChange={(e) => setAnoSafra(e.target.value)}>
+          {anosSafraDisponiveis.length === 0 && <option value="">Nenhuma safra cadastrada</option>}
+          {anosSafraDisponiveis.map((ano) => (
+            <option key={ano} value={ano}>
+              {ano}
+            </option>
+          ))}
+        </Select>
+
+        <div className="pt-2 pb-1 flex items-center gap-2">
+          <span className="h-px flex-1 bg-slate-200" />
+          <span className="text-[11px] font-bold uppercase text-slate-500">Custos &amp; Plantio</span>
+          <span className="h-px flex-1 bg-slate-200" />
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Input
-            label="Hectares (Total)"
-            type="number"
-            required
-            min={0}
-            value={hectares}
-            onChange={(e) => setHectares(e.target.value)}
-          />
           <Input
             label="Ha Área Própria"
             type="number"
@@ -187,14 +185,21 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
             value={haPropria}
             onChange={(e) => setHaPropria(e.target.value)}
           />
+          <Input
+            label="Ha Arrendado"
+            type="number"
+            min={0}
+            value={haArrendada}
+            onChange={(e) => setHaArrendada(e.target.value)}
+          />
         </div>
 
         <Input
-          label="Ha Arrendado"
-          type="number"
-          min={0}
-          value={haArrendada}
-          onChange={(e) => setHaArrendada(e.target.value)}
+          label="Hectares (Total)"
+          type="text"
+          disabled
+          value={`${hectares.toLocaleString('pt-BR')} ha`}
+          hint="Somado automaticamente: Área Própria + Arrendada"
         />
 
         <div className="grid grid-cols-2 gap-3">
@@ -217,16 +222,6 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
         </div>
 
         <Input
-          label="Preço Médio (R$/unidade)"
-          type="number"
-          required
-          min={0}
-          step="0.01"
-          value={precoMedio}
-          onChange={(e) => setPrecoMedio(e.target.value)}
-        />
-
-        <Input
           label="Custo de Produção (R$/Há)"
           type="number"
           required
@@ -234,6 +229,22 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
           step="0.01"
           value={custoProducao}
           onChange={(e) => setCustoProducao(e.target.value)}
+        />
+
+        <div className="pt-2 pb-1 flex items-center gap-2">
+          <span className="h-px flex-1 bg-slate-200" />
+          <span className="text-[11px] font-bold uppercase text-slate-500">Colheita &amp; Comercialização</span>
+          <span className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        <Input
+          label="Preço Médio (R$/unidade)"
+          type="number"
+          required
+          min={0}
+          step="0.01"
+          value={precoMedio}
+          onChange={(e) => setPrecoMedio(e.target.value)}
         />
 
         <div className="pt-3 border-t border-slate-200 space-y-1.5 text-xs">

@@ -13,6 +13,7 @@ import {
   PerfilGrupoEconomico,
   CulturaSafraAno,
   Cultura,
+  SafraCadastrada,
   PecuariaBovinaAno,
   ProducaoAnimalAno,
   ContratoBancario,
@@ -27,6 +28,8 @@ import {
 } from '../types';
 import { saveSupplier, deleteSupplier } from '../server/suppliers';
 import { saveQuadroSafra, deleteQuadroSafra } from '../server/quadro-safra';
+import { setSafraAtual, createSafra } from '../server/safras';
+import { anoInicioSafra } from '../lib/safra-periodo';
 import { saveQuadroPecuariaBovina, deleteQuadroPecuariaBovina } from '../server/quadro-pecuaria';
 import { saveQuadroProducaoAnimal, deleteQuadroProducaoAnimal } from '../server/producao-animal';
 import { saveCultura, deleteCultura } from '../server/culturas';
@@ -74,6 +77,12 @@ interface TabViewProps {
   contaCnpj?: string;
   initialCulturas?: Cultura[];
   initialCulturaSafras?: CulturaSafraAno[];
+  /** Safra vigente do sistema (src/server/safras.ts) — fonte única dos badges Realizado/Atual/Previsão. */
+  initialSafraAtual?: string | null;
+  /** Opções fechadas de "Ano Safra" do SafraDrawer — safras cadastradas + atual + próxima. */
+  initialOpcoesAnoSafra?: string[];
+  /** Safras cadastradas na conta — UI mínima de gestão de safra vigente dentro do Quadro de Produção. */
+  initialSafrasCadastradas?: SafraCadastrada[];
   /** Pecuária (Bovino) / Suinocultura / Avicultura — persistidas via src/server/quadro-pecuaria.ts e src/server/producao-animal.ts. */
   initialPecuariaBovina?: PecuariaBovinaAno[];
   initialProducaoAnimal?: ProducaoAnimalAno[];
@@ -121,6 +130,9 @@ export const TabView: React.FC<TabViewProps> = ({
   contaCnpj,
   initialCulturas = [],
   initialCulturaSafras = [],
+  initialSafraAtual = null,
+  initialOpcoesAnoSafra = [],
+  initialSafrasCadastradas = [],
   initialPecuariaBovina = [],
   initialProducaoAnimal = [],
   initialContratosBancarios = [],
@@ -151,6 +163,12 @@ export const TabView: React.FC<TabViewProps> = ({
 
   // Quadro de Safra (usado também no Resumo) — persistido via src/server/quadro-safra.ts
   const [culturaSafras, setCulturaSafras] = useState<CulturaSafraAno[]>(initialCulturaSafras);
+
+  // Safra vigente — config única (src/server/safras.ts), fonte dos badges
+  // Realizado/Atual/Previsão e das opções fechadas de "Ano Safra" (10/09/2026).
+  const [safraAtual, setSafraAtualState] = useState<string | null>(initialSafraAtual);
+  const [opcoesAnoSafra, setOpcoesAnoSafra] = useState<string[]>(initialOpcoesAnoSafra);
+  const [safrasCadastradas, setSafrasCadastradas] = useState<SafraCadastrada[]>(initialSafrasCadastradas);
 
   // Pecuária (Bovino) / Suinocultura / Avicultura — persistido via
   // src/server/quadro-pecuaria.ts e src/server/producao-animal.ts.
@@ -275,6 +293,47 @@ export const TabView: React.FC<TabViewProps> = ({
     }
   };
 
+  // Recalcula localmente as opções fechadas de "Ano Safra" (safras cadastradas
+  // + atual + próxima) sem round-trip ao servidor — mesma lógica de
+  // listOpcoesAnoSafra() (src/server/safras.ts), só que a partir do estado já
+  // carregado no client.
+  const recalcularOpcoesAnoSafra = (safras: SafraCadastrada[], atual: string | null) => {
+    const anos = new Set(safras.map((s) => s.anoSafra));
+    if (atual) {
+      anos.add(atual);
+      anos.add(`${anoInicioSafra(atual) + 1}/${anoInicioSafra(atual) + 2}`);
+    }
+    setOpcoesAnoSafra(Array.from(anos).sort((a, b) => anoInicioSafra(a) - anoInicioSafra(b)));
+  };
+
+  const handleSetSafraAtual = async (safraId: string) => {
+    try {
+      await setSafraAtual(safraId);
+      const novaLista = safrasCadastradas.map((s) => ({ ...s, atual: s.id === safraId }));
+      const nova = novaLista.find((s) => s.id === safraId);
+      setSafrasCadastradas(novaLista);
+      setSafraAtualState(nova?.anoSafra ?? safraAtual);
+      recalcularOpcoesAnoSafra(novaLista, nova?.anoSafra ?? safraAtual);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao marcar safra como atual.');
+    }
+  };
+
+  const handleCreateSafra = async (anoSafraNova: string, marcarComoAtual: boolean) => {
+    try {
+      const criada = await createSafra(anoSafraNova, marcarComoAtual);
+      const novaLista = marcarComoAtual
+        ? [...safrasCadastradas.filter((s) => s.id !== criada.id).map((s) => ({ ...s, atual: false })), criada]
+        : [...safrasCadastradas.filter((s) => s.id !== criada.id), criada];
+      setSafrasCadastradas(novaLista);
+      const novoAtual = marcarComoAtual ? criada.anoSafra : safraAtual;
+      setSafraAtualState(novoAtual);
+      recalcularOpcoesAnoSafra(novaLista, novoAtual);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Erro ao cadastrar safra.');
+    }
+  };
+
   const handleSavePecuariaBovina = async (data: Partial<PecuariaBovinaAno>) => {
     try {
       const saved = await saveQuadroPecuariaBovina({
@@ -334,7 +393,8 @@ export const TabView: React.FC<TabViewProps> = ({
         anoCivil: data.anoCivil || new Date().getFullYear(),
         producaoCabecas: data.producaoCabecas || 0,
         precoMedioPorCabeca: data.precoMedioPorCabeca || 0,
-        custoMedioPorCabeca: data.custoMedioPorCabeca || 0
+        custoMedioPorCabeca: data.custoMedioPorCabeca || 0,
+        plantel: data.plantel || 0
       });
       setProducaoAnimal((prev) => (data.id ? prev.map((r) => (r.id === saved.id ? saved : r)) : [saved, ...prev]));
     } catch (err) {
@@ -657,6 +717,11 @@ export const TabView: React.FC<TabViewProps> = ({
           onDelete={handleDeleteSafra}
           onSaveCultura={handleSaveCultura}
           onDeleteCultura={handleDeleteCultura}
+          safraAtual={safraAtual}
+          opcoesAnoSafra={opcoesAnoSafra}
+          safrasCadastradas={safrasCadastradas}
+          onSetSafraAtual={handleSetSafraAtual}
+          onCreateSafra={handleCreateSafra}
           pecuariaBovina={pecuariaBovina}
           producaoAnimal={producaoAnimal}
           onSavePecuariaBovina={handleSavePecuariaBovina}
@@ -715,6 +780,7 @@ export const TabView: React.FC<TabViewProps> = ({
           linhasAquisicao={fluxoConsolidadoAquisicoes}
           contratosComerciais={contratosComerciais}
           precosDefinidos={initialPrecosDefinidos}
+          cotacoesMercado={initialCotacoesCommodities}
           itensManuais={itensFluxoManual}
           onSaveItem={handleSaveItemFluxoManual}
           onDeleteItem={handleDeleteItemFluxoManual}

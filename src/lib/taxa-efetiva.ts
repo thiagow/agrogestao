@@ -211,12 +211,59 @@ function comIndexador(nome: 'CDI' | 'IPCA', valor: number | null, spread: number
   };
 }
 
-function pct(n: number): string {
+export function pct(n: number): string {
   return `${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 }
 
-function brl(n: number): string {
+export function brl(n: number): string {
   return `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * Memória do Cenário Dólar Puro reconstruída a partir do que já foi APLICADO
+ * e persistido no contrato (`indiceReferencia` = cotação usada na última
+ * geração do cronograma) — usada pelo Fluxo Detalhado, que não deve
+ * recalcular `ptaxVigenteNoCiclo` com "hoje" (isso divergiria da tabela real
+ * se o usuário não clicou "Atualizar Índices" recentemente). Ver
+ * `calcularDolarPuro` para a versão que efetivamente gera o cronograma.
+ */
+export function memoriaDolarPuroAplicada(
+  taxaCadastrada: number,
+  ptaxInicial: number | null,
+  cotacaoAplicada: number | null
+): string {
+  if (ptaxInicial === null || ptaxInicial <= 0) {
+    return `${pct(taxaCadastrada)} a.a. em USD — PTAX Inicial não cadastrada, parcelas sem conversão`;
+  }
+  if (cotacaoAplicada === null || cotacaoAplicada <= 0) {
+    return `${pct(taxaCadastrada)} a.a. sobre o saldo em USD (Dólar Puro) · PTAX Inicial ${brl(ptaxInicial)} · cotação não disponível`;
+  }
+  return `${pct(taxaCadastrada)} a.a. sobre o saldo em USD (Dólar Puro) · PTAX Inicial ${brl(ptaxInicial)} · convertido a ${brl(cotacaoAplicada)}/US$`;
+}
+
+/**
+ * Memória do Cenário Variação Cambial reconstruída a partir do que já foi
+ * APLICADO e persistido no contrato — `indiceReferencia`, para
+ * `DOLAR_JUROS`, já é a `variacaoPercent` calculada na última geração
+ * (nunca uma cotação), diferente do Dólar Puro. Bug corrigido em 10/09/2026:
+ * o Fluxo Detalhado reenviava esse percentual como se fosse uma cotação PTAX
+ * (`usdBrl`) e recalculava `calcularVariacaoCambial` do zero, produzindo
+ * taxas absurdas (ex.: 644% a.a. em vez dos 39,4% a.a. corretos já exibidos
+ * na aba Contratos). Esta função nunca invoca `ptaxVigenteNoCiclo` — só
+ * formata os números já corretos e persistidos.
+ */
+export function memoriaVariacaoCambialAplicada(
+  taxaEfetivaAplicada: number | null,
+  taxaCadastrada: number,
+  ptaxInicial: number | null,
+  variacaoPercentAplicada: number | null
+): string {
+  if (ptaxInicial === null || ptaxInicial <= 0 || variacaoPercentAplicada === null || taxaEfetivaAplicada === null) {
+    return `Variação Cambial (VC) indisponível — projeção com apenas ${pct(taxaCadastrada)} de spread`;
+  }
+  return variacaoPercentAplicada > 0
+    ? `Variação Cambial (VC) ${pct(variacaoPercentAplicada)} (spread ${pct(taxaCadastrada)}, PTAX Inicial ${brl(ptaxInicial)}) = ${pct(taxaEfetivaAplicada)} a.a.`
+    : `Dólar não valorizou desde a PTAX Inicial (${brl(ptaxInicial)}) — só o spread de ${pct(taxaCadastrada)} a.a.`;
 }
 
 /** Um contrato é indexado quando depende de uma fonte externa para ser projetado. */

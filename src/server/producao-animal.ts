@@ -38,6 +38,7 @@ interface SaveProducaoAnimalInput {
   producaoCabecas: number;
   precoMedioPorCabeca: number;
   custoMedioPorCabeca: number;
+  plantel: number;
 }
 
 export async function saveQuadroProducaoAnimal(input: SaveProducaoAnimalInput): Promise<ProducaoAnimalAno> {
@@ -63,7 +64,8 @@ export async function saveQuadroProducaoAnimal(input: SaveProducaoAnimalInput): 
     anoCivil: parsed.anoCivil,
     producaoCabecas: parsed.producaoCabecas,
     precoMedioPorCabeca: parsed.precoMedioPorCabeca,
-    custoMedioPorCabeca: parsed.custoMedioPorCabeca
+    custoMedioPorCabeca: parsed.custoMedioPorCabeca,
+    plantel: parsed.plantel
   };
 
   const row = input.id
@@ -104,6 +106,7 @@ type QuadroProducaoAnimalRow = {
   producaoCabecas: number;
   precoMedioPorCabeca: unknown;
   custoMedioPorCabeca: unknown;
+  plantel: number;
 };
 
 function toProducaoAnimalDTO(row: QuadroProducaoAnimalRow): ProducaoAnimalAno {
@@ -113,6 +116,7 @@ function toProducaoAnimalDTO(row: QuadroProducaoAnimalRow): ProducaoAnimalAno {
     anoCivil: row.anoCivil,
     producaoCabecas: row.producaoCabecas,
     precoMedioPorCabeca: Number(row.precoMedioPorCabeca),
-    custoMedioPorCabeca: Number(row.custoMedioPorCabeca)
+    custoMedioPorCabeca: Number(row.custoMedioPorCabeca),
+    plantel: row.plantel
   };
 }

@@ -103,7 +103,7 @@ export const DadosComplementaresForm: React.FC<DadosComplementaresFormProps> = (
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900">
-        <strong>Bancos, Fornecedores, Arrendamentos, Aquisição de Fazenda e Quadro de Safra</strong> são preenchidos
+        <strong>Bancos, Fornecedores, Arrendamentos, Aquisição de Fazenda e Quadro de Produção</strong> são preenchidos
         automaticamente. Informe abaixo os dados complementares para a safra {safra}.
       </div>
 

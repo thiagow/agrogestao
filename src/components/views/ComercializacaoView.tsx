@@ -210,7 +210,7 @@ export const ComercializacaoView: React.FC<ComercializacaoViewProps> = ({
 
 const TabPosicaoPorCultura: React.FC<{ dados: PosicaoCultura[] }> = ({ dados }) => {
   if (dados.length === 0) {
-    return <p className="text-sm text-slate-400 py-10 text-center">Nenhuma cultura cadastrada no Quadro de Safra para esta safra.</p>;
+    return <p className="text-sm text-slate-400 py-10 text-center">Nenhuma cultura cadastrada no Quadro de Produção para esta safra.</p>;
   }
 
   const totalProducao = dados.reduce((s, d) => s + d.producaoTotal, 0);

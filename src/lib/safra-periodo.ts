@@ -93,3 +93,22 @@ export function safraDoAnoCivil(anoCivil: number): string {
 export function anoCivilDaSafra(safra: string): number {
   return anoInicioSafra(safra) + 1;
 }
+
+// ── Classificação Realizado/Atual/Previsão (10/09/2026) ────────────────────
+//
+// Fonte única de "qual safra é a vigente": o model `Safra` (contaId+anoSafra,
+// campo `atual`), resolvido por `getSafraAtual()`/`setSafraAtual()`
+// (src/server/safras.ts). Esta função pura só compara duas strings de safra —
+// não sabe de onde vem `safraAtual`, então é reaproveitável tanto pelo Quadro
+// de Produção (colunas por `anoSafra`) quanto pela Pecuária (colunas por
+// `anoCivil`, via `safraDoAnoCivil`) sem duplicar a lógica de comparação.
+
+export type StatusSafra = 'Realizado' | 'Atual' | 'Previsão';
+
+export function classificarSafra(anoSafra: string, safraAtual: string): StatusSafra {
+  const inicio = anoInicioSafra(anoSafra);
+  const inicioAtual = anoInicioSafra(safraAtual);
+  if (inicio < inicioAtual) return 'Realizado';
+  if (inicio === inicioAtual) return 'Atual';
+  return 'Previsão';
+}

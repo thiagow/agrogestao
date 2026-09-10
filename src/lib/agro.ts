@@ -32,3 +32,25 @@ export function calcularSafra(registro: CulturaSafraCalculavel) {
 
   return { totalProducao, receitaBruta, despesa, receitaLiquida, margem };
 }
+
+export interface MargemConsolidada {
+  receitaTotal: number;
+  custoTotal: number;
+  margemRs: number;
+  margemPercent: number;
+}
+
+/**
+ * Margem final consolidada da lavoura (10/09/2026) — soma a receita/despesa
+ * de todos os registros de cultura×safra (via calcularSafra, mesma fórmula
+ * de sempre) e devolve o resumo exibido ao fim do Quadro de Produção.
+ */
+export function consolidarMargemLavoura(registros: CulturaSafraCalculavel[]): MargemConsolidada {
+  const calculos = registros.map(calcularSafra);
+  const receitaTotal = calculos.reduce((sum, c) => sum + c.receitaBruta, 0);
+  const custoTotal = calculos.reduce((sum, c) => sum + c.despesa, 0);
+  const margemRs = receitaTotal - custoTotal;
+  const margemPercent = receitaTotal > 0 ? (margemRs / receitaTotal) * 100 : 0;
+
+  return { receitaTotal, custoTotal, margemRs, margemPercent };
+}

@@ -122,7 +122,7 @@ export const ResumoView: React.FC<ResumoViewProps> = ({
 
       <Card>
         <div className="p-5 border-b border-slate-200/80">
-          <h2 className="text-lg font-bold text-slate-900">Quadro de Safra por Cultura</h2>
+          <h2 className="text-lg font-bold text-slate-900">Quadro de Produção por Cultura</h2>
           <p className="text-xs text-slate-500 mt-0.5">Área, faturamento e produção fixada por cultura</p>
         </div>
 

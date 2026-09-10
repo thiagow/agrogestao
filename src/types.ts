@@ -253,6 +253,17 @@ export interface CulturaSafraAno {
   producaoFixadaPercent?: number; // % da produção já fixada em contrato
 }
 
+/**
+ * Registro do model `Safra` (src/server/safras.ts) — fonte única da "safra
+ * vigente" do sistema (10/09/2026). `atual` nunca é true para mais de um
+ * registro da mesma conta.
+ */
+export interface SafraCadastrada {
+  id: string;
+  anoSafra: string;
+  atual: boolean;
+}
+
 // ---- Quadro de Safra: Pecuária (Bovinocultura) / Suinocultura / Avicultura ----
 // Réplica confirmada da planilha real do cliente
 // (docs/demandas/Template Agro_Banco_PECUARIA.xlsx). Organizado por ANO CIVIL
@@ -308,6 +319,8 @@ export interface ProducaoAnimalAno {
   producaoCabecas: number;
   precoMedioPorCabeca: number;
   custoMedioPorCabeca: number;
+  /** Entrada manual (10/09/2026) — Suíno/Ave não têm estoque por categoria como Bovino, só o total informado pelo cliente. Informativo, não entra em calcularProducaoAnimal(). */
+  plantel: number;
 }
 
 // ---- Bancos e Financiamentos: Contrato Bancário ----
@@ -771,6 +784,13 @@ export interface FluxoSafraDTO {
   arrendamentosReceber: number;
   /** null quando não há cotação de Soja disponível para estimar a despesa comercial (3 sc/ha). */
   despesaComercial: number | null;
+  /**
+   * De onde veio o preço de soja usado em `despesaComercial` (10/09/2026):
+   * 'DEFINIDO' = PrecoDefinidoSafra travado pelo cliente para esta safra;
+   * 'MERCADO' = fallback para a cotação de mercado do dia (Cotacao), quando
+   * não há preço travado; null = nenhuma fonte disponível.
+   */
+  precoSojaFonte: 'DEFINIDO' | 'MERCADO' | null;
   parcelasAquisicao: number;
   saldoDevedorBancos: number;
   fornecedoresProximaSafra: number;

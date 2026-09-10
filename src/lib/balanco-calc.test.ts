@@ -317,7 +317,7 @@ describe('Pecuária/Suinocultura/Avicultura (02/09/2026)', () => {
     const input = inputBase();
     input.pecuariaBovina = [pecuariaBovina()];
     input.producaoAnimal = [
-      { id: 'a1', tipo: 'Avicultura', anoCivil: 2027, producaoCabecas: 100, precoMedioPorCabeca: 20, custoMedioPorCabeca: 12 }
+      { id: 'a1', tipo: 'Avicultura', anoCivil: 2027, producaoCabecas: 100, precoMedioPorCabeca: 20, custoMedioPorCabeca: 12, plantel: 0 }
     ];
     const com = montarBalanco(input);
 
@@ -329,7 +329,7 @@ describe('Pecuária/Suinocultura/Avicultura (02/09/2026)', () => {
   it('Suínos/Aves não têm estoque — não entram no Ativo Circulante além da receita/custo', () => {
     const input = inputBase();
     input.producaoAnimal = [
-      { id: 'a1', tipo: 'Suinocultura', anoCivil: 2027, producaoCabecas: 500, precoMedioPorCabeca: 30, custoMedioPorCabeca: 20 }
+      { id: 'a1', tipo: 'Suinocultura', anoCivil: 2027, producaoCabecas: 500, precoMedioPorCabeca: 30, custoMedioPorCabeca: 20, plantel: 0 }
     ];
     const balanco = montarBalanco(input);
     expect(balanco.ativo.estoqueRebanhoBovino).toBe(0);

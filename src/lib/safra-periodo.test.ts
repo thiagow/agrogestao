@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { janelaSafra, safraDaData, anoInicioSafra, safraDoAno, listarSafrasCobertas } from './safra-periodo';
+import { janelaSafra, safraDaData, anoInicioSafra, safraDoAno, listarSafrasCobertas, classificarSafra } from './safra-periodo';
 
 describe('janelaSafra', () => {
   it('safra "2026/2027" cobre 01/07/2026 a 30/06/2027', () => {
@@ -36,6 +36,20 @@ describe('safraDaData', () => {
     const { inicio, fim } = janelaSafra(safra);
     expect(safraDaData(inicio)).toBe(safra);
     expect(safraDaData(fim)).toBe(safra);
+  });
+});
+
+describe('classificarSafra (10/09/2026 — badges Realizado/Atual/Previsão)', () => {
+  it('safra anterior à vigente é Realizado', () => {
+    expect(classificarSafra('2024/2025', '2026/2027')).toBe('Realizado');
+  });
+
+  it('a própria safra vigente é Atual', () => {
+    expect(classificarSafra('2026/2027', '2026/2027')).toBe('Atual');
+  });
+
+  it('safra posterior à vigente é Previsão', () => {
+    expect(classificarSafra('2027/2028', '2026/2027')).toBe('Previsão');
   });
 });
 

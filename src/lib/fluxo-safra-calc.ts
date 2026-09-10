@@ -85,8 +85,15 @@ export interface MontarFluxoSafraInput {
   linhasAquisicao: { safra: string; valorTotal: number }[];
   contratosComerciais: ContratoComercial[];
   itensManuais: ItemFluxoManual[];
-  /** PrecoDefinidoSafra de Soja na safra ativa (src/server/cotacoes.ts) — null = não definida. */
+  /**
+   * Preço de soja a usar na Despesa Comercial (3 sc/ha) — resolvido no client
+   * (FluxoSafraView) com prioridade: PrecoDefinidoSafra da safra ativa; se
+   * ausente, fallback para a cotação de mercado do dia (Cotacao.precoBrl).
+   * `null` = nenhuma das duas fontes disponível.
+   */
   precoSoja: number | null;
+  /** De onde veio `precoSoja` — usado só para o texto de `origem` da linha. */
+  precoSojaFonte: 'DEFINIDO' | 'MERCADO' | null;
 }
 
 /**
@@ -154,11 +161,32 @@ export function montarFluxoSafraDTO(input: MontarFluxoSafraInput): FluxoSafraDTO
     arrendamentos,
     arrendamentosReceber,
     despesaComercial,
+    precoSojaFonte: areaSoja === 0 ? null : input.precoSojaFonte,
     parcelasAquisicao,
     saldoDevedorBancos,
     fornecedoresProximaSafra,
     itensManuais
   };
+}
+
+/**
+ * Texto de origem da linha "Despesa Comercial" — diferencia explicitamente
+ * preço travado pelo cliente (PrecoDefinidoSafra) de fallback para a cotação
+ * de mercado do dia (Cotacao), para transparência da fonte usada na projeção
+ * financeira (10/09/2026).
+ */
+function origemDespesaComercial(
+  despesaComercial: number | null,
+  precoSojaFonte: 'DEFINIDO' | 'MERCADO' | null
+): string {
+  if (despesaComercial === null) {
+    return precoSojaFonte === null
+      ? 'Estimativa indisponível: nenhum preço de Soja definido em Cotações e nenhuma cotação de mercado do dia disponível'
+      : 'Estimativa indisponível: nenhuma área de Soja no Quadro de Produção desta safra';
+  }
+  return precoSojaFonte === 'MERCADO'
+    ? 'Estimativa de despesa comercial: 3 sacas de soja por hectare plantado, à cotação de mercado do dia (nenhum preço travado em Cotações para esta safra)'
+    : 'Estimativa de despesa comercial: 3 sacas de soja por hectare plantado, ao preço definido em Cotações';
 }
 
 export function calcularFluxoSafra(dto: FluxoSafraDTO): FluxoSafraCalculado {
@@ -227,10 +255,7 @@ export function calcularFluxoSafra(dto: FluxoSafraDTO): FluxoSafraCalculado {
       id: 'despesa_comercial',
       label: 'Despesa Comercial (3 sc/ha soja)',
       valor: dto.despesaComercial,
-      origem:
-        dto.despesaComercial === null
-          ? 'Estimativa indisponível: nenhuma cotação de Soja definida em Cotações e nenhuma área de Soja no Quadro Safra desta safra'
-          : 'Estimativa de despesa comercial: 3 sacas de soja por hectare plantado, ao preço definido em Cotações'
+      origem: origemDespesaComercial(dto.despesaComercial, dto.precoSojaFonte)
     },
     {
       id: 'parcelas_aquisicao',

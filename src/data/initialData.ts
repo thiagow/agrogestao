@@ -110,15 +110,10 @@ function gerarCulturaSafras(): CulturaSafraAno[] {
 
 export const initialCulturaSafras: CulturaSafraAno[] = gerarCulturaSafras();
 
-export function calcularSafra(registro: CulturaSafraAno) {
-  const totalProducao = Math.round(registro.hectares * registro.rendimento);
-  const receitaBruta = Math.round(totalProducao * registro.precoMedio);
-  const despesa = Math.round(registro.hectares * registro.custoProducao);
-  const receitaLiquida = receitaBruta - despesa;
-  const margem = receitaBruta > 0 ? (receitaLiquida / receitaBruta) * 100 : 0;
-
-  return { totalProducao, receitaBruta, despesa, receitaLiquida, margem };
-}
+// Reexportado de @/lib/agro (fonte única, testada) — mantido aqui só porque
+// vários módulos ainda importam calcularSafra deste arquivo junto com
+// formatCurrency (10/09/2026, consolidação da Frente 1).
+export { calcularSafra } from '@/lib/agro';
 
 // ---- Análise Financeira ----
 // (Bancos e Financiamentos migrou pra Prisma na Fase 3 — o mock de

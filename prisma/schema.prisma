@@ -266,10 +266,12 @@ model QuadroSafra {
 // aba "Quadro Pecuaria"). "Bovino" saiu do catálogo de Cultura de QuadroSafra
 // (não fazia sentido usar hectares/rendimento para gado) para dar lugar a
 // este model dedicado. Diferente de QuadroSafra (organizado por safra),
-// pecuária é atividade contínua sem plantio/colheita — o cliente confirmou
-// que o período aqui é ANO CIVIL, sempre "o ano atual e os últimos 2 anos"
-// (janela rolante de 3 anos, ver anosPecuariaVisiveis() em pecuaria-calc.ts),
-// nunca uma lista fixa de safras. safraDoAnoCivil()/anoCivilDaSafra()
+// pecuária é atividade contínua sem plantio/colheita — o período aqui é ANO
+// CIVIL. Janela de exibição revertida em 10/09/2026 (pedido explícito do
+// usuário): não é mais rolante por `Date.now()` — são 5 anos civis FIXOS
+// ancorados na safra vigente do sistema (getSafraAtual(),
+// src/server/safras.ts): 3 Realizado + Atual + Previsão (ver
+// anosPecuariaVisiveis() em pecuaria-calc.ts). safraDoAnoCivil()/anoCivilDaSafra()
 // (src/lib/safra-periodo.ts) fazem a ponte com os módulos pensados em safra
 // (Fluxo de Safra/Mensal, Análise Financeira), reaproveitando a convenção já
 // usada no projeto de que "o ano relevante de uma safra é o segundo ano".
@@ -368,6 +370,8 @@ model QuadroProducaoAnimal {
   producaoCabecas     Int     @default(0)
   precoMedioPorCabeca Decimal @default(0) @db.Decimal(12, 2)
   custoMedioPorCabeca Decimal @default(0) @db.Decimal(12, 2)
+  /** Plantel — entrada manual (10/09/2026, item 2.3): Suíno/Ave não têm estoque por categoria como Bovino, só o total informado pelo cliente. Informativo — não entra em calcularProducaoAnimal(). */
+  plantel             Int     @default(0)
   ativo               Boolean @default(true)
 
   propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)

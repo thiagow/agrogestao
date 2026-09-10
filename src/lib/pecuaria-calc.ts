@@ -1,4 +1,5 @@
-import { safraDoAnoCivil } from '@/lib/safra-periodo';
+import { safraDoAnoCivil, anoCivilDaSafra } from '@/lib/safra-periodo';
+import type { MargemConsolidada } from '@/lib/agro';
 
 // Cálculo puro do módulo de Pecuária (Bovinocultura) / Suinocultura / Avicultura
 // — réplica confirmada da planilha real do cliente
@@ -150,11 +151,36 @@ export function receitaCustoPecuariaDaSafra(
 }
 
 /**
- * Janela de anos exibida nas tabelas de Pecuária/Suinocultura/Avicultura —
- * SEMPRE "o ano atual e os últimos 2 anos" (3 anos, rolante), nunca uma lista
- * fixa como ANOS_SAFRA de Quadro de Safra (decisão confirmada com o usuário).
+ * Janela de anos exibida nas tabelas de Bovinocultura/Suinocultura/Avicultura
+ * — 5 anos civis fixos ancorados na safra vigente do sistema: 3 Realizado +
+ * Atual + Previsão (ex.: safra atual "2025/2026" -> ano civil 2026 ->
+ * [2023, 2024, 2025, 2026, 2027]).
+ *
+ * Decisão revertida em 10/09/2026 (pedido explícito do usuário): a versão
+ * anterior era uma janela ROLANTE de 3 anos calculada a partir de `new Date()`
+ * (documentada como decisão confirmada em 02/09/2026) — a nova janela é fixa
+ * e sempre derivada da mesma "safra vigente" central (getSafraAtual(),
+ * src/server/safras.ts), nunca de `Date.now()` nem de um literal hardcoded.
  */
-export function anosPecuariaVisiveis(hoje: Date = new Date()): number[] {
-  const anoAtual = hoje.getFullYear();
-  return [anoAtual - 2, anoAtual - 1, anoAtual];
+export function anosPecuariaVisiveis(safraAtual: string): number[] {
+  const anoAtual = anoCivilDaSafra(safraAtual);
+  return [anoAtual - 3, anoAtual - 2, anoAtual - 1, anoAtual, anoAtual + 1];
+}
+
+/**
+ * Consolidado final do Quadro de Produção (item 2.5, 10/09/2026): soma a
+ * margem da Lavoura (já calculada por `consolidarMargemLavoura`,
+ * src/lib/agro.ts) com a receita/despesa de Bovino+Avícola+Suíno da mesma
+ * safra (já somados por `receitaCustoPecuariaDaSafra`).
+ */
+export function consolidarProducaoTotal(
+  lavoura: MargemConsolidada,
+  pecuaria: { receitaBruta: number; despesa: number }
+): MargemConsolidada {
+  const receitaTotal = lavoura.receitaTotal + pecuaria.receitaBruta;
+  const custoTotal = lavoura.custoTotal + pecuaria.despesa;
+  const margemRs = receitaTotal - custoTotal;
+  const margemPercent = receitaTotal > 0 ? (margemRs / receitaTotal) * 100 : 0;
+
+  return { receitaTotal, custoTotal, margemRs, margemPercent };
 }

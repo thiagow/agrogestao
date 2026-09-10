@@ -10,6 +10,7 @@ import { listDividasPf } from '@/server/dividas-pf';
 import { listCapex } from '@/server/capex';
 import { getPerfilGrupo } from '@/server/perfil-grupo';
 import { listCulturas } from '@/server/culturas';
+import { getSafraAtual, listOpcoesAnoSafra, listSafras } from '@/server/safras';
 import { listQuadroSafra } from '@/server/quadro-safra';
 import { listQuadroPecuariaBovina } from '@/server/quadro-pecuaria';
 import { listQuadroProducaoAnimal } from '@/server/producao-animal';
@@ -126,6 +127,10 @@ export default async function TabPage({ params }: TabPageProps) {
   const initialItensFluxoManual = tab === 'fluxo_safra' ? await listItensFluxoManual() : undefined;
   const initialItensLancamentoManualMensal =
     tab === 'fluxo_mensal' ? await listItensLancamentoManualMensal() : undefined;
+  // Safra vigente — config única usada pelos badges Realizado/Atual/Previsão
+  // e pelo select de "Ano Safra" no Quadro de Produção (10/09/2026).
+  const [initialSafraAtual, initialOpcoesAnoSafra, initialSafrasCadastradas] =
+    tab === 'quadro_safra' ? await Promise.all([getSafraAtual(), listOpcoesAnoSafra(), listSafras()]) : [undefined, undefined, undefined];
 
   return (
     <TabView
@@ -142,6 +147,9 @@ export default async function TabPage({ params }: TabPageProps) {
       contaCnpj={ctx.conta.cnpj ?? undefined}
       initialCulturas={initialCulturas}
       initialCulturaSafras={initialCulturaSafras}
+      initialSafraAtual={initialSafraAtual}
+      initialOpcoesAnoSafra={initialOpcoesAnoSafra}
+      initialSafrasCadastradas={initialSafrasCadastradas}
       initialPecuariaBovina={initialPecuariaBovina}
       initialProducaoAnimal={initialProducaoAnimal}
       initialContratosBancarios={initialContratosBancarios}

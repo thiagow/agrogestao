@@ -30,6 +30,7 @@ export const ProducaoAnimalDrawer: React.FC<ProducaoAnimalDrawerProps> = ({
   const [producaoCabecas, setProducaoCabecas] = useState('');
   const [precoMedioPorCabeca, setPrecoMedioPorCabeca] = useState('');
   const [custoMedioPorCabeca, setCustoMedioPorCabeca] = useState('');
+  const [plantel, setPlantel] = useState('');
 
   useEffect(() => {
     if (editingRegistro) {
@@ -37,11 +38,13 @@ export const ProducaoAnimalDrawer: React.FC<ProducaoAnimalDrawerProps> = ({
       setProducaoCabecas(String(editingRegistro.producaoCabecas));
       setPrecoMedioPorCabeca(String(editingRegistro.precoMedioPorCabeca));
       setCustoMedioPorCabeca(String(editingRegistro.custoMedioPorCabeca));
+      setPlantel(String(editingRegistro.plantel));
     } else {
       setAnoCivil(String(presetAnoCivil ?? anosDisponiveis[anosDisponiveis.length - 1] ?? new Date().getFullYear()));
       setProducaoCabecas('');
       setPrecoMedioPorCabeca('');
       setCustoMedioPorCabeca('');
+      setPlantel('');
     }
   }, [editingRegistro, isOpen, anosDisponiveis, presetAnoCivil]);
 
@@ -61,7 +64,8 @@ export const ProducaoAnimalDrawer: React.FC<ProducaoAnimalDrawerProps> = ({
       anoCivil: parseInt(anoCivil, 10),
       producaoCabecas: parseFloat(producaoCabecas) || 0,
       precoMedioPorCabeca: parseFloat(precoMedioPorCabeca) || 0,
-      custoMedioPorCabeca: parseFloat(custoMedioPorCabeca) || 0
+      custoMedioPorCabeca: parseFloat(custoMedioPorCabeca) || 0,
+      plantel: parseInt(plantel, 10) || 0
     });
     onClose();
   };
@@ -75,6 +79,14 @@ export const ProducaoAnimalDrawer: React.FC<ProducaoAnimalDrawerProps> = ({
     >
       <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
         <Input label="Ano" type="number" required value={anoCivil} onChange={(e) => setAnoCivil(e.target.value)} />
+        <Input
+          label="Plantel"
+          type="number"
+          min={0}
+          value={plantel}
+          onChange={(e) => setPlantel(e.target.value)}
+          hint="Quantidade total de cabeças no plantel — informado manualmente"
+        />
         <Input
           label="Produção (cabeças)"
           type="number"

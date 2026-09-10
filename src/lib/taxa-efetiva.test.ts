@@ -7,6 +7,8 @@ import {
   resolverIndiceNaData,
   criarTaxaPorData,
   cenarioTaxaDe,
+  memoriaDolarPuroAplicada,
+  memoriaVariacaoCambialAplicada,
   INDICES_VAZIOS,
   type IndicesVigentes,
   type SerieIndice,
@@ -321,6 +323,52 @@ describe('composição taxa efetiva → cronograma', () => {
     expect(efetiva.moedaCalculo).toBe('USD');
     expect(efetiva.cotacaoAplicada).toBe(5.2);
     expect(emBrl[0].valorTotal).toBeCloseTo(emUsd[0].valorTotal * 5.2, 2);
+  });
+});
+
+describe('memoriaDolarPuroAplicada / memoriaVariacaoCambialAplicada (Fluxo Detalhado — Bancos)', () => {
+  // Regressão do bug reportado em 10/09/2026: o Fluxo Detalhado de contratos
+  // Dólar Puro/Variação Cambial mostrava juros absurdos (ex.: 644% a.a.) por
+  // recalcular `calcularVariacaoCambial` reenviando `indiceReferencia` (já a
+  // variação % aplicada) como se fosse uma cotação PTAX. As duas funções
+  // abaixo só formatam o que já foi aplicado e persistido — nunca recalculam
+  // via `ptaxVigenteNoCiclo`.
+
+  it('Variação Cambial: reconstrói a memória a partir dos valores persistidos, sem inflar a taxa', () => {
+    // Na última geração do cronograma, a variação apurada foi 35,40% e a taxa
+    // efetiva aplicada (persistida) foi 39,40% a.a. (spread de 4%) — o mesmo
+    // valor que a aba Contratos exibe corretamente.
+    const memoria = memoriaVariacaoCambialAplicada(39.4, 4, 5.0, 35.4);
+
+    expect(memoria).toContain('39,40% a.a.');
+    expect(memoria).not.toContain('644');
+    // Comportamento antigo (buggy): reenviar 35.4 como cotação PTAX gerava
+    // variação = ((35.4-5.0)/5.0)*100 ≈ 608%, muito acima do valor correto.
+    const variacaoIncorretaAntiga = ((35.4 - 5.0) / 5.0) * 100;
+    expect(variacaoIncorretaAntiga).toBeGreaterThan(100); // documenta a magnitude do bug evitado
+  });
+
+  it('Variação Cambial sem valorização: mostra só o spread, sem "% a.a." inflado', () => {
+    const memoria = memoriaVariacaoCambialAplicada(4, 4, 5.0, 0);
+    expect(memoria).toContain('não valorizou');
+    expect(memoria).toContain('4,00% a.a.');
+  });
+
+  it('Variação Cambial indisponível (sem PTAX/variação persistida) sinaliza, não inventa número', () => {
+    expect(memoriaVariacaoCambialAplicada(null, 4, null, null)).toContain('indisponível');
+    expect(memoriaVariacaoCambialAplicada(null, 4, 5.0, null)).toContain('indisponível');
+  });
+
+  it('Dólar Puro: reconstrói a memória a partir da cotação aplicada, sem recalcular PTAX', () => {
+    const memoria = memoriaDolarPuroAplicada(12, 5.2, 5.6);
+
+    expect(memoria).toContain('12,00% a.a.');
+    expect(memoria).toContain('5,20');
+    expect(memoria).toContain('5,60');
+  });
+
+  it('Dólar Puro sem PTAX Inicial cadastrada sinaliza indisponível', () => {
+    expect(memoriaDolarPuroAplicada(12, null, 5.6)).toContain('não cadastrada');
   });
 });
 

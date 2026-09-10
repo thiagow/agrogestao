@@ -3,6 +3,7 @@ import {
   anosPecuariaVisiveis,
   calcularPecuariaBovina,
   calcularProducaoAnimal,
+  consolidarProducaoTotal,
   custoTotalPorCabecaBovino,
   estoqueTotalBovino,
   valorEstoqueBovino,
@@ -124,8 +125,36 @@ describe('calcularProducaoAnimal', () => {
   });
 });
 
-describe('anosPecuariaVisiveis', () => {
-  it('janela rolante: ano atual e os 2 anos anteriores (3 no total)', () => {
-    expect(anosPecuariaVisiveis(new Date('2026-09-02'))).toEqual([2024, 2025, 2026]);
+describe('anosPecuariaVisiveis (10/09/2026 — janela fixa de 5 anos, não mais rolante por Date.now())', () => {
+  it('5 anos civis fixos ancorados na safra vigente: 3 Realizado + Atual + Previsão', () => {
+    // Safra "2025/2026" -> ano civil "atual" = 2026 (safraDoAnoCivil/anoCivilDaSafra).
+    expect(anosPecuariaVisiveis('2025/2026')).toEqual([2023, 2024, 2025, 2026, 2027]);
+  });
+
+  it('acompanha a safra vigente configurada, não a data do sistema', () => {
+    // Uma safra vigente diferente desloca a janela inteira, sem depender de `new Date()`.
+    expect(anosPecuariaVisiveis('2029/2030')).toEqual([2027, 2028, 2029, 2030, 2031]);
+  });
+});
+
+describe('consolidarProducaoTotal (item 2.5, 10/09/2026)', () => {
+  it('soma lavoura + pecuária (bovino+avícola+suíno já consolidados)', () => {
+    const r = consolidarProducaoTotal(
+      { receitaTotal: 100_000, custoTotal: 60_000, margemRs: 40_000, margemPercent: 40 },
+      { receitaBruta: 50_000, despesa: 20_000 }
+    );
+
+    expect(r.receitaTotal).toBe(150_000);
+    expect(r.custoTotal).toBe(80_000);
+    expect(r.margemRs).toBe(70_000);
+    expect(r.margemPercent).toBeCloseTo((70_000 / 150_000) * 100, 6);
+  });
+
+  it('receita total zero não gera divisão por zero', () => {
+    const r = consolidarProducaoTotal(
+      { receitaTotal: 0, custoTotal: 0, margemRs: 0, margemPercent: 0 },
+      { receitaBruta: 0, despesa: 0 }
+    );
+    expect(r.margemPercent).toBe(0);
   });
 });

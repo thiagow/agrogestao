@@ -15,6 +15,7 @@ const DTO_SPEC: FluxoSafraDTO = {
   arrendamentos: 2_014_656,
   arrendamentosReceber: 0,
   despesaComercial: 1_908_000,
+  precoSojaFonte: 'DEFINIDO',
   parcelasAquisicao: 115_000_000,
   saldoDevedorBancos: 181_490_133,
   fornecedoresProximaSafra: 0,
@@ -50,11 +51,36 @@ describe('calcularFluxoSafra', () => {
   });
 
   it('trata despesa comercial indisponível (sem cotação de soja) como 0 na soma, nunca inventa', () => {
-    const r = calcularFluxoSafra({ ...DTO_SPEC, despesaComercial: null });
+    const r = calcularFluxoSafra({ ...DTO_SPEC, despesaComercial: null, precoSojaFonte: null });
     const linha = r.saidas.find((s) => s.id === 'despesa_comercial');
 
     expect(linha?.valor).toBeNull();
     expect(r.totalSaidas).toBe(343_901_289 - 1_908_000);
+  });
+
+  describe('origem da Despesa Comercial — fallback para cotação de mercado (10/09/2026)', () => {
+    it('preço travado (PrecoDefinidoSafra) indica a fonte "definido"', () => {
+      const r = calcularFluxoSafra({ ...DTO_SPEC, precoSojaFonte: 'DEFINIDO' });
+      const linha = r.saidas.find((s) => s.id === 'despesa_comercial');
+
+      expect(linha?.origem).toContain('preço definido em Cotações');
+    });
+
+    it('sem preço travado, cai para cotação de mercado e o texto indica isso explicitamente', () => {
+      const r = calcularFluxoSafra({ ...DTO_SPEC, precoSojaFonte: 'MERCADO' });
+      const linha = r.saidas.find((s) => s.id === 'despesa_comercial');
+
+      expect(linha?.origem).toContain('cotação de mercado do dia');
+      expect(linha?.origem).toContain('nenhum preço travado');
+    });
+
+    it('sem nenhuma fonte disponível (nem travado, nem mercado), mensagem cobre os dois casos', () => {
+      const r = calcularFluxoSafra({ ...DTO_SPEC, despesaComercial: null, precoSojaFonte: null });
+      const linha = r.saidas.find((s) => s.id === 'despesa_comercial');
+
+      expect(linha?.origem).toContain('nenhum preço de Soja definido');
+      expect(linha?.origem).toContain('nenhuma cotação de mercado do dia');
+    });
   });
 });
 
@@ -74,7 +100,8 @@ describe('montarFluxoSafraDTO — janela jul-jun (23/08/2026, review do cliente)
       linhasAquisicao: [],
       contratosComerciais: [],
       itensManuais: [],
-      precoSoja: null
+      precoSoja: null as number | null,
+      precoSojaFonte: null as 'DEFINIDO' | 'MERCADO' | null
     };
   }
 
@@ -169,14 +196,48 @@ describe('montarFluxoSafraDTO — janela jul-jun (23/08/2026, review do cliente)
       { id: 'p2', anoCivil: 2026, femeas0a12: 0, femeas12a24: 0, femeas24a36: 0, femeasAcima36: 0, machos0a12: 0, machos12a24: 0, machos24a36: 0, machosAcima36: 0, cicloProdutivo: '', areaPastagemPropria: 0, areaPastagemArrendada: 0, tipoTerminacao: '', custoAquisicaoPorCabeca: 0, custoPastagemPorHectare: 0, diariaConfinamento: 0, diasConfinamento: 0, qtdAnimaisConfinados: 0, qtdMachosComercializados: 999, pesoMedioMachos: 999, precoMedioMachos: 999, qtdFemeasComercializadas: 0, pesoMedioFemeas: 0, precoMedioFemeas: 0, qtdOutrasComercializadas: 0, pesoMedioOutras: 0, precoMedioOutras: 0, capacidadeLotacaoConfinamento: 0, ganhoPesoMedioDiarioKg: 0, diasConfinamentoPorLote: 0 }
     ];
     input.producaoAnimal = [
-      { id: 'a1', tipo: 'Avicultura', anoCivil: 2027, producaoCabecas: 1000, precoMedioPorCabeca: 10, custoMedioPorCabeca: 6 },
-      { id: 'a2', tipo: 'Suinocultura', anoCivil: 2026, producaoCabecas: 9999, precoMedioPorCabeca: 999, custoMedioPorCabeca: 999 } // fora da safra
+      { id: 'a1', tipo: 'Avicultura', anoCivil: 2027, producaoCabecas: 1000, precoMedioPorCabeca: 10, custoMedioPorCabeca: 6, plantel: 0 },
+      { id: 'a2', tipo: 'Suinocultura', anoCivil: 2026, producaoCabecas: 9999, precoMedioPorCabeca: 999, custoMedioPorCabeca: 999, plantel: 0 } // fora da safra
     ];
 
     const dto = montarFluxoSafraDTO(input);
     // Bovino: receita 10*1*500=5000, custo 100*10=1000. Aves: receita 1000*10=10000, custo 1000*6=6000.
     expect(dto.receitaProjetada).toBe(5_000 + 10_000);
     expect(dto.custoProducao).toBe(1_000 + 6_000);
+  });
+
+  it('sem área de Soja no Quadro de Produção, despesaComercial é 0 e a fonte de preço não importa', () => {
+    const input = inputBase();
+    input.precoSoja = 150;
+    input.precoSojaFonte = 'MERCADO';
+    const dto = montarFluxoSafraDTO(input);
+
+    expect(dto.despesaComercial).toBe(0);
+    expect(dto.precoSojaFonte).toBeNull();
+  });
+
+  it('com área de Soja, propaga a fonte do preço (MERCADO) recebida do client', () => {
+    const input = inputBase();
+    input.quadroSafra = [
+      {
+        id: 'q1',
+        cultura: 'Soja',
+        anoSafra: SAFRA,
+        hectares: 100,
+        haPropria: 100,
+        haArrendada: 0,
+        rendimento: 60,
+        unidadeProducao: 'sc/ha',
+        precoMedio: 150,
+        custoProducao: 2000
+      } as CulturaSafraAno
+    ];
+    input.precoSoja = 150;
+    input.precoSojaFonte = 'MERCADO';
+    const dto = montarFluxoSafraDTO(input);
+
+    expect(dto.despesaComercial).toBe(100 * 3 * 150);
+    expect(dto.precoSojaFonte).toBe('MERCADO');
   });
 });
 

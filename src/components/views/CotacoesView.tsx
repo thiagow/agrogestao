@@ -192,7 +192,7 @@ export const CotacoesView: React.FC<CotacoesViewProps> = ({ dolar, commodities, 
 
   const handleSalvarPreco = (commodity: string, preco: number) => {
     if (!safraAtiva) {
-      window.alert('Cadastre uma safra no Quadro de Safra antes de travar um preço.');
+      window.alert('Cadastre uma safra no Quadro de Produção antes de travar um preço.');
       return;
     }
     startTransition(async () => {

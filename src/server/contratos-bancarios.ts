@@ -17,7 +17,13 @@ import {
   PERIODICIDADE_LIQUIDACAO_FROM_DB
 } from '@/lib/enum-maps';
 import { carregarIndicesVigentes, carregarSerieIndices, regerarCronograma } from './cronograma-engine';
-import { calcularTaxaEfetiva, cenarioTaxaDe, type CenarioTaxa } from '@/lib/taxa-efetiva';
+import {
+  calcularTaxaEfetiva,
+  cenarioTaxaDe,
+  memoriaDolarPuroAplicada,
+  memoriaVariacaoCambialAplicada,
+  type CenarioTaxa
+} from '@/lib/taxa-efetiva';
 import type { ContratoBancario, Currency } from '@/types';
 
 export async function listContratosBancarios(): Promise<ContratoBancario[]> {
@@ -263,30 +269,47 @@ export async function listFluxoDetalhado(): Promise<FluxoDetalhado> {
     const taxaCadastrada = Number(c.taxaJuros);
     const taxaEfetivaAplicada = c.taxaEfetivaAplicada != null ? Number(c.taxaEfetivaAplicada) : null;
 
-    // A memória usa os índices REALMENTE aplicados na geração do cronograma
-    // (persistidos no contrato), não os índices vigentes agora — senão a
-    // explicação divergiria da tabela se o usuário não clicou "Atualizar
-    // Índices" depois de uma mudança de CDI/IPCA/dólar.
+    // A memória usa os valores REALMENTE aplicados na geração do cronograma
+    // (persistidos no contrato: taxaEfetivaAplicada/indiceReferencia), não os
+    // índices vigentes agora — senão a explicação divergiria da tabela se o
+    // usuário não clicou "Atualizar Índices" depois de uma mudança de
+    // CDI/IPCA/dólar.
+    //
+    // `indiceReferencia` tem semântica DIFERENTE por cenário (ver
+    // taxa-efetiva.ts): para Dólar Puro é a cotação aplicada (R$/US$); para
+    // Variação Cambial (DOLAR_JUROS) é a variação % já calculada. Bug
+    // corrigido em 10/09/2026: este trecho reenviava os dois casos como
+    // `usdBrl` (cotação) e recalculava `calcularTaxaEfetiva` do zero — para
+    // VC isso tratava um percentual como se fosse uma cotação PTAX,
+    // produzindo taxas absurdas (ex.: 644% a.a. em vez de 39,4% a.a.).
+    // Agora a memória só FORMATA o que já foi calculado e persistido, nunca
+    // recalcula `ptaxVigenteNoCiclo`.
     const indiceRef = c.indiceReferencia != null ? Number(c.indiceReferencia) : null;
-    const indicesDoContrato = {
-      cdiAA: c.tipoTaxa === 'CDI_SPREAD' ? indiceRef : null,
-      ipcaAA: c.tipoTaxa === 'IPCA_SPREAD' ? indiceRef : null,
-      // Dólar Puro e VC consultam a mesma cotação PTAX vigente do índice USD.
-      usdBrl: c.tipoTaxa === 'DOLAR_JUROS' || c.moeda === 'USD' ? indiceRef : null
-    };
-    // Bug corrigido em 23/08/2026 (review do cliente): esta chamada não
-    // passava `contexto` (moeda/ptaxInicial/dataContratacao) — Dólar Puro e VC
-    // sempre caíam no fallback "PTAX Inicial não cadastrada"/"só o spread",
-    // mesmo com ptaxInicial cadastrado, porque o cronograma real (que usa
-    // regerarCronograma, esse sim com o contexto certo) já tinha calculado
-    // certo. O texto explicativo é que estava desalinhado com a tabela.
-    const efetiva = calcularTaxaEfetiva(tipoTaxa, taxaCadastrada, indicesDoContrato, {
-      moeda: c.moeda as Currency,
-      ptaxInicial: c.ptaxInicial != null ? Number(c.ptaxInicial) : null,
-      dataContratacao: c.dataContratacao.toISOString().slice(0, 10)
-    });
-    const memoriaTaxa = efetiva.memoria;
-    const cenarioTaxa = cenarioTaxaDe(tipoTaxa, c.moeda as Currency, efetiva.indisponivel);
+    const ptaxInicial = c.ptaxInicial != null ? Number(c.ptaxInicial) : null;
+
+    let memoriaTaxa: string;
+    let indisponivelTaxa: boolean;
+
+    if (c.tipoTaxa === 'DOLAR_JUROS') {
+      indisponivelTaxa = ptaxInicial === null || ptaxInicial <= 0 || indiceRef === null || taxaEfetivaAplicada === null;
+      memoriaTaxa = memoriaVariacaoCambialAplicada(taxaEfetivaAplicada, taxaCadastrada, ptaxInicial, indiceRef);
+    } else if (c.moeda === 'USD') {
+      indisponivelTaxa = ptaxInicial === null || ptaxInicial <= 0 || indiceRef === null;
+      memoriaTaxa = memoriaDolarPuroAplicada(taxaCadastrada, ptaxInicial, indiceRef);
+    } else {
+      // CDI+spread / IPCA+spread / Pré-fixado BRL — sem ambiguidade de
+      // unidade em `indiceReferencia`, `calcularTaxaEfetiva` funciona direto.
+      const indicesDoContrato = {
+        cdiAA: c.tipoTaxa === 'CDI_SPREAD' ? indiceRef : null,
+        ipcaAA: c.tipoTaxa === 'IPCA_SPREAD' ? indiceRef : null,
+        usdBrl: null
+      };
+      const efetiva = calcularTaxaEfetiva(tipoTaxa, taxaCadastrada, indicesDoContrato, {});
+      memoriaTaxa = efetiva.memoria;
+      indisponivelTaxa = efetiva.indisponivel;
+    }
+
+    const cenarioTaxa = cenarioTaxaDe(tipoTaxa, c.moeda as Currency, indisponivelTaxa);
 
     let saldoAnterior = Number(c.saldoInicial);
     const parcelas: ParcelaFluxo[] = c.parcelas.map((p) => {

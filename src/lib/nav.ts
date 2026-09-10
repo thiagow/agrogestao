@@ -39,11 +39,13 @@ export const navEntries: NavEntry[] = [
     subtitle: 'Sócios, empresas, bens e direitos do grupo econômico'
   },
   {
+    // id/rota mantidos intactos (10/09/2026) — só o texto exibido muda, para
+    // não quebrar links/revalidatePath/ActiveTab já em uso.
     id: 'quadro_safra',
-    label: 'Quadro Safra',
+    label: 'Quadro de Produção',
     icon: Sprout,
-    title: 'Quadro de Safra',
-    subtitle: 'Acompanhamento do plantio, área por cultura e projeção de colheita'
+    title: 'Quadro de Produção',
+    subtitle: 'Lavoura, Bovinocultura, Suinocultura e Avicultura — plantio, produção e resultado por safra'
   },
   {
     id: 'bancos',

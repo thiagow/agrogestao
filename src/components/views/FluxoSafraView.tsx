@@ -6,6 +6,7 @@ import { ArrowUpRight, ArrowDownRight, Activity, DollarSign, Plus, Trash2, Chevr
 import type {
   ContratoBancario,
   ContratoComercial,
+  Cotacao,
   PrecoDefinidoSafra,
   CulturaSafraAno,
   ItemFluxoManual,
@@ -34,6 +35,8 @@ interface FluxoSafraViewProps {
   linhasAquisicao: LinhaFluxoConsolidado[];
   contratosComerciais: ContratoComercial[];
   precosDefinidos: PrecoDefinidoSafra[];
+  /** Cotações de mercado do dia — fallback da Despesa Comercial quando não há PrecoDefinidoSafra para a safra ativa (10/09/2026). */
+  cotacoesMercado: Cotacao[];
   itensManuais: ItemFluxoManual[];
   onSaveItem: (data: Partial<ItemFluxoManual>) => void;
   onDeleteItem: (id: string) => void;
@@ -62,6 +65,7 @@ export const FluxoSafraView: React.FC<FluxoSafraViewProps> = ({
   linhasAquisicao,
   contratosComerciais,
   precosDefinidos,
+  cotacoesMercado,
   itensManuais,
   onSaveItem,
   onDeleteItem
@@ -84,13 +88,25 @@ export const FluxoSafraView: React.FC<FluxoSafraViewProps> = ({
   const [saidasAbertas, setSaidasAbertas] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const precoSoja = useMemo(() => {
+  // Preço de soja para a Despesa Comercial (3 sc/ha): prioridade 1 é o preço
+  // travado pelo cliente para esta safra (PrecoDefinidoSafra); na ausência
+  // dele, cai para a cotação de mercado do dia (Cotacao.precoBrl) em vez de
+  // ficar "indisponível" — troca automática de fonte, sem ação manual
+  // (10/09/2026). Fallback isolado só para este cálculo: não altera
+  // `resolverPrecoFallback` (server), usado por Arrendamentos/Comercialização,
+  // que deliberadamente nunca usa cotação de mercado bruta.
+  const { precoSoja, precoSojaFonte } = useMemo(() => {
     const nomeCommodity = commodityDaCultura('Soja');
-    const preco = nomeCommodity
+    const definido = nomeCommodity
       ? precosDefinidos.find((p) => p.commodity === nomeCommodity && p.anoSafra === safraAtiva)
       : undefined;
-    return preco?.precoBrl ?? null;
-  }, [precosDefinidos, safraAtiva]);
+    if (definido) return { precoSoja: definido.precoBrl, precoSojaFonte: 'DEFINIDO' as const };
+
+    const mercado = nomeCommodity ? cotacoesMercado.find((c) => c.commodity === nomeCommodity) : undefined;
+    if (mercado) return { precoSoja: mercado.precoBrl, precoSojaFonte: 'MERCADO' as const };
+
+    return { precoSoja: null, precoSojaFonte: null };
+  }, [precosDefinidos, cotacoesMercado, safraAtiva]);
 
   const dto = useMemo(
     () =>
@@ -106,7 +122,8 @@ export const FluxoSafraView: React.FC<FluxoSafraViewProps> = ({
         linhasAquisicao,
         contratosComerciais,
         itensManuais,
-        precoSoja
+        precoSoja,
+        precoSojaFonte
       }),
     [
       safraAtiva,
@@ -120,7 +137,8 @@ export const FluxoSafraView: React.FC<FluxoSafraViewProps> = ({
       linhasAquisicao,
       contratosComerciais,
       itensManuais,
-      precoSoja
+      precoSoja,
+      precoSojaFonte
     ]
   );
 
@@ -218,7 +236,9 @@ export const FluxoSafraView: React.FC<FluxoSafraViewProps> = ({
                     </span>
                     <span className="flex items-center gap-2">
                       <span className="font-bold text-emerald-700">{formatCurrency(linha.valor ?? 0)}</span>
-                      {!['receita_projetada'].includes(linha.id) && (
+                      {/* Linhas fixas/calculadas (não são ItemFluxoManual real) — excluir aqui seria um
+                          no-op silencioso, então o botão nem aparece. */}
+                      {!['receita_projetada', 'arrendamentos_receber'].includes(linha.id) && (
                         <button
                           type="button"
                           onClick={() => onDeleteItem(linha.id)}

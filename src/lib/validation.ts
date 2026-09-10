@@ -222,18 +222,27 @@ export const supplierSchema = z.object({
   compras: z.array(compraFornecedorSchema).optional()
 });
 
-export const quadroSafraSchema = z.object({
-  cultura: z.string().trim().min(1, 'Informe a cultura'),
-  anoSafra: z.string().trim().regex(/^\d{4}\/\d{4}$/, 'Formato esperado: AAAA/AAAA'),
-  hectares: z.coerce.number().nonnegative(),
-  haPropria: z.coerce.number().nonnegative(),
-  haArrendada: z.coerce.number().nonnegative(),
-  rendimento: z.coerce.number().nonnegative(),
-  unidadeProducao: z.string().trim().min(1),
-  precoMedio: z.coerce.number().nonnegative(),
-  custoProducao: z.coerce.number().nonnegative(),
-  producaoFixadaPercent: z.coerce.number().min(0).max(100).optional()
-});
+export const quadroSafraSchema = z
+  .object({
+    cultura: z.string().trim().min(1, 'Informe a cultura'),
+    anoSafra: z.string().trim().regex(/^\d{4}\/\d{4}$/, 'Formato esperado: AAAA/AAAA'),
+    hectares: z.coerce.number().nonnegative(),
+    haPropria: z.coerce.number().nonnegative(),
+    haArrendada: z.coerce.number().nonnegative(),
+    rendimento: z.coerce.number().nonnegative(),
+    unidadeProducao: z.string().trim().min(1),
+    precoMedio: z.coerce.number().nonnegative(),
+    custoProducao: z.coerce.number().nonnegative(),
+    producaoFixadaPercent: z.coerce.number().min(0).max(100).optional()
+  })
+  // Total de Hectares deixou de ser digitado na UI (10/09/2026) — é sempre
+  // Própria + Arrendada, calculado no client. Defesa de servidor: rejeita
+  // qualquer payload divergente em vez de persistir uma inconsistência
+  // silenciosa (tolerância de 0,01 pra arredondamento de ponto flutuante).
+  .refine((data) => Math.abs(data.hectares - (data.haPropria + data.haArrendada)) < 0.01, {
+    message: 'Total de Hectares deve ser igual à soma de Área Própria + Arrendada',
+    path: ['hectares']
+  });
 
 // Pecuária (Bovinocultura) / Suinocultura / Avicultura (02/09/2026) — réplica
 // confirmada da planilha real do cliente. Organizadas por ano civil, não
@@ -283,7 +292,9 @@ export const producaoAnimalSchema = z.object({
   anoCivil: z.coerce.number().int().min(2000).max(2100),
   producaoCabecas: z.coerce.number().int().nonnegative(),
   precoMedioPorCabeca: z.coerce.number().nonnegative(),
-  custoMedioPorCabeca: z.coerce.number().nonnegative()
+  custoMedioPorCabeca: z.coerce.number().nonnegative(),
+  /** Entrada manual simples (10/09/2026, item 2.3) — Suíno/Ave não têm estoque por categoria como Bovino. */
+  plantel: z.coerce.number().int().nonnegative().default(0)
 });
 
 const PERIODICIDADE_LIQUIDACAO_VALUES = ['Mensal', 'Bimestral', 'Trimestral', 'Quadrimestral', 'Semestral', 'Anual', 'Final'] as const;
