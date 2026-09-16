@@ -38,6 +38,17 @@ export interface QuoteResult {
   fonte?: string;
   /** Data de referência do valor (YYYY-MM-DD). Na PTAX não é necessariamente hoje: a cotação do dia só sai ~13h BRT, e fim de semana/feriado não tem publicação. */
   dataReferencia?: string;
+  /**
+   * `meta.currency` bruto devolvido pela Yahoo Finance para futuros — 'USX'
+   * (centavos de dólar) ou 'USD' (dólares inteiros). Verificado ao vivo em
+   * 16/09/2026: NÃO é uniforme entre commodities da mesma bolsa/família —
+   * Soja/Milho/Trigo/Algodão/Boi/Café/Açúcar/Óleo de Soja vêm em USX, mas
+   * Farelo de Soja/Arroz/Álcool/Petróleo/Óleo de Aquecimento vêm em USD.
+   * `commodity-unidade.ts` usa este campo pra decidir se divide por 100 —
+   * nunca mais adivinha por commodity (isso já causou 2 bugs de escala: Arroz
+   * e Óleo de Aquecimento estavam com um fator de 100x errado).
+   */
+  moedaOriginal?: string;
 }
 
 /**
@@ -191,6 +202,17 @@ export async function fetchDolarBRL(): Promise<QuoteResult | null> {
  * genérico do BCB usado por `fetchPtaxDolar` (que usa o atalho dedicado
  * `CotacaoDolarPeriodo`, específico pro dólar). Mesma janela de 12 dias e
  * mesmo motivo (PTAX só sai em dia útil).
+ *
+ * `$filter=tipoBoletim eq 'Fechamento'` é obrigatório aqui — verificado ao
+ * vivo em 16/09/2026: diferente de `CotacaoDolarPeriodo` (que só devolve o
+ * fechamento, 1 linha/dia, sem nem ter o campo `tipoBoletim`), o endpoint
+ * genérico `CotacaoMoedaPeriodo` devolve TODOS os boletins do dia (Abertura +
+ * 3x Intermediário + Fechamento, até 5 linhas por dia útil). Sem o filtro,
+ * `$top=2` pegava o Fechamento de hoje e o Intermediário de minutos antes
+ * (mesmo dia) em vez do Fechamento do dia útil anterior — `precoBrl`/
+ * `dataReferencia` saíam certos (Fechamento é sempre o mais recente do dia),
+ * mas `variacaoPercentual` comparava dois pontos do mesmo dia em vez da
+ * variação dia a dia de verdade.
  */
 async function fetchPtaxMoeda(simbolo: string): Promise<QuoteResult | null> {
   try {
@@ -200,6 +222,7 @@ async function fetchPtaxMoeda(simbolo: string): Promise<QuoteResult | null> {
       'https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/' +
       'CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)' +
       `?@moeda='${simbolo}'&@dataInicial='${dataParamPtax(inicio)}'&@dataFinalCotacao='${dataParamPtax(hojeUtc)}'` +
+      `&$filter=tipoBoletim%20eq%20'Fechamento'` +
       '&$top=2&$orderby=dataHoraCotacao%20desc&$format=json';
 
     const res = await fetch(url, { next: { revalidate: 0 }, signal: AbortSignal.timeout(10000) });
@@ -312,7 +335,8 @@ export async function fetchYahooQuote(ticker: string, usdBrl: number | null): Pr
       minima: (meta.regularMarketDayLow as number) ?? precoUsd,
       volume: Number.isFinite(volumeBruto) ? volumeBruto : 0,
       fonte: 'Yahoo Finance',
-      dataReferencia: hojeIso()
+      dataReferencia: hojeIso(),
+      moedaOriginal: typeof meta.currency === 'string' ? meta.currency : undefined
     };
   } catch (e) {
     console.error(`[market-data] Yahoo Finance ${ticker} falhou:`, e instanceof Error ? e.message : e);

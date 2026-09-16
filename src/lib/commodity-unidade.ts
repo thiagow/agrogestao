@@ -8,15 +8,21 @@
 //
 // Função pura, sem I/O — mesmo critério de amortizacao.ts/aquisicao-engine.ts.
 //
-// Cada linha do catálogo abaixo descreve DUAS coisas independentes sobre como
-// a bolsa cota o contrato:
-//   - `centavos`: a Yahoo devolve o preço em centavos de dólar (USX, comum em
-//     grãos/soft commodities da CBOT/ICE) ou já em dólares inteiros (comum em
-//     energia/açúcar processado da NYMEX/CBOT)? Precisa saber isso ANTES de
-//     aplicar qualquer fator de peso.
+// Cada linha do catálogo abaixo descreve o fator de PESO/VOLUME do contrato:
 //   - `fator`: depois de já estar em USD/unidade-nativa-da-bolsa, quanto
 //     multiplicar pra chegar em USD/unidade-final. `1` = sem conversão,
 //     mantém a unidade nativa (ex.: barril de petróleo, sem "saca" análoga).
+//
+// A ESCALA (centavos de dólar USX vs. dólares inteiros USD) NÃO vive mais
+// neste catálogo — verificado ao vivo em 16/09/2026 que não é uniforme nem
+// previsível por commodity/bolsa: Soja/Milho/Trigo/Algodão/Boi/Café/Açúcar/
+// Óleo de Soja vêm em USX, mas Farelo de Soja/Arroz/Álcool/Petróleo/Óleo de
+// Aquecimento vêm em USD — dois desses (Arroz e Óleo de Aquecimento) tinham
+// sido cadastrados errado aqui como USX antes de checar contra a API real,
+// o que geraria um preço 100x menor que o real. A escala agora vem sempre do
+// campo `meta.currency` que a própria Yahoo devolve por ticker
+// (`QuoteResult.moedaOriginal`, `src/lib/market-data.ts`) — nunca mais uma
+// suposição estática por commodity.
 //
 // Os fatores de peso (bushel/lb/cwt/ton -> kg) são constantes físicas
 // padronizadas (USDA/contrato-futuro), não uma regra de negócio inventada —
@@ -47,33 +53,31 @@ const LITROS_POR_GALAO = 3.785411784;
 
 export interface FatorConversaoCommodity {
   commodity: string;
-  /** A Yahoo devolve o preço em centavos de dólar (USX)? Se `false`, já vem em dólares inteiros. */
-  centavos: boolean;
-  /** Multiplica USD/unidade-bolsa (já em dólares, pós `centavos`) para virar USD/unidade-final. `1` = mantém a unidade nativa da bolsa. */
+  /** Multiplica USD/unidade-bolsa (já em dólares inteiros) para virar USD/unidade-final. `1` = mantém a unidade nativa da bolsa. */
   fator: number;
-  /** Rótulo da unidade nativa da bolsa, para exibir o valor "Original". */
+  /** Rótulo da unidade nativa da bolsa, para exibir o valor "Original" — o prefixo USX/USD é só documentação aqui, a escala real vem de `moedaOriginal` em tempo de execução. */
   unidadeOriginal: string;
   /** Rótulo da unidade final (agrícola ou nativa, quando não há conversão de peso confirmada). */
   unidadeFinal: string;
 }
 
 export const FATORES_CONVERSAO_COMMODITY: readonly FatorConversaoCommodity[] = [
-  { commodity: 'Soja Grão', centavos: true, fator: KG_POR_SACA / KG_POR_BUSHEL_SOJA_TRIGO, unidadeOriginal: 'USX/bu', unidadeFinal: 'sc' },
-  { commodity: 'Milho Grão', centavos: true, fator: KG_POR_SACA / KG_POR_BUSHEL_MILHO, unidadeOriginal: 'USX/bu', unidadeFinal: 'sc' },
-  { commodity: 'Trigo', centavos: true, fator: KG_POR_SACA / KG_POR_BUSHEL_SOJA_TRIGO, unidadeOriginal: 'USX/bu', unidadeFinal: 'sc' },
-  { commodity: 'Boi Gordo', centavos: true, fator: KG_POR_ARROBA / KG_POR_LB, unidadeOriginal: 'USX/lb', unidadeFinal: '@' },
-  { commodity: 'Café Arábica', centavos: true, fator: KG_POR_SACA / KG_POR_LB, unidadeOriginal: 'USX/lb', unidadeFinal: 'sc' },
+  { commodity: 'Soja Grão', fator: KG_POR_SACA / KG_POR_BUSHEL_SOJA_TRIGO, unidadeOriginal: 'USX/bu', unidadeFinal: 'sc' },
+  { commodity: 'Milho Grão', fator: KG_POR_SACA / KG_POR_BUSHEL_MILHO, unidadeOriginal: 'USX/bu', unidadeFinal: 'sc' },
+  { commodity: 'Trigo', fator: KG_POR_SACA / KG_POR_BUSHEL_SOJA_TRIGO, unidadeOriginal: 'USX/bu', unidadeFinal: 'sc' },
+  { commodity: 'Boi Gordo', fator: KG_POR_ARROBA / KG_POR_LB, unidadeOriginal: 'USX/lb', unidadeFinal: '@' },
+  { commodity: 'Café Arábica', fator: KG_POR_SACA / KG_POR_LB, unidadeOriginal: 'USX/lb', unidadeFinal: 'sc' },
   // Algodão (16/09/2026): passou a usar arroba (@), a pedido do usuário — mesma
   // regra de peso do Boi Gordo (arroba de 15kg), a unidade nativa da bolsa
   // (ICE, USX/lb) sendo a mesma dos dois.
-  { commodity: 'Algodão Pluma', centavos: true, fator: KG_POR_ARROBA / KG_POR_LB, unidadeOriginal: 'USX/lb', unidadeFinal: '@' },
-  { commodity: 'Açúcar', centavos: true, fator: KG_POR_SACA_ACUCAR / KG_POR_LB, unidadeOriginal: 'USX/lb', unidadeFinal: 'sc' },
-  { commodity: 'Farelo de Soja', centavos: false, fator: KG_POR_TONELADA_METRICA / KG_POR_TONELADA_CURTA, unidadeOriginal: 'USD/ton curta', unidadeFinal: 'ton' },
-  { commodity: 'Óleo de Soja', centavos: true, fator: 1, unidadeOriginal: 'USX/lb', unidadeFinal: 'lb' },
-  { commodity: 'Arroz', centavos: true, fator: KG_POR_SACA_ARROZ / KG_POR_CWT, unidadeOriginal: 'USX/cwt', unidadeFinal: 'sc' },
-  { commodity: 'Álcool', centavos: false, fator: 1 / LITROS_POR_GALAO, unidadeOriginal: 'USD/gal', unidadeFinal: 'L' },
-  { commodity: 'Petróleo', centavos: false, fator: 1, unidadeOriginal: 'USD/bbl', unidadeFinal: 'bbl' },
-  { commodity: 'Óleo de Aquecimento', centavos: true, fator: 1 / LITROS_POR_GALAO, unidadeOriginal: 'USX/gal', unidadeFinal: 'L' }
+  { commodity: 'Algodão Pluma', fator: KG_POR_ARROBA / KG_POR_LB, unidadeOriginal: 'USX/lb', unidadeFinal: '@' },
+  { commodity: 'Açúcar', fator: KG_POR_SACA_ACUCAR / KG_POR_LB, unidadeOriginal: 'USX/lb', unidadeFinal: 'sc' },
+  { commodity: 'Farelo de Soja', fator: KG_POR_TONELADA_METRICA / KG_POR_TONELADA_CURTA, unidadeOriginal: 'USD/ton curta', unidadeFinal: 'ton' },
+  { commodity: 'Óleo de Soja', fator: 1, unidadeOriginal: 'USX/lb', unidadeFinal: 'lb' },
+  { commodity: 'Arroz', fator: KG_POR_SACA_ARROZ / KG_POR_CWT, unidadeOriginal: 'USD/cwt', unidadeFinal: 'sc' },
+  { commodity: 'Álcool', fator: 1 / LITROS_POR_GALAO, unidadeOriginal: 'USD/gal', unidadeFinal: 'L' },
+  { commodity: 'Petróleo', fator: 1, unidadeOriginal: 'USD/bbl', unidadeFinal: 'bbl' },
+  { commodity: 'Óleo de Aquecimento', fator: 1 / LITROS_POR_GALAO, unidadeOriginal: 'USD/gal', unidadeFinal: 'L' }
 ] as const;
 
 export function fatorConversaoCommodity(commodity: string): FatorConversaoCommodity | undefined {
@@ -94,13 +98,24 @@ export interface ConversaoCotacao {
 /**
  * Converte a cotação bruta de um futuro (na escala e unidade nativas da
  * bolsa) para USD e R$ na unidade final de referência.
- * `precoBruto` é o valor cru devolvido pela Yahoo Finance, na escala nativa
- * do ticker (centavos para a maioria dos softs/grãos, dólares inteiros para
- * energia) — ver `centavos` no catálogo acima.
+ *
+ * `precoBruto` é o valor cru devolvido pela Yahoo Finance. `moedaOriginal` é
+ * o `meta.currency` que a PRÓPRIA Yahoo devolve pra aquele ticker ('USX' =
+ * centavos de dólar, 'USD' = dólares inteiros) — nunca inferido por
+ * commodity: essa suposição já causou 2 bugs de escala 100x (Arroz e Óleo de
+ * Aquecimento, verificado ao vivo em 16/09/2026). Sem esse dado (`undefined`,
+ * ex.: uma chamada legada), assume USX por ser a convenção da maioria dos
+ * softs/grãos — mas todo chamador atual (`refreshCotacoes()`) sempre passa o
+ * valor real.
  */
-export function converterCotacaoCommodity(commodity: string, precoBruto: number, cambioUsdBrl: number): ConversaoCotacao {
+export function converterCotacaoCommodity(
+  commodity: string,
+  precoBruto: number,
+  cambioUsdBrl: number,
+  moedaOriginal?: string
+): ConversaoCotacao {
   const info = fatorConversaoCommodity(commodity);
-  const centavos = info?.centavos ?? true; // sem fator confirmado -> assume USX (mesma convenção da maioria)
+  const centavos = moedaOriginal ? moedaOriginal === 'USX' : true;
   const precoUsdBolsa = centavos ? precoBruto / 100 : precoBruto;
   const fator = info?.fator ?? 1;
   const precoUsd = precoUsdBolsa * fator;
@@ -108,7 +123,7 @@ export function converterCotacaoCommodity(commodity: string, precoBruto: number,
 
   return {
     precoOriginal: precoBruto,
-    unidadeOriginal: info?.unidadeOriginal ?? 'USX/lb',
+    unidadeOriginal: info?.unidadeOriginal ?? (centavos ? 'USX/lb' : 'USD/lb'),
     precoUsd,
     precoBrl,
     unidadeFinal: info?.unidadeFinal ?? 'lb'

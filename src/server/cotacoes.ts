@@ -235,12 +235,12 @@ export async function refreshCotacoes(): Promise<ResultadoRefreshCotacoes> {
       continue;
     }
 
-    const conv = converterCotacaoCommodity(c.commodity, quote.precoUsd, cambioUsado.valor);
+    const conv = converterCotacaoCommodity(c.commodity, quote.precoUsd, cambioUsado.valor, quote.moedaOriginal);
     // Máxima/mínima passam pelo MESMO fator do preço: gravadas cruas (em USX),
     // ficavam numa escala diferente do `precoBrl` já convertido — a tela
     // mostrava Café a R$ 2.275 ao lado de uma "máxima" de 336.
-    const maxima = converterCotacaoCommodity(c.commodity, quote.maxima, cambioUsado.valor).precoBrl;
-    const minima = converterCotacaoCommodity(c.commodity, quote.minima, cambioUsado.valor).precoBrl;
+    const maxima = converterCotacaoCommodity(c.commodity, quote.maxima, cambioUsado.valor, quote.moedaOriginal).precoBrl;
+    const minima = converterCotacaoCommodity(c.commodity, quote.minima, cambioUsado.valor, quote.moedaOriginal).precoBrl;
     const volume = BigInt(Math.round(Number.isFinite(quote.volume) ? quote.volume : 0));
 
     await db.cotacao.upsert({
