@@ -51,7 +51,7 @@ function inputBase() {
     producaoAnimal: [] as ProducaoAnimalAno[],
     suppliers: [] as Supplier[],
     fluxoDetalhadoBancos: [],
-    anosCronograma: [],
+    anosCronograma: [] as { ano: number; juros: number; amortizacao: number }[],
     arrendamentos: [] as ContratoArrendamento[],
     aquisicoes: [] as Aquisicao[],
     bensDireitos: [] as BemDireito[],
@@ -103,6 +103,29 @@ describe('montarBalanco — fechamento contábil', () => {
     const balanco = montarBalanco(input);
     expect(balanco.ativo.aplicacoesFinanceiras).toBe(5_000_000);
     expect(balanco.ativo.bensIrpf).toBe(0); // já contabilizado no Circulante, não repete no Não Circulante
+  });
+});
+
+describe('montarBalanco — Serviço da Dívida (16/09/2026: manual soma ao automático, nunca substitui)', () => {
+  it('sem valor manual, Serviço da Dívida é só o automático do cronograma bancário', () => {
+    const input = inputBase();
+    input.anosCronograma = [{ ano: 2027, juros: 40_000, amortizacao: 60_000 }];
+    const balanco = montarBalanco(input);
+    expect(balanco.servicoDividaDetalhe.automatico).toBe(100_000);
+    expect(balanco.servicoDividaDetalhe.manual).toBe(0);
+    expect(balanco.servicoDividaDetalhe.total).toBe(100_000);
+    expect(balanco.servicoDivida).toBe(100_000);
+  });
+
+  it('com valor manual, soma ao automático — nunca o descarta', () => {
+    const input = inputBase();
+    input.anosCronograma = [{ ano: 2027, juros: 40_000, amortizacao: 60_000 }];
+    input.complementares = { ...complementaresVazio(SAFRA), servicoDividaManual: 25_000 };
+    const balanco = montarBalanco(input);
+    expect(balanco.servicoDividaDetalhe.automatico).toBe(100_000);
+    expect(balanco.servicoDividaDetalhe.manual).toBe(25_000);
+    expect(balanco.servicoDividaDetalhe.total).toBe(125_000);
+    expect(balanco.servicoDivida).toBe(125_000);
   });
 });
 

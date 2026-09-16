@@ -8,14 +8,15 @@ import { calcularSafra, consolidarMargemLavoura } from '../../lib/agro';
 import {
   calcularPecuariaBovina,
   calcularProducaoAnimal,
+  calcularQuantidadeTotalBovina,
   estoqueTotalBovino,
   custoTotalPorCabecaBovino,
   anosPecuariaVisiveis,
   consolidarProducaoTotal
 } from '../../lib/pecuaria-calc';
-import { receitaCustoPecuariaDaSafra } from '../../lib/pecuaria-calc';
-import { classificarSafra, anoInicioSafra, safraDoAno, safraDoAnoCivil, type StatusSafra } from '../../lib/safra-periodo';
-import { Card, Button, Badge, Input, Select } from '../ui';
+import { receitaCustoPecuariaSafraBlend } from '../../lib/pecuaria-calc';
+import { classificarSafra, anoInicioSafra, safraDoAno, type StatusSafra } from '../../lib/safra-periodo';
+import { Card, Button, Input, Select } from '../ui';
 import { SafraDrawer } from '../SafraDrawer';
 import { PecuariaBovinaDrawer } from '../PecuariaBovinaDrawer';
 import { ProducaoAnimalDrawer } from '../ProducaoAnimalDrawer';
@@ -60,11 +61,179 @@ const LINHAS: { key: string; label: string; origem: OrigemLinha; destaque?: Dest
   { key: 'margem', label: 'Margem (%)', origem: 'calculado', destaque: 'highlight' }
 ];
 
+/** "22/23" a partir de "2022/2023" — formato curto usado só no Resumo — Quadro de Produção (réplica do print do usuário, 16/09/2026). */
+function safraCurta(anoSafra: string): string {
+  const [inicio, fim] = anoSafra.split('/');
+  return `${inicio.slice(-2)}/${fim.slice(-2)}`;
+}
+
 const BADGE_STATUS: Record<StatusSafra, { tone: 'slate' | 'emerald' | 'blue'; label: string }> = {
   Realizado: { tone: 'slate', label: 'Realizado' },
   Atual: { tone: 'emerald', label: 'Atual' },
   Previsão: { tone: 'blue', label: 'Previsão' }
 };
+
+/** "Estoque Rebanho Atual" (16/09/2026, réplica confirmada da planilha do cliente) — as 8 categorias por sexo/faixa etária. */
+const ESTOQUE_REBANHO_LINHAS: { label: string; key: keyof PecuariaBovinaAno }[] = [
+  { label: 'Fêmeas 0-12 meses', key: 'femeas0a12' },
+  { label: 'Fêmeas 12-24 meses', key: 'femeas12a24' },
+  { label: 'Fêmeas 24-36 meses', key: 'femeas24a36' },
+  { label: 'Fêmeas +36 meses', key: 'femeasAcima36' },
+  { label: 'Machos 0-12 meses', key: 'machos0a12' },
+  { label: 'Machos 12-24 meses', key: 'machos12a24' },
+  { label: 'Machos 24-36 meses', key: 'machos24a36' },
+  { label: 'Machos +36 meses', key: 'machosAcima36' }
+];
+
+/**
+ * Linha da tabela "Bovinos" (16/09/2026, réplica confirmada da planilha do
+ * cliente, docs/demandas/Template Agro_Banco_PECUARIA.xlsx) — suporta 3
+ * formatos: divisor (cabeçalho de seção colorido, sem valor), label (linha
+ * só de texto, sem valor por ano — ex. "Custo médio (R$/cabeça)" na
+ * planilha original) e valor (linha normal, com `render` por ano).
+ *
+ * "Preço Médio Machos/Fêmeas/Outras" usa a unidade real R$/@ (a mesma usada
+ * no cálculo do faturamento = quantidade × peso(@) × preço) — a planilha
+ * original rotula essa linha "R$/Cabeça", um erro de rótulo da fonte que não
+ * replicamos aqui por ser uma unidade monetária, onde rótulo errado confunde
+ * o usuário sobre o preço real pago por arroba.
+ */
+type LinhaBovino =
+  | { tipo: 'divisor'; label: string }
+  | { tipo: 'label'; label: string }
+  | { tipo?: 'valor'; label: string; destaque?: boolean; indent?: boolean; italic?: boolean; render: (r: PecuariaBovinaAno) => string };
+
+const NUM_PT_BR = (v: number) => v.toLocaleString('pt-BR');
+
+const LINHAS_BOVINO: LinhaBovino[] = [
+  { label: 'Ciclo Produtivo Pecuário', render: (r) => r.cicloProdutivo || '—' },
+  {
+    label: 'Área de Pastagem Total (ha)',
+    destaque: true,
+    render: (r) => `${NUM_PT_BR(r.areaPastagemPropria + r.areaPastagemArrendada)} ha`
+  },
+  { label: 'Própria', indent: true, italic: true, render: (r) => (r.areaPastagemPropria > 0 ? `${NUM_PT_BR(r.areaPastagemPropria)} ha` : '—') },
+  { label: 'Arrendada', indent: true, italic: true, render: (r) => (r.areaPastagemArrendada > 0 ? `${NUM_PT_BR(r.areaPastagemArrendada)} ha` : '—') },
+  { label: 'Tipo de Terminação', render: (r) => r.tipoTerminacao || '—' },
+
+  { tipo: 'divisor', label: 'Custos de Produção' },
+  { tipo: 'label', label: 'Custo médio (R$/cabeça)' },
+  { label: 'Custo Total (R$/cabeça)', destaque: true, render: (r) => formatCurrency(custoTotalPorCabecaBovino(r)) },
+  {
+    label: 'Valor total de cabeças adquiridas (R$/cabeça)',
+    indent: true,
+    italic: true,
+    render: (r) => formatCurrency(r.custoAquisicaoPorCabeca)
+  },
+  {
+    label: 'Custo de produção pastagem (R$/hectare)',
+    indent: true,
+    italic: true,
+    render: (r) => formatCurrency(r.custoPastagemPorHectare)
+  },
+  {
+    label: 'Diária Confinamento (R$/dia)',
+    indent: true,
+    italic: true,
+    render: (r) => (r.diariaConfinamento > 0 ? formatCurrency(r.diariaConfinamento) : '—')
+  },
+  {
+    label: 'Dias de Confinamento',
+    indent: true,
+    italic: true,
+    render: (r) => (r.diasConfinamento > 0 ? NUM_PT_BR(r.diasConfinamento) : '—')
+  },
+  {
+    label: 'Quantidade de Animais Confinados',
+    indent: true,
+    italic: true,
+    render: (r) => (r.qtdAnimaisConfinados > 0 ? NUM_PT_BR(r.qtdAnimaisConfinados) : '—')
+  },
+
+  { tipo: 'divisor', label: 'Dados Confinamento' },
+  {
+    label: 'Capacidade de Lotação do Confinamento (cab.)',
+    render: (r) => (r.capacidadeLotacaoConfinamento > 0 ? NUM_PT_BR(r.capacidadeLotacaoConfinamento) : '—')
+  },
+  {
+    label: 'Ganho de Peso Médio Diário por Animal (Kg/dia)',
+    render: (r) => (r.ganhoPesoMedioDiarioKg > 0 ? NUM_PT_BR(r.ganhoPesoMedioDiarioKg) : '—')
+  },
+  {
+    label: 'Dias de Confinamento por Lote',
+    render: (r) => (r.diasConfinamentoPorLote > 0 ? NUM_PT_BR(r.diasConfinamentoPorLote) : '—')
+  },
+
+  { tipo: 'divisor', label: 'Animais Comercializados' },
+  {
+    label: 'Faturamento Machos (R$)',
+    destaque: true,
+    render: (r) => formatCurrency(r.qtdMachosComercializados * r.pesoMedioMachos * r.precoMedioMachos)
+  },
+  {
+    label: 'Quantidade de Machos (cabeças)',
+    indent: true,
+    italic: true,
+    render: (r) => (r.qtdMachosComercializados > 0 ? NUM_PT_BR(r.qtdMachosComercializados) : '—')
+  },
+  { label: 'Peso Médio Machos (@)', indent: true, italic: true, render: (r) => (r.pesoMedioMachos > 0 ? NUM_PT_BR(r.pesoMedioMachos) : '—') },
+  {
+    label: 'Preço Médio Machos (R$/@)',
+    indent: true,
+    italic: true,
+    render: (r) => (r.precoMedioMachos > 0 ? formatCurrency(r.precoMedioMachos) : '—')
+  },
+
+  {
+    label: 'Faturamento Fêmeas (R$)',
+    destaque: true,
+    render: (r) => formatCurrency(r.qtdFemeasComercializadas * r.pesoMedioFemeas * r.precoMedioFemeas)
+  },
+  {
+    label: 'Quantidade de Fêmeas (cabeças)',
+    indent: true,
+    italic: true,
+    render: (r) => (r.qtdFemeasComercializadas > 0 ? NUM_PT_BR(r.qtdFemeasComercializadas) : '—')
+  },
+  { label: 'Peso Médio Fêmeas (@)', indent: true, italic: true, render: (r) => (r.pesoMedioFemeas > 0 ? NUM_PT_BR(r.pesoMedioFemeas) : '—') },
+  {
+    label: 'Preço Médio Fêmeas (R$/@)',
+    indent: true,
+    italic: true,
+    render: (r) => (r.precoMedioFemeas > 0 ? formatCurrency(r.precoMedioFemeas) : '—')
+  },
+
+  {
+    label: 'Faturamento Outras Categorias (R$)',
+    destaque: true,
+    render: (r) => formatCurrency(r.qtdOutrasComercializadas * r.pesoMedioOutras * r.precoMedioOutras)
+  },
+  {
+    label: 'Quantidade de Outras (cabeças)',
+    indent: true,
+    italic: true,
+    render: (r) => (r.qtdOutrasComercializadas > 0 ? NUM_PT_BR(r.qtdOutrasComercializadas) : '—')
+  },
+  { label: 'Peso Médio Outras (@)', indent: true, italic: true, render: (r) => (r.pesoMedioOutras > 0 ? NUM_PT_BR(r.pesoMedioOutras) : '—') },
+  {
+    label: 'Preço Médio Outras (R$/@)',
+    indent: true,
+    italic: true,
+    render: (r) => (r.precoMedioOutras > 0 ? formatCurrency(r.precoMedioOutras) : '—')
+  },
+
+  { label: 'Receita Total (R$)', destaque: true, render: (r) => formatCurrency(calcularPecuariaBovina(r).receitaBruta) },
+  { label: 'Custo Total de Produção (R$)', render: (r) => formatCurrency(calcularPecuariaBovina(r).despesa) },
+  { label: 'Resultado Bruto (R$)', destaque: true, render: (r) => formatCurrency(calcularPecuariaBovina(r).receitaLiquida) },
+  { label: 'Margem Bruta (%)', render: (r) => `${calcularPecuariaBovina(r).margem.toFixed(1)}%` }
+];
+
+/** "Quantidade total" (16/09/2026) — rodapé da tabela Bovinos, ver calcularQuantidadeTotalBovina em pecuaria-calc.ts. */
+const QUANTIDADE_TOTAL_LINHAS: { label: string; render: (r: PecuariaBovinaAno) => string }[] = [
+  { label: 'Cabeças', render: (r) => NUM_PT_BR(calcularQuantidadeTotalBovina(r).totalCabecas) },
+  { label: 'Preço Médio Total (R$/@)', render: (r) => formatCurrency(calcularQuantidadeTotalBovina(r).precoMedioTotal) },
+  { label: 'Peso Médio (@)', render: (r) => calcularQuantidadeTotalBovina(r).pesoMedio.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) }
+];
 
 export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
   culturaSafras,
@@ -175,15 +344,21 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
         (s) => culturasVisiveis.includes(s.cultura) && s.anoSafra === ano
       );
       const calcs = registrosDoAno.map(calcularSafra);
+      const receitaBruta = calcs.reduce((sum, c) => sum + c.receitaBruta, 0);
+      const receitaLiquida = calcs.reduce((sum, c) => sum + c.receitaLiquida, 0);
       acc[ano] = {
         areaTotal: registrosDoAno.reduce((sum, r) => sum + r.hectares, 0),
-        receitaBruta: calcs.reduce((sum, c) => sum + c.receitaBruta, 0),
+        receitaBruta,
         despesa: calcs.reduce((sum, c) => sum + c.despesa, 0),
-        receitaLiquida: calcs.reduce((sum, c) => sum + c.receitaLiquida, 0)
+        receitaLiquida,
+        margemFinalPercent: receitaBruta > 0 ? (receitaLiquida / receitaBruta) * 100 : 0
       };
       return acc;
     },
-    {} as Record<string, { areaTotal: number; receitaBruta: number; despesa: number; receitaLiquida: number }>
+    {} as Record<
+      string,
+      { areaTotal: number; receitaBruta: number; despesa: number; receitaLiquida: number; margemFinalPercent: number }
+    >
   );
 
   const TOTALIZADORES: { key: 'areaTotal' | 'receitaBruta' | 'despesa' | 'receitaLiquida'; label: string; formatar: (v: number) => string }[] = [
@@ -199,12 +374,19 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
     culturaSafras.filter((s) => culturasVisiveis.includes(s.cultura) && s.anoSafra === referenciaSafra)
   );
 
-  // Consolidado final (item 2.5) — soma Lavoura + Bovino + Avícola + Suíno da
-  // safra vigente. Usa TODAS as culturas (não só o filtro selecionado), pois
-  // é o total do Quadro de Produção, não da visualização filtrada.
-  const margemLavouraTotal = consolidarMargemLavoura(culturaSafras.filter((s) => s.anoSafra === referenciaSafra));
-  const pecuariaDaSafra = receitaCustoPecuariaDaSafra(referenciaSafra, pecuariaBovina, producaoAnimal);
-  const consolidadoTotal = consolidarProducaoTotal(margemLavouraTotal, pecuariaDaSafra);
+  // "Resumo — Quadro de Produção" (16/09/2026, pedido do usuário) — Lavoura +
+  // Bovinocultura + Avicultura + Suinocultura consolidados, uma coluna por
+  // ano-safra (mesmas colunas de `anosSafra`, TODAS as culturas — nunca
+  // filtradas pelo seletor de cultura acima). A pecuária usa
+  // `receitaCustoPecuariaSafraBlend` (50% do ano civil de início da safra +
+  // 50% do ano seguinte); substitui o antigo card "Consolidado do Quadro de
+  // Produção" (só a safra vigente, redundante com a coluna "Atual" aqui).
+  const resumoProducaoPorAno = anosSafra.map((ano) => {
+    const lavoura = consolidarMargemLavoura(culturaSafras.filter((s) => s.anoSafra === ano));
+    const pecuaria = receitaCustoPecuariaSafraBlend(ano, pecuariaBovina, producaoAnimal);
+    const consolidado = consolidarProducaoTotal(lavoura, pecuaria);
+    return { anoSafra: ano, ...consolidado };
+  });
 
   return (
     <div className="space-y-6">
@@ -498,6 +680,16 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
                     ))}
                   </tr>
                 ))}
+                <tr className="font-bold bg-blue-50/60">
+                  <td colSpan={2} className="py-2.5 px-4 text-slate-900">
+                    Margem final %
+                  </td>
+                  {anosSafra.map((ano) => (
+                    <td key={ano} className="py-2.5 px-4 text-right whitespace-nowrap text-blue-700">
+                      {totaisPorAno[ano].margemFinalPercent.toFixed(1)}%
+                    </td>
+                  ))}
+                </tr>
               </tbody>
             )}
           </table>
@@ -532,7 +724,9 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
         )}
       </Card>
 
-      {/* Bovinocultura — tabela fixa, sempre exibida, 5 anos civis fixos ancorados na safra vigente. */}
+      {/* Bovinocultura — tabela fixa, sempre exibida, 6 anos civis fixos ancorados na safra vigente
+          (16/09/2026, réplica confirmada da planilha do cliente): Estoque Rebanho + tabela Bovinos
+          completa + rodapé Quantidade Total. */}
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/80">
           <h3 className="text-sm font-bold text-slate-900">Bovinocultura</h3>
@@ -540,13 +734,23 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
             <Plus className="w-3.5 h-3.5" /> Novo Ano
           </Button>
         </div>
-        <div className="overflow-x-auto">
+
+        {/* Estoque Rebanho Atual — 8 categorias por sexo/faixa etária + total (Plantel). */}
+        <div className="overflow-x-auto border-b border-slate-200/80">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
+              <tr>
+                <th
+                  colSpan={anosPecuaria.length + 1}
+                  className="bg-amber-800 text-white font-bold uppercase tracking-wider text-[11px] py-2.5 px-4 text-center"
+                >
+                  Estoque Rebanho Atual (qtdade)
+                </th>
+              </tr>
               <tr className="text-[11px] uppercase tracking-wider text-white font-bold">
-                <th className="bg-slate-900 py-3 px-4 whitespace-nowrap">Indicador</th>
+                <th className="bg-slate-900 py-3 px-4 whitespace-nowrap">Categoria</th>
                 {anosPecuaria.map((ano) => {
-                  const status = classificarSafra(safraDoAnoCivil(ano), referenciaSafra);
+                  const status = classificarSafra(safraDoAno(ano), referenciaSafra);
                   const badge = BADGE_STATUS[status];
                   return (
                     <th
@@ -563,41 +767,128 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {[
-                { label: 'Plantel', render: (r: PecuariaBovinaAno) => `${estoqueTotalBovino(r).toLocaleString('pt-BR')} cab.` },
-                { label: 'Ciclo Produtivo', render: (r: PecuariaBovinaAno) => r.cicloProdutivo || '—' },
-                { label: 'Tipo de Terminação', render: (r: PecuariaBovinaAno) => r.tipoTerminacao || '—' },
-                { label: 'Custo Total (R$/cabeça)', render: (r: PecuariaBovinaAno) => formatCurrency(custoTotalPorCabecaBovino(r)) },
-                {
-                  label: 'RECEITA BRUTA (R$)',
-                  render: (r: PecuariaBovinaAno) => formatCurrency(calcularPecuariaBovina(r).receitaBruta),
-                  destaque: true
-                },
-                {
-                  label: 'CUSTO TOTAL DE PRODUÇÃO (R$)',
-                  render: (r: PecuariaBovinaAno) => formatCurrency(calcularPecuariaBovina(r).despesa)
-                },
-                {
-                  label: 'RESULTADO BRUTO (R$)',
-                  render: (r: PecuariaBovinaAno) => formatCurrency(calcularPecuariaBovina(r).receitaLiquida),
-                  destaque: true
-                },
-                { label: 'MARGEM BRUTA (%)', render: (r: PecuariaBovinaAno) => `${calcularPecuariaBovina(r).margem.toFixed(1)}%` }
-              ].map((linha) => (
-                <tr key={linha.label} className={linha.destaque ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}>
-                  <td className={`py-2.5 px-4 whitespace-nowrap ${linha.destaque ? 'font-bold text-slate-900' : 'font-semibold text-slate-700'}`}>
-                    {linha.label}
-                  </td>
+              {ESTOQUE_REBANHO_LINHAS.map((linha) => (
+                <tr key={linha.key} className="hover:bg-slate-50/60">
+                  <td className="py-2 px-4 whitespace-nowrap font-semibold text-slate-700">{linha.label}</td>
                   {anosPecuaria.map((ano) => {
                     const registro = pecuariaBovina.find((r) => r.anoCivil === ano);
                     return (
-                      <td key={ano} className={`py-2.5 px-4 text-right whitespace-nowrap ${linha.destaque ? 'font-bold text-slate-900' : 'font-medium text-slate-700'}`}>
+                      <td key={ano} className="py-2 px-4 text-right whitespace-nowrap font-medium text-slate-700">
+                        {registro ? NUM_PT_BR(registro[linha.key] as number) : '—'}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              <tr className="bg-slate-900 text-white font-bold">
+                <td className="py-2.5 px-4">Plantel</td>
+                {anosPecuaria.map((ano) => {
+                  const registro = pecuariaBovina.find((r) => r.anoCivil === ano);
+                  return (
+                    <td key={ano} className="py-2.5 px-4 text-right whitespace-nowrap">
+                      {registro ? NUM_PT_BR(estoqueTotalBovino(registro)) : '—'}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Bovinos — indicadores completos de ciclo, custo e comercialização. */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-wider text-white font-bold">
+                <th className="bg-slate-900 py-3 px-4 whitespace-nowrap">Bovinos</th>
+                {anosPecuaria.map((ano) => {
+                  const status = classificarSafra(safraDoAno(ano), referenciaSafra);
+                  const badge = BADGE_STATUS[status];
+                  return (
+                    <th
+                      key={ano}
+                      className={`py-3 px-4 text-right whitespace-nowrap ${
+                        status === 'Atual' ? 'bg-emerald-800' : status === 'Previsão' ? 'bg-slate-700' : 'bg-slate-900'
+                      }`}
+                    >
+                      {ano}
+                      <div className="text-[9px] font-normal normal-case opacity-80">{badge.label}</div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {LINHAS_BOVINO.map((linha, idx) => {
+                if (linha.tipo === 'divisor') {
+                  return (
+                    <tr key={`div-${idx}`}>
+                      <td
+                        colSpan={anosPecuaria.length + 1}
+                        className="bg-amber-800 text-white font-bold uppercase tracking-wider text-[11px] py-2.5 px-4"
+                      >
+                        {linha.label}
+                      </td>
+                    </tr>
+                  );
+                }
+                if (linha.tipo === 'label') {
+                  return (
+                    <tr key={`label-${idx}`} className="bg-slate-50/60">
+                      <td colSpan={anosPecuaria.length + 1} className="py-2 px-4 font-semibold text-slate-500 italic">
+                        {linha.label}
+                      </td>
+                    </tr>
+                  );
+                }
+                return (
+                  <tr key={linha.label} className={linha.destaque ? 'bg-emerald-50/40' : 'hover:bg-slate-50/60'}>
+                    <td
+                      className={`py-2 px-4 whitespace-nowrap ${linha.indent ? 'pl-8' : ''} ${
+                        linha.italic ? 'italic text-slate-500 font-normal' : linha.destaque ? 'font-bold text-slate-900' : 'font-semibold text-slate-700'
+                      }`}
+                    >
+                      {linha.label}
+                    </td>
+                    {anosPecuaria.map((ano) => {
+                      const registro = pecuariaBovina.find((r) => r.anoCivil === ano);
+                      return (
+                        <td
+                          key={ano}
+                          className={`py-2 px-4 text-right whitespace-nowrap ${
+                            linha.italic ? 'text-slate-500 font-normal' : linha.destaque ? 'font-bold text-slate-900' : 'font-medium text-slate-700'
+                          }`}
+                        >
+                          {registro ? linha.render(registro) : '—'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+
+              <tr>
+                <td
+                  colSpan={anosPecuaria.length + 1}
+                  className="bg-slate-900 text-white font-bold uppercase tracking-wider text-[11px] py-2.5 px-4"
+                >
+                  Quantidade Total
+                </td>
+              </tr>
+              {QUANTIDADE_TOTAL_LINHAS.map((linha) => (
+                <tr key={linha.label} className="bg-slate-50 font-bold text-slate-900">
+                  <td className="py-2.5 px-4">{linha.label}</td>
+                  {anosPecuaria.map((ano) => {
+                    const registro = pecuariaBovina.find((r) => r.anoCivil === ano);
+                    return (
+                      <td key={ano} className="py-2.5 px-4 text-right whitespace-nowrap">
                         {registro ? linha.render(registro) : '—'}
                       </td>
                     );
                   })}
                 </tr>
               ))}
+
               <tr>
                 <td className="py-2 px-4 text-slate-400 text-[11px]">Ações por ano:</td>
                 {anosPecuaria.map((ano) => {
@@ -644,7 +935,7 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
                 <tr className="text-[11px] uppercase tracking-wider text-white font-bold">
                   <th className="bg-slate-900 py-3 px-4 whitespace-nowrap">Indicador</th>
                   {anosPecuaria.map((ano) => {
-                    const status = classificarSafra(safraDoAnoCivil(ano), referenciaSafra);
+                    const status = classificarSafra(safraDoAno(ano), referenciaSafra);
                     const badge = BADGE_STATUS[status];
                     return (
                       <th
@@ -717,36 +1008,80 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
         </Card>
       ))}
 
-      {/* Consolidado final (item 2.5) — Lavoura + Bovinocultura + Avicultura + Suinocultura, safra vigente. */}
-      <Card className="p-6 bg-slate-900 text-white">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold uppercase tracking-wide">Consolidado do Quadro de Produção</h3>
-          <Badge tone="emerald">{referenciaSafra}</Badge>
+      {/* Resumo — Quadro de Produção (16/09/2026, pedido do usuário) — Lavoura +
+          Bovinocultura + Avicultura + Suinocultura consolidados, uma coluna por
+          ano-safra (mesmas colunas do Quadro de Lavoura acima). Substitui o
+          card "Consolidado do Quadro de Produção" (só a safra vigente,
+          redundante com a nova coluna "Atual" desta tabela). */}
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr>
+                <th
+                  colSpan={anosSafra.length + 1}
+                  className="bg-slate-900 text-white font-bold uppercase tracking-wider text-[11px] py-3 px-4 text-center"
+                >
+                  Resumo — Quadro de Produção
+                </th>
+              </tr>
+              <tr className="text-[11px] uppercase tracking-wider text-white font-bold">
+                <th className="bg-slate-800 py-3 px-4 whitespace-nowrap"> </th>
+                {anosSafra.map((ano) => {
+                  const status = classificarSafra(ano, referenciaSafra);
+                  return (
+                    <th
+                      key={ano}
+                      className={`py-3 px-4 text-center whitespace-nowrap ${
+                        status === 'Atual' ? 'bg-emerald-800' : status === 'Previsão' ? 'bg-slate-700' : 'bg-slate-800'
+                      }`}
+                    >
+                      {safraCurta(ano)}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              <tr className="bg-white">
+                <td className="py-2.5 px-4 font-bold text-slate-900 whitespace-nowrap">Receita Total (R$)</td>
+                {resumoProducaoPorAno.map((r) => (
+                  <td key={r.anoSafra} className="py-2.5 px-4 text-center font-bold text-slate-900 whitespace-nowrap">
+                    {formatCurrency(r.receitaTotal)}
+                  </td>
+                ))}
+              </tr>
+              <tr className="bg-slate-50">
+                <td className="py-2.5 px-4 font-bold text-slate-900 whitespace-nowrap">Custo Total (R$)</td>
+                {resumoProducaoPorAno.map((r) => (
+                  <td key={r.anoSafra} className="py-2.5 px-4 text-center font-bold text-slate-900 whitespace-nowrap">
+                    {formatCurrency(r.custoTotal)}
+                  </td>
+                ))}
+              </tr>
+              <tr className="bg-white">
+                <td className="py-2.5 px-4 font-bold text-slate-900 whitespace-nowrap">Resultado Bruto (R$)</td>
+                {resumoProducaoPorAno.map((r) => (
+                  <td key={r.anoSafra} className="py-2.5 px-4 text-center font-bold text-slate-900 whitespace-nowrap">
+                    {formatCurrency(r.margemRs)}
+                  </td>
+                ))}
+              </tr>
+              <tr className="bg-blue-50/60">
+                <td className="py-2.5 px-4 font-bold text-slate-900 whitespace-nowrap">Margem Bruta (%)</td>
+                {resumoProducaoPorAno.map((r) => (
+                  <td key={r.anoSafra} className="py-2.5 px-4 text-center font-bold text-blue-700 whitespace-nowrap">
+                    {r.margemPercent.toFixed(0)}%
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <div>
-            <p className="text-[11px] uppercase text-slate-400">Receita Total</p>
-            <p className="text-xl font-extrabold">{formatCurrency(consolidadoTotal.receitaTotal)}</p>
-          </div>
-          <div>
-            <p className="text-[11px] uppercase text-slate-400">Custo Total</p>
-            <p className="text-xl font-extrabold">{formatCurrency(consolidadoTotal.custoTotal)}</p>
-          </div>
-          <div>
-            <p className="text-[11px] uppercase text-slate-400">Receita Líquida</p>
-            <p className={`text-xl font-extrabold ${consolidadoTotal.margemRs >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {formatCurrency(consolidadoTotal.margemRs)}
-            </p>
-          </div>
-          <div>
-            <p className="text-[11px] uppercase text-slate-400">Margem (%)</p>
-            <p className={`text-xl font-extrabold ${consolidadoTotal.margemPercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {consolidadoTotal.margemPercent.toFixed(1)}%
-            </p>
-          </div>
-        </div>
-        <p className="mt-3 text-[11px] text-slate-400">
-          Soma de Lavoura + Bovinocultura + Avicultura + Suinocultura para a safra vigente ({referenciaSafra}).
+        <p className="px-4 py-3 border-t border-slate-200/80 text-[11px] text-slate-500">
+          Lavoura (todas as culturas) + Bovinocultura + Avicultura + Suinocultura. A pecuária é atividade de ano civil —
+          cada coluna usa 50% do ano civil de início da safra + 50% do ano civil seguinte (ex.: safra {safraCurta('2023/2024')} = 50%
+          de 2023 + 50% de 2024).
         </p>
       </Card>
 

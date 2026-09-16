@@ -251,6 +251,14 @@ export interface CulturaSafraAno {
   precoMedio: number; // R$ por unidade de produção
   custoProducao: number; // R$ por hectare — Despesa total é derivada (custoProducao * hectares)
   producaoFixadaPercent?: number; // % da produção já fixada em contrato
+  // Período real de Custeio & Plantio / Colheita & Comercialização
+  // ("YYYY-MM-DD", opcionais) — quando preenchidos, o Fluxo Mensal
+  // (src/lib/fluxo-mensal-calc.ts) distribui custo/receita por esses meses
+  // em vez do calendário agrícola genérico.
+  custoPlantioInicio?: string;
+  custoPlantioFim?: string;
+  colheitaInicio?: string;
+  colheitaFim?: string;
 }
 
 /**
@@ -586,6 +594,8 @@ export interface BalancoCalculado {
   ccl: number; // Capital de Giro Líquido = Ativo Circulante - Passivo Circulante
   dre: DreCalculada;
   servicoDivida: number;
+  /** Quebra do Serviço da Dívida (16/09/2026): automático (cronograma bancário do ano) + manual (pontual da safra, DadosComplementaresFinanceiro), somados — nunca um substitui o outro. */
+  servicoDividaDetalhe: { automatico: number; manual: number; total: number };
   indicadores: IndicadorCalculado[];
   radar: { dimensao: string; valor: number }[];
   patrimonioIrpf: PatrimonioIrpfResumo;
@@ -815,7 +825,7 @@ export interface FluxoSafraCalculado {
 
 // ---- Cotações de Mercado ----
 
-export type Bolsa = 'CBOT' | 'CME' | 'ICE' | 'B3' | 'PTAX';
+export type Bolsa = 'CBOT' | 'CME' | 'ICE' | 'B3' | 'PTAX' | 'MANUAL';
 
 export interface Cotacao {
   id: string;

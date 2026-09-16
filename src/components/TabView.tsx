@@ -51,6 +51,7 @@ import type { CronogramaConsolidado, FluxoDetalhado } from '../server/contratos-
 import type { LinhaFluxoConsolidado, ImpactoSafra } from '../server/aquisicoes';
 import type { LinhaFluxoConsolidadoArrendamento, ImpactoSafraArrendamento } from '../server/arrendamentos';
 import type { IndicesVigentes } from '../lib/taxa-efetiva';
+import type { IndicadorPainel } from '../server/indices';
 import { QuadroSafraView } from './views/QuadroSafraView';
 import { CotacoesView } from './views/CotacoesView';
 import { CadastroMestreView } from './views/CadastroMestreView';
@@ -107,7 +108,10 @@ interface TabViewProps {
   /** Um por safra já salva — Análise Financeira escolhe qual usar no client pelo seletor de safra. */
   initialDadosComplementares?: DadosComplementaresFinanceiro[];
   initialCotacaoDolar?: Cotacao | null;
+  initialCotacaoEuro?: Cotacao | null;
   initialCotacoesCommodities?: Cotacao[];
+  /** Selic/CDI/IPCA REALIZADO mais recentes (src/server/indices.ts) — só a tela Cotações usa, no "Painel de Indicadores". */
+  initialIndicadoresPainel?: { selic: IndicadorPainel | null; cdi: IndicadorPainel | null; ipca: IndicadorPainel | null };
   /** Preço travado por commodity + safra (src/server/cotacoes.ts) — consumido por Comercialização, Fluxo de Safra e pela própria tela Cotações. */
   initialPrecosDefinidos?: PrecoDefinidoSafra[];
   /** Itens manuais extraordinários do Fluxo de Safra — persistidos via src/server/fluxo-safra.ts. */
@@ -148,7 +152,9 @@ export const TabView: React.FC<TabViewProps> = ({
   initialContratosComerciais = [],
   initialDadosComplementares = [],
   initialCotacaoDolar = null,
+  initialCotacaoEuro = null,
   initialCotacoesCommodities = [],
+  initialIndicadoresPainel,
   initialPrecosDefinidos = [],
   initialItensFluxoManual = [],
   initialItensLancamentoManualMensal = []
@@ -789,7 +795,9 @@ export const TabView: React.FC<TabViewProps> = ({
       {tab === 'cotacoes' && (
         <CotacoesView
           dolar={initialCotacaoDolar}
+          euro={initialCotacaoEuro}
           commodities={initialCotacoesCommodities}
+          indicadoresPainel={initialIndicadoresPainel ?? { selic: null, cdi: null, ipca: null }}
           precosDefinidos={initialPrecosDefinidos}
           culturaSafras={culturaSafras}
         />

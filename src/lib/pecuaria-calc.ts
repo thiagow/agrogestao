@@ -1,4 +1,4 @@
-import { safraDoAnoCivil, anoCivilDaSafra } from '@/lib/safra-periodo';
+import { safraDoAnoCivil, anoInicioSafra } from '@/lib/safra-periodo';
 import type { MargemConsolidada } from '@/lib/agro';
 
 // Cálculo puro do módulo de Pecuária (Bovinocultura) / Suinocultura / Avicultura
@@ -110,6 +110,39 @@ export function calcularPecuariaBovina(registro: PecuariaBovinaCalculavel): Resu
   return { receitaBruta, despesa, receitaLiquida, margem };
 }
 
+export interface QuantidadeTotalBovina {
+  totalCabecas: number;
+  totalArrobas: number;
+  pesoMedio: number; // @ por cabeça, ponderado pelas 3 categorias comercializadas
+  precoMedioTotal: number; // R$/@, ponderado — receitaBruta / totalArrobas
+}
+
+/**
+ * "Quantidade total" (16/09/2026, réplica confirmada da planilha do
+ * cliente) — Cabeças/Peso Médio/Preço Médio Total comercializados,
+ * consolidando Machos+Fêmeas+Outras. `pesoMedio` e `precoMedioTotal` são
+ * ponderados pelo volume de cada categoria (não uma média simples das 3
+ * categorias), de forma que `totalCabecas * pesoMedio * precoMedioTotal`
+ * sempre feche com `calcularPecuariaBovina(registro).receitaBruta` por
+ * construção — nunca diverge por arredondamento entre as duas tabelas.
+ */
+export function calcularQuantidadeTotalBovina(registro: PecuariaBovinaCalculavel): QuantidadeTotalBovina {
+  const totalCabecas =
+    registro.qtdMachosComercializados + registro.qtdFemeasComercializadas + registro.qtdOutrasComercializadas;
+  const totalArrobas =
+    registro.qtdMachosComercializados * registro.pesoMedioMachos +
+    registro.qtdFemeasComercializadas * registro.pesoMedioFemeas +
+    registro.qtdOutrasComercializadas * registro.pesoMedioOutras;
+  const { receitaBruta } = calcularPecuariaBovina(registro);
+
+  return {
+    totalCabecas,
+    totalArrobas,
+    pesoMedio: totalCabecas > 0 ? totalArrobas / totalCabecas : 0,
+    precoMedioTotal: totalArrobas > 0 ? receitaBruta / totalArrobas : 0
+  };
+}
+
 export interface ProducaoAnimalCalculavel {
   producaoCabecas: number;
   precoMedioPorCabeca: number;
@@ -150,21 +183,69 @@ export function receitaCustoPecuariaDaSafra(
   };
 }
 
+/** Receita/despesa de Pecuária (Bovino+Avicultura+Suinocultura) de UM ano civil — soma direta, sem bridge de safra. */
+function pecuariaDoAnoCivil(
+  anoCivil: number,
+  pecuariaBovina: (PecuariaBovinaCalculavel & { anoCivil: number })[],
+  producaoAnimal: (ProducaoAnimalCalculavel & { anoCivil: number })[]
+): { receitaBruta: number; despesa: number } {
+  const bovino = pecuariaBovina.filter((r) => r.anoCivil === anoCivil).map(calcularPecuariaBovina);
+  const animal = producaoAnimal.filter((r) => r.anoCivil === anoCivil).map(calcularProducaoAnimal);
+  return {
+    receitaBruta: bovino.reduce((s, r) => s + r.receitaBruta, 0) + animal.reduce((s, r) => s + r.receitaBruta, 0),
+    despesa: bovino.reduce((s, r) => s + r.despesa, 0) + animal.reduce((s, r) => s + r.despesa, 0)
+  };
+}
+
+/**
+ * Receita/despesa de Pecuária (Bovino+Avicultura+Suinocultura) ajustada pra
+ * SAFRA (16/09/2026, pedido do usuário para o "Resumo — Quadro de Produção"),
+ * distinto de `receitaCustoPecuariaDaSafra` acima: Bovino/Avicultura/
+ * Suinocultura são atividade de ANO CIVIL (Jan-Dez) recorrente, mas a safra
+ * agrícola cobre Jul-Jun — metade cai num ano civil, metade no outro.
+ * Aproximação confirmada com o usuário: 50% da receita/custo do ano civil de
+ * início da safra + 50% do ano civil seguinte (ex.: safra "2023/2024" = 50%
+ * de 2023 + 50% de 2024). Usa o ano civil diretamente (sem passar por
+ * `safraDoAnoCivil`/`anoCivilDaSafra`, que resolvem uma pergunta diferente —
+ * a qual safra um registro deve somar nos agregadores de caixa).
+ */
+export function receitaCustoPecuariaSafraBlend(
+  anoSafra: string,
+  pecuariaBovina: (PecuariaBovinaCalculavel & { anoCivil: number })[],
+  producaoAnimal: (ProducaoAnimalCalculavel & { anoCivil: number })[]
+): { receitaBruta: number; despesa: number } {
+  const anoInicio = anoInicioSafra(anoSafra);
+  const primeiroAno = pecuariaDoAnoCivil(anoInicio, pecuariaBovina, producaoAnimal);
+  const segundoAno = pecuariaDoAnoCivil(anoInicio + 1, pecuariaBovina, producaoAnimal);
+  return {
+    receitaBruta: primeiroAno.receitaBruta * 0.5 + segundoAno.receitaBruta * 0.5,
+    despesa: primeiroAno.despesa * 0.5 + segundoAno.despesa * 0.5
+  };
+}
+
 /**
  * Janela de anos exibida nas tabelas de Bovinocultura/Suinocultura/Avicultura
- * — 5 anos civis fixos ancorados na safra vigente do sistema: 3 Realizado +
- * Atual + Previsão (ex.: safra atual "2025/2026" -> ano civil 2026 ->
- * [2023, 2024, 2025, 2026, 2027]).
+ * — 6 anos civis fixos ancorados na safra vigente do sistema: 3 Realizado +
+ * Atual + 2 Previsão (ex.: safra atual "2026/2027" -> ano civil "atual" 2026
+ * -> [2023, 2024, 2025, 2026, 2027, 2028]), mesma largura de janela do Quadro
+ * de Lavoura (16/09/2026, pedido do usuário).
  *
- * Decisão revertida em 10/09/2026 (pedido explícito do usuário): a versão
- * anterior era uma janela ROLANTE de 3 anos calculada a partir de `new Date()`
- * (documentada como decisão confirmada em 02/09/2026) — a nova janela é fixa
- * e sempre derivada da mesma "safra vigente" central (getSafraAtual(),
- * src/server/safras.ts), nunca de `Date.now()` nem de um literal hardcoded.
+ * O ano civil "atual" usa `anoInicioSafra` (1º ano da safra vigente), não
+ * `anoCivilDaSafra`/`safraDoAnoCivil` (2º ano) — aquele bridge existe só para
+ * decidir a qual SAFRA um registro de Bovino/Produção Animal deve somar nos
+ * agregadores (Fluxo de Safra/Mensal, Análise Financeira; ver
+ * `receitaCustoPecuariaDaSafra` abaixo), uma pergunta diferente de "qual ano
+ * civil é o vigente agora". Usar o 2º ano aqui marcava erroneamente 2027 como
+ * "Atual" para a safra "2026/2027", quando o ano civil realmente em curso é
+ * 2026 (bug reportado pelo usuário em 16/09/2026).
+ *
+ * Decisão de janela fixa (não rolante por `new Date()`) confirmada em
+ * 10/09/2026 continua valendo — a janela sempre deriva da "safra vigente"
+ * central (getSafraAtual(), src/server/safras.ts).
  */
 export function anosPecuariaVisiveis(safraAtual: string): number[] {
-  const anoAtual = anoCivilDaSafra(safraAtual);
-  return [anoAtual - 3, anoAtual - 2, anoAtual - 1, anoAtual, anoAtual + 1];
+  const anoAtual = anoInicioSafra(safraAtual);
+  return [anoAtual - 3, anoAtual - 2, anoAtual - 1, anoAtual, anoAtual + 1, anoAtual + 2];
 }
 
 /**

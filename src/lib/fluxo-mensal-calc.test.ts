@@ -146,6 +146,38 @@ describe('gerarLancamentosCusteioSafraProjecao', () => {
     expect(safra).toHaveLength(18);
   });
 
+  it('com datas reais de Custeio/Colheita cadastradas, ignora o calendário agrícola genérico e usa o período informado', () => {
+    const horizonte = horizonteMeses(SAFRA);
+    const lancamentos = gerarLancamentosCusteioSafraProjecao({
+      quadroSafra: [
+        registroSoja({
+          // Fora da janela padrão do calendário genérico (Set-Nov custeio / Mar-Abr colheita) —
+          // prova que a data real, quando presente, tem prioridade.
+          custoPlantioInicio: '2026-06-01',
+          custoPlantioFim: '2026-07-31',
+          colheitaInicio: '2026-12-01',
+          colheitaFim: '2026-12-31'
+        })
+      ],
+      pecuariaBovina: [],
+      producaoAnimal: [],
+      safraSelecionada: SAFRA,
+      multiSafra: false,
+      horizonte
+    });
+
+    const custeio = lancamentos.filter((l) => l.origem === 'CUSTEIO');
+    const safra = lancamentos.filter((l) => l.origem === 'SAFRA');
+
+    expect(custeio).toHaveLength(2); // Jun, Jul
+    expect(custeio.every((l) => l.ano === 2026 && [6, 7].includes(l.mes))).toBe(true);
+    expect(custeio.reduce((s, l) => s + l.valor, 0)).toBeCloseTo(300_000, 2);
+
+    expect(safra).toHaveLength(1); // Dez
+    expect(safra[0]).toMatchObject({ ano: 2026, mes: 12 });
+    expect(safra.reduce((s, l) => s + l.valor, 0)).toBeCloseTo(600_000, 2);
+  });
+
   it('sem Multi-Safra, ignora registros de outras safras', () => {
     const horizonte = horizonteMeses(SAFRA);
     const lancamentos = gerarLancamentosCusteioSafraProjecao({

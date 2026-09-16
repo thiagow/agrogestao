@@ -180,10 +180,10 @@ export const DadosComplementaresForm: React.FC<DadosComplementaresFormProps> = (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <Input label="CAPEX (R$)" type="number" prefix="R$" {...campo('capex')} />
           <Input
-            label="Serviço da Dívida Total (R$)"
+            label="Serviço da Dívida — Adicional Manual (R$)"
             type="number"
             prefix="R$"
-            hint="Padrão: juros + amortização do cronograma bancário do ano"
+            hint="Somado ao valor automático (juros + amortização do cronograma bancário do ano) — não o substitui. Vale só para esta safra, não se repete nas próximas."
             {...campo('servicoDividaManual')}
           />
         </div>

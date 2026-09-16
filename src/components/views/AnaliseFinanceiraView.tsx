@@ -243,6 +243,21 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                             />
                           ))}
                       </div>
+                      {grupo === 'Cobertura' && (
+                        <div className="mt-4 max-w-md text-sm">
+                          <p className="text-[11px] font-bold uppercase text-slate-500 mb-1.5">
+                            Serviço da Dívida (base do DSCR/Capacidade de Pagamento acima)
+                          </p>
+                          <div className="space-y-1">
+                            {linha('Automático (cronograma bancário do ano)', balanco.servicoDividaDetalhe.automatico)}
+                            {linha('Manual (informado pelo usuário, só nesta safra)', balanco.servicoDividaDetalhe.manual)}
+                            <div className="flex justify-between border-t border-slate-200 pt-1.5 mt-1">
+                              <span className="font-bold text-slate-800">Total</span>
+                              <span className="font-extrabold text-slate-900">{formatCurrency(balanco.servicoDividaDetalhe.total)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
 

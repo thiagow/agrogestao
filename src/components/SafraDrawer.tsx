@@ -44,6 +44,10 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
   const [unidadeProducao, setUnidadeProducao] = useState('sc');
   const [precoMedio, setPrecoMedio] = useState('');
   const [custoProducao, setCustoProducao] = useState('');
+  const [custoPlantioInicio, setCustoPlantioInicio] = useState('');
+  const [custoPlantioFim, setCustoPlantioFim] = useState('');
+  const [colheitaInicio, setColheitaInicio] = useState('');
+  const [colheitaFim, setColheitaFim] = useState('');
   const [isGerenciarOpen, setIsGerenciarOpen] = useState(false);
   const [culturasState, setCulturas] = useState<Cultura[]>(culturas);
 
@@ -61,6 +65,10 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
       setUnidadeProducao(editingSafra.unidadeProducao);
       setPrecoMedio(editingSafra.precoMedio.toString());
       setCustoProducao(editingSafra.custoProducao.toString());
+      setCustoPlantioInicio(editingSafra.custoPlantioInicio ?? '');
+      setCustoPlantioFim(editingSafra.custoPlantioFim ?? '');
+      setColheitaInicio(editingSafra.colheitaInicio ?? '');
+      setColheitaFim(editingSafra.colheitaFim ?? '');
     } else {
       const culturaSelecionada = presetCultura ? culturasState.find((c) => c.nome === presetCultura) : culturasState[0];
       setCultura(culturaSelecionada?.nome ?? presetCultura ?? '');
@@ -71,6 +79,10 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
       setRendimento('');
       setPrecoMedio('');
       setCustoProducao('');
+      setCustoPlantioInicio('');
+      setCustoPlantioFim('');
+      setColheitaInicio('');
+      setColheitaFim('');
     }
   }, [editingSafra, isOpen, culturasState, anosSafraDisponiveis, safraAtual, presetCultura, presetAnoSafra]);
 
@@ -119,7 +131,11 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
       rendimento: parseFloat(rendimento) || 0,
       unidadeProducao,
       precoMedio: parseFloat(precoMedio) || 0,
-      custoProducao: parseFloat(custoProducao) || 0
+      custoProducao: parseFloat(custoProducao) || 0,
+      custoPlantioInicio: custoPlantioInicio || undefined,
+      custoPlantioFim: custoPlantioFim || undefined,
+      colheitaInicio: colheitaInicio || undefined,
+      colheitaFim: colheitaFim || undefined
     });
 
     onClose();
@@ -231,6 +247,24 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
           onChange={(e) => setCustoProducao(e.target.value)}
         />
 
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Início do Custeio/Plantio"
+            type="date"
+            value={custoPlantioInicio}
+            onChange={(e) => setCustoPlantioInicio(e.target.value)}
+          />
+          <Input
+            label="Fim do Custeio/Plantio"
+            type="date"
+            value={custoPlantioFim}
+            onChange={(e) => setCustoPlantioFim(e.target.value)}
+          />
+        </div>
+        <p className="text-[11px] text-slate-500 -mt-2">
+          Opcional — sem preenchimento, o Fluxo Mensal usa o calendário agrícola genérico da região.
+        </p>
+
         <div className="pt-2 pb-1 flex items-center gap-2">
           <span className="h-px flex-1 bg-slate-200" />
           <span className="text-[11px] font-bold uppercase text-slate-500">Colheita &amp; Comercialização</span>
@@ -246,6 +280,24 @@ export const SafraDrawer: React.FC<SafraDrawerProps> = ({
           value={precoMedio}
           onChange={(e) => setPrecoMedio(e.target.value)}
         />
+
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Início da Colheita/Comercialização"
+            type="date"
+            value={colheitaInicio}
+            onChange={(e) => setColheitaInicio(e.target.value)}
+          />
+          <Input
+            label="Fim da Colheita/Comercialização"
+            type="date"
+            value={colheitaFim}
+            onChange={(e) => setColheitaFim(e.target.value)}
+          />
+        </div>
+        <p className="text-[11px] text-slate-500 -mt-2">
+          Opcional — sem preenchimento, o Fluxo Mensal usa o calendário agrícola genérico da região.
+        </p>
 
         <div className="pt-3 border-t border-slate-200 space-y-1.5 text-xs">
           <p className="text-[11px] font-bold uppercase text-slate-500">Calculado automaticamente</p>

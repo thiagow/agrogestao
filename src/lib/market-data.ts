@@ -186,6 +186,90 @@ export async function fetchDolarBRL(): Promise<QuoteResult | null> {
   return awesome ? { ...awesome, fonte: 'AwesomeAPI USD-BRL', dataReferencia: hojeIso() } : null;
 }
 
+/**
+ * PTAX de outra moeda (ex.: EUR) via `CotacaoMoedaPeriodo` — mesmo endpoint
+ * genérico do BCB usado por `fetchPtaxDolar` (que usa o atalho dedicado
+ * `CotacaoDolarPeriodo`, específico pro dólar). Mesma janela de 12 dias e
+ * mesmo motivo (PTAX só sai em dia útil).
+ */
+async function fetchPtaxMoeda(simbolo: string): Promise<QuoteResult | null> {
+  try {
+    const hojeUtc = new Date();
+    const inicio = new Date(hojeUtc.getTime() - JANELA_DIAS_PTAX * 24 * 60 * 60 * 1000);
+    const url =
+      'https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/' +
+      'CotacaoMoedaPeriodo(moeda=@moeda,dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)' +
+      `?@moeda='${simbolo}'&@dataInicial='${dataParamPtax(inicio)}'&@dataFinalCotacao='${dataParamPtax(hojeUtc)}'` +
+      '&$top=2&$orderby=dataHoraCotacao%20desc&$format=json';
+
+    const res = await fetch(url, { next: { revalidate: 0 }, signal: AbortSignal.timeout(10000) });
+    if (!res.ok) {
+      console.error(`[market-data] PTAX ${simbolo} respondeu ${res.status} ${res.statusText}`);
+      return null;
+    }
+
+    const data = await res.json();
+    const rows: CotacaoPtaxRow[] = data?.value ?? [];
+    const atual = rows[0];
+    if (!atual || !Number.isFinite(Number(atual.cotacaoVenda))) {
+      console.error(`[market-data] PTAX ${simbolo} respondeu 200 mas sem cotação utilizável (${rows.length} linha(s))`);
+      return null;
+    }
+
+    const venda = Number(atual.cotacaoVenda);
+    const anterior = rows[1] ? Number(rows[1].cotacaoVenda) : null;
+    const variacaoPercentual = anterior && anterior > 0 ? ((venda - anterior) / anterior) * 100 : 0;
+
+    return {
+      precoBrl: venda,
+      variacaoPercentual,
+      maxima: venda,
+      minima: venda,
+      volume: 0,
+      fonte: `BCB PTAX ${simbolo} (cotação de venda)`,
+      dataReferencia: atual.dataHoraCotacao?.slice(0, 10)
+    };
+  } catch (e) {
+    console.error(`[market-data] PTAX ${simbolo} falhou:`, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/** Uma tentativa de buscar EUR-BRL na AwesomeAPI — mesmo contrato de `tentarFetchDolarBRL` (nunca lança, `null` em qualquer falha). */
+async function tentarFetchEuroAwesomeApi(): Promise<QuoteResult | null> {
+  try {
+    const res = await fetch('https://economia.awesomeapi.com.br/last/EUR-BRL', {
+      next: { revalidate: 0 },
+      signal: AbortSignal.timeout(8000),
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AgroGestaoBot/1.0)', Accept: 'application/json' }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const q = data?.EURBRL;
+    if (!q) return null;
+    return { precoBrl: Number(q.bid), variacaoPercentual: Number(q.pctChange), maxima: Number(q.high), minima: Number(q.low), volume: 0 };
+  } catch (e) {
+    console.error('[market-data] AwesomeAPI EUR-BRL falhou:', e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/**
+ * Câmbio EUR/BRL (16/09/2026) — mesma estratégia do Dólar: PTAX oficial
+ * primeiro (mesmo host que já funciona em produção pra `fetchDolarBRL`/
+ * `fetchExpectativasFocusAnuais`), AwesomeAPI EUR-BRL como reserva. Só
+ * informativo no Painel de Indicadores de Cotações — nenhum cálculo do
+ * sistema depende do Euro.
+ */
+export async function fetchEuroBRL(): Promise<QuoteResult | null> {
+  const ptax = await fetchPtaxMoeda('EUR');
+  if (ptax) return ptax;
+
+  console.error('[market-data] PTAX EUR indisponível — tentando AwesomeAPI como reserva');
+  const awesome = (await tentarFetchEuroAwesomeApi()) ?? (await tentarFetchEuroAwesomeApi());
+  return awesome ? { ...awesome, fonte: 'AwesomeAPI EUR-BRL', dataReferencia: hojeIso() } : null;
+}
+
 /** Hoje em YYYY-MM-DD (UTC), usado como data de referência quando a fonte não informa uma. */
 function hojeIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -245,7 +329,9 @@ export const SERIE_BCB = {
   /** CDI anualizado, base 252 dias úteis (% a.a.) — divulgação diária. */
   CDI: 4389,
   /** IPCA acumulado em 12 meses (%) — divulgação mensal. */
-  IPCA: 13522
+  IPCA: 13522,
+  /** Meta Selic definida pelo Copom (% a.a.) — divulgação por reunião. 16/09/2026: informativo no Painel de Indicadores, os cálculos de juros continuam no CDI. */
+  SELIC: 432
 } as const;
 
 export interface IndiceResult {

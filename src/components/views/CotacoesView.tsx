@@ -7,6 +7,7 @@ import { RefreshCw, TrendingUp, TrendingDown, Check, Save, ArrowUpCircle, Histor
 import { Cotacao, PrecoDefinidoSafra, CulturaSafraAno } from '../../types';
 import { Card, Tabs, Button, Badge, Input, Select } from '../ui';
 import { refreshCotacoes, salvarPrecoDefinidoSafra, aplicarMercadoEmLote } from '../../server/cotacoes';
+import type { IndicadorPainel } from '../../server/indices';
 
 const LIMITE_DIVERGENCIA = 0.1; // 10% — ver docs/demandas/SPEC_TELA_COTACOES.md, seção 3.3
 
@@ -37,10 +38,15 @@ const CotacaoCard: React.FC<CotacaoCardProps> = ({ cotacao, precoDefinido, safra
   const [valorInput, setValorInput] = useState<string>(precoDefinido != null ? String(precoDefinido.precoBrl) : '');
   const [salvo, setSalvo] = useState(false);
   const isUp = cotacao.variacaoPercentual >= 0;
-  const semConversaoConfirmada = cotacao.unidade === 'lb'; // Algodão — sem fator de saca de pluma confirmado ainda
+  const semConversaoConfirmada = cotacao.unidade === 'lb'; // Algodão (até 16/09/2026) / Óleo de Soja — sem saca/embalagem padronizada confirmada
+  // Frango/Suíno (16/09/2026) — sem cotação de bolsa, preço só entra manualmente
+  // via "Preço Definido" (varia por região). Nunca mostra "R$ 0,00" de mercado.
+  const isManual = cotacao.bolsa === 'MANUAL';
 
   const divergencia =
-    precoDefinido != null && cotacao.precoBrl > 0 ? Math.abs(precoDefinido.precoBrl - cotacao.precoBrl) / cotacao.precoBrl : null;
+    !isManual && precoDefinido != null && cotacao.precoBrl > 0
+      ? Math.abs(precoDefinido.precoBrl - cotacao.precoBrl) / cotacao.precoBrl
+      : null;
   const divergenciaAlta = divergencia != null && divergencia > LIMITE_DIVERGENCIA;
 
   const handleSalvar = () => {
@@ -56,44 +62,52 @@ const CotacaoCard: React.FC<CotacaoCardProps> = ({ cotacao, precoDefinido, safra
       <div className="flex items-center justify-between mb-1.5">
         <div>
           <p className="text-sm font-bold text-slate-900">{cotacao.commodity}</p>
-          <p className="text-[10px] text-slate-400">
-            {cotacao.bolsa} · {cotacao.ticker}
-          </p>
+          <p className="text-[10px] text-slate-400">{isManual ? 'Informado pelo cliente' : `${cotacao.bolsa} · ${cotacao.ticker}`}</p>
         </div>
-        <Badge tone={isUp ? 'emerald' : 'rose'}>
-          <span className="inline-flex items-center gap-0.5">
-            {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-            {isUp ? '+' : ''}
-            {cotacao.variacaoPercentual.toFixed(2)}%
-          </span>
-        </Badge>
-      </div>
-
-      <div className="text-xl font-black text-slate-900 font-sans">
-        R$ {cotacao.precoBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-        <span className="ml-1 text-xs font-semibold text-slate-400">/{cotacao.unidade}</span>
-      </div>
-      {semConversaoConfirmada && (
-        <p className="text-[10px] text-amber-700">Sem conversão de saca de pluma confirmada — preço em R$/lb.</p>
-      )}
-
-      <div className="mt-1.5 space-y-0.5 text-[10px] text-slate-400">
-        <p>
-          Original: {cotacao.precoOriginal.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} {cotacao.unidadeOriginal}
-        </p>
-        {cotacao.precoUsd !== undefined && (
-          <p>
-            USD: {cotacao.precoUsd.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}/{cotacao.unidade}
-          </p>
+        {!isManual && (
+          <Badge tone={isUp ? 'emerald' : 'rose'}>
+            <span className="inline-flex items-center gap-0.5">
+              {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+              {isUp ? '+' : ''}
+              {cotacao.variacaoPercentual.toFixed(2)}%
+            </span>
+          </Badge>
         )}
       </div>
 
-      {cotacao.maxima > 0 && (
-        <div className="flex items-center gap-3 text-[10px] text-slate-400 mt-1.5">
-          <span>Máx: {cotacao.maxima.toLocaleString('pt-BR')}</span>
-          <span>Mín: {cotacao.minima.toLocaleString('pt-BR')}</span>
-          {cotacao.volume > 0 ? <span>Vol: {cotacao.volume.toLocaleString('pt-BR')}</span> : <span>Vol: —</span>}
-        </div>
+      {isManual ? (
+        <p className="text-[11px] text-slate-500">
+          Sem cotação de bolsa — o preço varia por região e é definido diretamente abaixo, por safra.
+        </p>
+      ) : (
+        <>
+          <div className="text-xl font-black text-slate-900 font-sans">
+            R$ {cotacao.precoBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+            <span className="ml-1 text-xs font-semibold text-slate-400">/{cotacao.unidade}</span>
+          </div>
+          {semConversaoConfirmada && (
+            <p className="text-[10px] text-amber-700">Sem unidade comercial padronizada confirmada — preço em R$/lb.</p>
+          )}
+
+          <div className="mt-1.5 space-y-0.5 text-[10px] text-slate-400">
+            <p>
+              Original: {cotacao.precoOriginal.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} {cotacao.unidadeOriginal}
+            </p>
+            {cotacao.precoUsd !== undefined && (
+              <p>
+                USD: {cotacao.precoUsd.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}/{cotacao.unidade}
+              </p>
+            )}
+          </div>
+
+          {cotacao.maxima > 0 && (
+            <div className="flex items-center gap-3 text-[10px] text-slate-400 mt-1.5">
+              <span>Máx: {cotacao.maxima.toLocaleString('pt-BR')}</span>
+              <span>Mín: {cotacao.minima.toLocaleString('pt-BR')}</span>
+              {cotacao.volume > 0 ? <span>Vol: {cotacao.volume.toLocaleString('pt-BR')}</span> : <span>Vol: —</span>}
+            </div>
+          )}
+        </>
       )}
 
       <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
@@ -113,14 +127,16 @@ const CotacaoCard: React.FC<CotacaoCardProps> = ({ cotacao, precoDefinido, safra
             placeholder="0,0000"
             className="!py-1.5 !text-xs"
           />
-          <button
-            type="button"
-            title="Aplicar preço de mercado"
-            onClick={() => setValorInput(String(cotacao.precoBrl))}
-            className="flex-shrink-0 p-2 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
-          >
-            <ArrowUpCircle className="w-3.5 h-3.5" />
-          </button>
+          {!isManual && (
+            <button
+              type="button"
+              title="Aplicar preço de mercado"
+              onClick={() => setValorInput(String(cotacao.precoBrl))}
+              className="flex-shrink-0 p-2 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
+            >
+              <ArrowUpCircle className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
             type="button"
             onClick={handleSalvar}
@@ -138,14 +154,26 @@ const CotacaoCard: React.FC<CotacaoCardProps> = ({ cotacao, precoDefinido, safra
   );
 };
 
+/** Um card compacto do Painel de Indicadores (Selic/CDI/IPCA/Dólar/Euro) — sem série/gráfico, só o valor mais recente + data de referência. */
+const IndicadorCard: React.FC<{ label: string; valor: string; referencia: string; fonte?: string }> = ({ label, valor, referencia, fonte }) => (
+  <Card className="p-4">
+    <p className="text-[11px] font-bold uppercase text-slate-500">{label}</p>
+    <p className="text-xl font-black text-slate-900">{valor}</p>
+    <p className="text-[10px] text-slate-400 mt-1">{referencia}</p>
+    {fonte && <p className="text-[10px] text-slate-300 truncate" title={fonte}>{fonte}</p>}
+  </Card>
+);
+
 interface CotacoesViewProps {
   dolar: Cotacao | null;
+  euro: Cotacao | null;
   commodities: Cotacao[];
+  indicadoresPainel: { selic: IndicadorPainel | null; cdi: IndicadorPainel | null; ipca: IndicadorPainel | null };
   precosDefinidos: PrecoDefinidoSafra[];
   culturaSafras: CulturaSafraAno[];
 }
 
-export const CotacoesView: React.FC<CotacoesViewProps> = ({ dolar, commodities, precosDefinidos, culturaSafras }) => {
+export const CotacoesView: React.FC<CotacoesViewProps> = ({ dolar, euro, commodities, indicadoresPainel, precosDefinidos, culturaSafras }) => {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
@@ -373,8 +401,47 @@ export const CotacoesView: React.FC<CotacoesViewProps> = ({ dolar, commodities, 
             return (
               <div className="space-y-6">
                 <div>
-                  <p className="text-xs font-bold uppercase text-slate-500 mb-3">Dólar Americano — USD/BRL</p>
-                  <div className="max-w-sm">
+                  <p className="text-xs font-bold uppercase text-slate-500 mb-3">Painel de Indicadores</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                    <IndicadorCard
+                      label="Selic"
+                      valor={indicadoresPainel.selic ? `${indicadoresPainel.selic.valor.toFixed(2)}% a.a.` : '—'}
+                      referencia={indicadoresPainel.selic ? formatarData(indicadoresPainel.selic.dataReferencia) : 'Sem dado — atualize em Bancos'}
+                      fonte="Meta Selic (Copom) — informativo, cálculos de juros usam o CDI"
+                    />
+                    <IndicadorCard
+                      label="CDI"
+                      valor={indicadoresPainel.cdi ? `${indicadoresPainel.cdi.valor.toFixed(2)}% a.a.` : '—'}
+                      referencia={indicadoresPainel.cdi ? formatarData(indicadoresPainel.cdi.dataReferencia) : 'Sem dado — atualize em Bancos'}
+                      fonte={indicadoresPainel.cdi?.fonte}
+                    />
+                    <IndicadorCard
+                      label="IPCA Acumulado (12m)"
+                      valor={indicadoresPainel.ipca ? `${indicadoresPainel.ipca.valor.toFixed(2)}%` : '—'}
+                      referencia={indicadoresPainel.ipca ? formatarData(indicadoresPainel.ipca.dataReferencia) : 'Sem dado — atualize em Bancos'}
+                      fonte={indicadoresPainel.ipca?.fonte}
+                    />
+                    <IndicadorCard
+                      label="Dólar (USD/BRL)"
+                      valor={dolar ? `R$ ${dolar.precoBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—'}
+                      referencia={dolar ? `Atualizado às ${dolar.atualizadoEm}` : 'Clique em "Atualizar"'}
+                    />
+                    <IndicadorCard
+                      label="Euro (EUR/BRL)"
+                      valor={euro ? `R$ ${euro.precoBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : '—'}
+                      referencia={euro ? `Atualizado às ${euro.atualizadoEm}` : 'Clique em "Atualizar"'}
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2">
+                    Selic e CDI são taxas distintas — o CDI acompanha a Selic de perto, mas os cálculos de juros dos contratos
+                    bancários indexados sempre usam o CDI, nunca a Selic. Selic/CDI/IPCA vêm da mesma atualização feita em
+                    Bancos → Cronograma → &quot;Atualizar Índices&quot;.
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs font-bold uppercase text-slate-500 mb-3">Câmbio</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
                     {dolar ? (
                       <CotacaoCard
                         cotacao={dolar}
@@ -384,6 +451,16 @@ export const CotacoesView: React.FC<CotacoesViewProps> = ({ dolar, commodities, 
                       />
                     ) : (
                       <p className="text-xs text-slate-400">Clique em &quot;Atualizar&quot; para buscar a cotação do dólar.</p>
+                    )}
+                    {euro ? (
+                      <CotacaoCard
+                        cotacao={euro}
+                        precoDefinido={precoDefinidoPorCommodity.get(euro.commodity)}
+                        safraAtiva={safraAtiva}
+                        onSalvarPreco={handleSalvarPreco}
+                      />
+                    ) : (
+                      <p className="text-xs text-slate-400">Clique em &quot;Atualizar&quot; para buscar a cotação do euro.</p>
                     )}
                   </div>
                 </div>

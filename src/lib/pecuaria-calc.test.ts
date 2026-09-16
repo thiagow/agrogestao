@@ -3,9 +3,11 @@ import {
   anosPecuariaVisiveis,
   calcularPecuariaBovina,
   calcularProducaoAnimal,
+  calcularQuantidadeTotalBovina,
   consolidarProducaoTotal,
   custoTotalPorCabecaBovino,
   estoqueTotalBovino,
+  receitaCustoPecuariaSafraBlend,
   valorEstoqueBovino,
   type PecuariaBovinaCalculavel
 } from './pecuaria-calc';
@@ -58,6 +60,25 @@ describe('custoTotalPorCabecaBovino', () => {
 describe('valorEstoqueBovino', () => {
   it('estoque total x custo de aquisição por cabeça', () => {
     expect(valorEstoqueBovino(bovino2024())).toBe(13185 * 2350);
+  });
+});
+
+describe('calcularQuantidadeTotalBovina', () => {
+  it('consolida Cabeças/Peso Médio/Preço Médio Total de 2024 (réplica da tabela "Quantidade total" da planilha)', () => {
+    const r = calcularQuantidadeTotalBovina(bovino2024());
+    expect(r.totalCabecas).toBe(11680); // 5680 machos + 6000 fêmeas
+    expect(r.totalArrobas).toBe(198240); // 5680*18 + 6000*16
+    expect(r.pesoMedio).toBeCloseTo(16.972602739726028, 6); // ~17 arrobas/cabeça, ponderado
+    expect(r.precoMedioTotal).toBeCloseTo(272.89346246973366, 6); // receitaBruta / totalArrobas
+    // Fecha exatamente com a Receita Bruta de calcularPecuariaBovina — nunca diverge por arredondamento.
+    expect(r.totalCabecas * r.pesoMedio * r.precoMedioTotal).toBeCloseTo(calcularPecuariaBovina(bovino2024()).receitaBruta, 4);
+  });
+
+  it('sem nenhum animal comercializado, tudo zero (sem divisão por zero)', () => {
+    const r = calcularQuantidadeTotalBovina(
+      bovino2024({ qtdMachosComercializados: 0, qtdFemeasComercializadas: 0, qtdOutrasComercializadas: 0 })
+    );
+    expect(r).toEqual({ totalCabecas: 0, totalArrobas: 0, pesoMedio: 0, precoMedioTotal: 0 });
   });
 });
 
@@ -125,15 +146,35 @@ describe('calcularProducaoAnimal', () => {
   });
 });
 
-describe('anosPecuariaVisiveis (10/09/2026 — janela fixa de 5 anos, não mais rolante por Date.now())', () => {
-  it('5 anos civis fixos ancorados na safra vigente: 3 Realizado + Atual + Previsão', () => {
-    // Safra "2025/2026" -> ano civil "atual" = 2026 (safraDoAnoCivil/anoCivilDaSafra).
-    expect(anosPecuariaVisiveis('2025/2026')).toEqual([2023, 2024, 2025, 2026, 2027]);
+describe('receitaCustoPecuariaSafraBlend (16/09/2026 — 50% ano civil de início + 50% ano civil seguinte)', () => {
+  it('mistura 50/50 os dois anos civis cobertos pela safra', () => {
+    const producaoAnimal = [
+      { anoCivil: 2023, producaoCabecas: 100, precoMedioPorCabeca: 10, custoMedioPorCabeca: 4 }, // receita 1.000, despesa 400
+      { anoCivil: 2024, producaoCabecas: 100, precoMedioPorCabeca: 20, custoMedioPorCabeca: 8 } // receita 2.000, despesa 800
+    ];
+    const r = receitaCustoPecuariaSafraBlend('2023/2024', [], producaoAnimal);
+    expect(r.receitaBruta).toBeCloseTo(1500, 6); // 0,5*1000 + 0,5*2000
+    expect(r.despesa).toBeCloseTo(600, 6); // 0,5*400 + 0,5*800
+  });
+
+  it('ano civil sem nenhum registro entra como zero (sem lançar erro)', () => {
+    const producaoAnimal = [{ anoCivil: 2023, producaoCabecas: 100, precoMedioPorCabeca: 10, custoMedioPorCabeca: 4 }];
+    const r = receitaCustoPecuariaSafraBlend('2023/2024', [], producaoAnimal);
+    expect(r.receitaBruta).toBeCloseTo(500, 6); // 0,5*1000 + 0,5*0
+    expect(r.despesa).toBeCloseTo(200, 6);
+  });
+});
+
+describe('anosPecuariaVisiveis (16/09/2026 — janela fixa de 6 anos, mesma largura do Quadro de Lavoura)', () => {
+  it('6 anos civis fixos ancorados no 1º ano da safra vigente: 3 Realizado + Atual + 2 Previsão', () => {
+    // Safra "2026/2027" -> ano civil "atual" = 2026 (1º ano da safra, não o 2º —
+    // bug corrigido em 16/09/2026: marcava 2027 como Atual em vez de 2026).
+    expect(anosPecuariaVisiveis('2026/2027')).toEqual([2023, 2024, 2025, 2026, 2027, 2028]);
   });
 
   it('acompanha a safra vigente configurada, não a data do sistema', () => {
     // Uma safra vigente diferente desloca a janela inteira, sem depender de `new Date()`.
-    expect(anosPecuariaVisiveis('2029/2030')).toEqual([2027, 2028, 2029, 2030, 2031]);
+    expect(anosPecuariaVisiveis('2029/2030')).toEqual([2026, 2027, 2028, 2029, 2030, 2031]);
   });
 });
 

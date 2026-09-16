@@ -247,6 +247,15 @@ model QuadroSafra {
   precoMedio            Decimal  @db.Decimal(18, 2)
   custoProducao         Decimal  @db.Decimal(12, 2) // R$ por hectare — despesa total é derivada (custoProducao * hectares)
   producaoFixadaPercent Decimal? @db.Decimal(5, 2)
+  // Período real de Custeio & Plantio / Colheita & Comercialização
+  // (16/09/2026) — opcionais: quando preenchidos, substituem o calendário
+  // agrícola genérico (src/lib/calendario-agricola.ts) na distribuição
+  // mensal do Fluxo Mensal (src/lib/fluxo-mensal-calc.ts); sem preenchimento,
+  // continua caindo no calendário estático como sempre.
+  custoPlantioInicio DateTime?
+  custoPlantioFim    DateTime?
+  colheitaInicio     DateTime?
+  colheitaFim        DateTime?
   ativo                 Boolean  @default(true)
 
   propriedade Propriedade @relation(fields: [propriedadeId], references: [id], onDelete: Cascade)
@@ -1456,6 +1465,8 @@ enum Bolsa {
   ICE
   B3
   PTAX
+  /** Sem cotação de bolsa — preço informado manualmente pelo cliente (16/09/2026: Frango, Suíno). Varia por região, nunca buscado em "Atualizar". */
+  MANUAL
 }
 
 model Cotacao {
@@ -1528,6 +1539,8 @@ enum TipoIndice {
   CDI
   IPCA
   USD
+  /** Meta Selic definida pelo Copom (BCB SGS 432) — 16/09/2026, informativo no Painel de Indicadores de Cotações. Os cálculos de juros indexados continuam usando CDI, nunca este campo. */
+  SELIC
 }
 
 enum OrigemIndice {

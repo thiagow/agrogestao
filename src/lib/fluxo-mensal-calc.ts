@@ -137,6 +137,30 @@ function mesesDaFase(
   return meses;
 }
 
+/**
+ * Todo mês civil entre duas datas "YYYY-MM-DD", inclusive — usado quando a
+ * cultura tem período real de Custeio/Colheita cadastrado (16/09/2026), no
+ * lugar do calendário agrícola genérico. `guard` evita loop infinito num
+ * intervalo cadastrado ao contrário (fim antes do início).
+ */
+function mesesNoIntervalo(inicioISO: string, fimISO: string): MesHorizonte[] {
+  const inicio = anoMesDeIso(inicioISO);
+  const fim = anoMesDeIso(fimISO);
+  const meses: MesHorizonte[] = [];
+  let { ano, mes } = inicio;
+  let guard = 0;
+  while ((ano < fim.ano || (ano === fim.ano && mes <= fim.mes)) && guard < 240) {
+    meses.push({ mes, ano });
+    mes++;
+    if (mes > 12) {
+      mes = 1;
+      ano++;
+    }
+    guard++;
+  }
+  return meses;
+}
+
 /** Gera os lançamentos CUSTEIO/SAFRA/PROJEÇÃO de uma linha de distribuição contínua (todo mês do horizonte, sem fase de plantio/colheita) — usado por Pecuária Bovina de Quadro Safra e pelos registros dedicados de Pecuária/Suinocultura/Avicultura. */
 function gerarLancamentosContinuos(
   cultura: string,
@@ -258,12 +282,19 @@ export function gerarLancamentosCusteioSafraProjecao(input: GerarCusteioSafraInp
       continue;
     }
 
-    const mesesCusteio = mesesDaFase(etapa.fasesPorMes, 'PLANTIO_CUSTEIO', registro.anoSafra).filter((m) =>
-      horizonteSet.has(chaveMes(m))
-    );
-    const mesesColheita = mesesDaFase(etapa.fasesPorMes, 'COLHEITA_RECEITA', registro.anoSafra).filter((m) =>
-      horizonteSet.has(chaveMes(m))
-    );
+    // Datas reais de Custeio/Colheita cadastradas na safra (16/09/2026) têm
+    // prioridade sobre o calendário agrícola genérico — só caem no
+    // calendário quando o par início/fim não foi preenchido.
+    const mesesCusteio = (
+      registro.custoPlantioInicio && registro.custoPlantioFim
+        ? mesesNoIntervalo(registro.custoPlantioInicio, registro.custoPlantioFim)
+        : mesesDaFase(etapa.fasesPorMes, 'PLANTIO_CUSTEIO', registro.anoSafra)
+    ).filter((m) => horizonteSet.has(chaveMes(m)));
+    const mesesColheita = (
+      registro.colheitaInicio && registro.colheitaFim
+        ? mesesNoIntervalo(registro.colheitaInicio, registro.colheitaFim)
+        : mesesDaFase(etapa.fasesPorMes, 'COLHEITA_RECEITA', registro.anoSafra)
+    ).filter((m) => horizonteSet.has(chaveMes(m)));
 
     if (despesa > 0 && mesesCusteio.length > 0) {
       const valorPorMes = despesa / mesesCusteio.length;

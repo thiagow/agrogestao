@@ -15,7 +15,7 @@ import { listQuadroSafra } from '@/server/quadro-safra';
 import { listQuadroPecuariaBovina } from '@/server/quadro-pecuaria';
 import { listQuadroProducaoAnimal } from '@/server/producao-animal';
 import { listContratosBancarios, listCronogramaConsolidado, listFluxoDetalhado } from '@/server/contratos-bancarios';
-import { listIndices } from '@/server/indices';
+import { listIndices, listIndicadoresPainel } from '@/server/indices';
 import { listAquisicoes, listFluxoConsolidadoAquisicoes, listImpactoPorSafra } from '@/server/aquisicoes';
 import { listArrendamentos, listFluxoConsolidadoArrendamentos, listImpactoPorSafraArrendamentos } from '@/server/arrendamentos';
 import { listContratosComerciais } from '@/server/contratos-comerciais';
@@ -91,6 +91,10 @@ export default async function TabPage({ params }: TabPageProps) {
     tab === 'cotacoes' || tab === 'comercializacao' || tab === 'fluxo_safra' || tab === 'analise_financeira'
       ? await listPrecosDefinidos()
       : undefined;
+  // Painel de Indicadores (Selic/CDI/IPCA) — só a leitura mais recente já
+  // gravada por "Atualizar Índices" (Bancos); Cotações não dispara fetch
+  // próprio pra esses 3 (16/09/2026).
+  const initialIndicadoresPainel = tab === 'cotacoes' ? await listIndicadoresPainel() : undefined;
   const [cronogramaConsolidado, indices, fluxoDetalhadoBancos] =
     tab === 'bancos'
       ? await Promise.all([listCronogramaConsolidado(), listIndices(), listFluxoDetalhado()])
@@ -165,7 +169,9 @@ export default async function TabPage({ params }: TabPageProps) {
       initialContratosComerciais={initialContratosComerciais}
       initialDadosComplementares={initialDadosComplementares}
       initialCotacaoDolar={cotacoes?.dolar}
+      initialCotacaoEuro={cotacoes?.euro}
       initialCotacoesCommodities={cotacoes?.commodities}
+      initialIndicadoresPainel={initialIndicadoresPainel}
       initialPrecosDefinidos={initialPrecosDefinidos}
       initialItensFluxoManual={initialItensFluxoManual}
       initialItensLancamentoManualMensal={initialItensLancamentoManualMensal}

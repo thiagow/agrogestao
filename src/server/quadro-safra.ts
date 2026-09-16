@@ -30,6 +30,10 @@ interface SaveQuadroSafraInput {
   precoMedio: number;
   custoProducao: number;
   producaoFixadaPercent?: number;
+  custoPlantioInicio?: string;
+  custoPlantioFim?: string;
+  colheitaInicio?: string;
+  colheitaFim?: string;
 }
 
 export async function saveQuadroSafra(input: SaveQuadroSafraInput): Promise<CulturaSafraAno> {
@@ -59,7 +63,11 @@ export async function saveQuadroSafra(input: SaveQuadroSafraInput): Promise<Cult
     unidadeProducao: parsed.unidadeProducao,
     precoMedio: parsed.precoMedio,
     custoProducao: parsed.custoProducao,
-    producaoFixadaPercent: parsed.producaoFixadaPercent ?? null
+    producaoFixadaPercent: parsed.producaoFixadaPercent ?? null,
+    custoPlantioInicio: parsed.custoPlantioInicio ? new Date(parsed.custoPlantioInicio) : null,
+    custoPlantioFim: parsed.custoPlantioFim ? new Date(parsed.custoPlantioFim) : null,
+    colheitaInicio: parsed.colheitaInicio ? new Date(parsed.colheitaInicio) : null,
+    colheitaFim: parsed.colheitaFim ? new Date(parsed.colheitaFim) : null
   };
 
   const row = input.id
@@ -101,6 +109,10 @@ type QuadroSafraRow = {
   precoMedio: unknown;
   custoProducao: unknown;
   producaoFixadaPercent: unknown;
+  custoPlantioInicio: Date | null;
+  custoPlantioFim: Date | null;
+  colheitaInicio: Date | null;
+  colheitaFim: Date | null;
 };
 
 function toQuadroSafraDTO(row: QuadroSafraRow): CulturaSafraAno {
@@ -115,6 +127,10 @@ function toQuadroSafraDTO(row: QuadroSafraRow): CulturaSafraAno {
     unidadeProducao: row.unidadeProducao,
     precoMedio: Number(row.precoMedio),
     custoProducao: Number(row.custoProducao),
-    producaoFixadaPercent: row.producaoFixadaPercent != null ? Number(row.producaoFixadaPercent) : undefined
+    producaoFixadaPercent: row.producaoFixadaPercent != null ? Number(row.producaoFixadaPercent) : undefined,
+    custoPlantioInicio: row.custoPlantioInicio?.toISOString().slice(0, 10),
+    custoPlantioFim: row.custoPlantioFim?.toISOString().slice(0, 10),
+    colheitaInicio: row.colheitaInicio?.toISOString().slice(0, 10),
+    colheitaFim: row.colheitaFim?.toISOString().slice(0, 10)
   };
 }

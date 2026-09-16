@@ -17,6 +17,35 @@ export async function listIndices(): Promise<IndicesVigentes> {
   return carregarIndicesVigentes();
 }
 
+export interface IndicadorPainel {
+  valor: number;
+  dataReferencia: string; // YYYY-MM-DD
+  fonte: string;
+}
+
+/**
+ * SELIC/CDI/IPCA REALIZADO mais recentes (16/09/2026) — só leitura, para o
+ * "Painel de Indicadores" da tela Cotações. Fica atualizado pelo mesmo botão
+ * "Atualizar Índices" de Bancos (`atualizarIndices()` acima) — Cotações não
+ * dispara uma busca própria pra esses 3, só exibe o que já está gravado.
+ */
+export async function listIndicadoresPainel(): Promise<{
+  selic: IndicadorPainel | null;
+  cdi: IndicadorPainel | null;
+  ipca: IndicadorPainel | null;
+}> {
+  await requireUser();
+  const [selic, cdi, ipca] = await Promise.all(
+    (['SELIC', 'CDI', 'IPCA'] as const).map((tipo) =>
+      db.indiceMercado.findFirst({ where: { tipo, origem: 'REALIZADO' }, orderBy: { dataReferencia: 'desc' } })
+    )
+  );
+  const toPainel = (row: { valor: unknown; dataReferencia: Date; fonte: string } | null): IndicadorPainel | null =>
+    row ? { valor: Number(row.valor), dataReferencia: row.dataReferencia.toISOString().slice(0, 10), fonte: row.fonte } : null;
+
+  return { selic: toPainel(selic), cdi: toPainel(cdi), ipca: toPainel(ipca) };
+}
+
 export interface ResultadoAtualizacaoIndices {
   atualizados: number;
   falhas: string[];
@@ -54,6 +83,16 @@ export async function atualizarIndices(): Promise<ResultadoAtualizacaoIndices> {
     atualizados++;
   } else {
     falhas.push('IPCA (realizado)');
+  }
+
+  // Selic (16/09/2026) — só informativo no Painel de Indicadores de Cotações,
+  // nunca usado no cálculo de juros dos contratos indexados (isso continua no CDI).
+  const selic = await fetchSerieBcb(SERIE_BCB.SELIC);
+  if (selic) {
+    await inserirPontoRealizado('SELIC', selic.valor, '% a.a.', `BCB SGS ${SERIE_BCB.SELIC}`, selic.dataReferencia);
+    atualizados++;
+  } else {
+    falhas.push('Selic (realizado)');
   }
 
   const dolar = await fetchDolarBRL();
@@ -125,7 +164,7 @@ async function recalcularContratosIndexados(propriedadeId: string): Promise<numb
   return contratos.length;
 }
 
-async function inserirPontoRealizado(tipo: 'CDI' | 'IPCA' | 'USD', valor: number, unidade: string, fonte: string, dataReferencia: string) {
+async function inserirPontoRealizado(tipo: 'CDI' | 'IPCA' | 'USD' | 'SELIC', valor: number, unidade: string, fonte: string, dataReferencia: string) {
   await db.indiceMercado.upsert({
     where: { tipo_origem_dataReferencia: { tipo, origem: 'REALIZADO', dataReferencia: new Date(dataReferencia) } },
     update: { valor, unidade, fonte, atualizadoEm: new Date() },

@@ -233,7 +233,14 @@ export const quadroSafraSchema = z
     unidadeProducao: z.string().trim().min(1),
     precoMedio: z.coerce.number().nonnegative(),
     custoProducao: z.coerce.number().nonnegative(),
-    producaoFixadaPercent: z.coerce.number().min(0).max(100).optional()
+    producaoFixadaPercent: z.coerce.number().min(0).max(100).optional(),
+    // Período real de Custeio & Plantio / Colheita & Comercialização
+    // (16/09/2026) — opcionais, mas sempre em par (início+fim), alimentam o
+    // Fluxo Mensal quando preenchidos (ver CulturaSafraAno em src/types.ts).
+    custoPlantioInicio: z.string().trim().min(1).optional().or(z.literal('')),
+    custoPlantioFim: z.string().trim().min(1).optional().or(z.literal('')),
+    colheitaInicio: z.string().trim().min(1).optional().or(z.literal('')),
+    colheitaFim: z.string().trim().min(1).optional().or(z.literal(''))
   })
   // Total de Hectares deixou de ser digitado na UI (10/09/2026) — é sempre
   // Própria + Arrendada, calculado no client. Defesa de servidor: rejeita
@@ -242,6 +249,22 @@ export const quadroSafraSchema = z
   .refine((data) => Math.abs(data.hectares - (data.haPropria + data.haArrendada)) < 0.01, {
     message: 'Total de Hectares deve ser igual à soma de Área Própria + Arrendada',
     path: ['hectares']
+  })
+  .refine((data) => !!data.custoPlantioInicio === !!data.custoPlantioFim, {
+    message: 'Informe início e fim do período de Custeio & Plantio, ou deixe os dois em branco',
+    path: ['custoPlantioFim']
+  })
+  .refine((data) => !!data.colheitaInicio === !!data.colheitaFim, {
+    message: 'Informe início e fim do período de Colheita & Comercialização, ou deixe os dois em branco',
+    path: ['colheitaFim']
+  })
+  .refine((data) => !data.custoPlantioInicio || !data.custoPlantioFim || data.custoPlantioInicio <= data.custoPlantioFim, {
+    message: 'Início do Custeio & Plantio deve ser antes do fim',
+    path: ['custoPlantioInicio']
+  })
+  .refine((data) => !data.colheitaInicio || !data.colheitaFim || data.colheitaInicio <= data.colheitaFim, {
+    message: 'Início da Colheita & Comercialização deve ser antes do fim',
+    path: ['colheitaInicio']
   });
 
 // Pecuária (Bovinocultura) / Suinocultura / Avicultura (02/09/2026) — réplica

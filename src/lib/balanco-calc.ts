@@ -248,7 +248,18 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
     resultadoLiquido
   };
 
-  const servicoDivida = complementares.servicoDividaManual ?? jurosBancosAno + amortizacaoBancosAno;
+  // Serviço da Dívida (16/09/2026): o valor manual SOMA ao automático do
+  // cronograma bancário, nunca o substitui — decisão confirmada com o
+  // usuário após revisão da tela (antes era um fallback ?? que descartava o
+  // automático assim que havia um valor manual). Cada componente fica
+  // exposto separadamente em `servicoDividaDetalhe` pra UI mostrar as duas
+  // linhas + o total, destacando a manual. `servicoDividaManual` é sempre
+  // pontual da safra (DadosComplementaresFinanceiro é por propriedadeId+safra,
+  // nunca copiado de uma safra pra outra).
+  const servicoDividaManual = complementares.servicoDividaManual ?? 0;
+  const servicoDividaAutomatico = jurosBancosAno + amortizacaoBancosAno;
+  const servicoDivida = servicoDividaAutomatico + servicoDividaManual;
+  const servicoDividaDetalhe = { automatico: servicoDividaAutomatico, manual: servicoDividaManual, total: servicoDivida };
 
   // ---- Patrimônio IRPF ----
   const fazendasImobilizado = input.aquisicoes.reduce((s, a) => s + a.valorTotalFluxo, 0);
@@ -366,7 +377,21 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
   const radar = calcularScoreRadar(indicadores);
   const receitaPorCultura = calcularReceitaPorCultura(input.quadroSafra, safra);
 
-  return { safra, areaTotalHa, ativo, passivo, pl, ccl, dre, servicoDivida, indicadores, radar, patrimonioIrpf, receitaPorCultura };
+  return {
+    safra,
+    areaTotalHa,
+    ativo,
+    passivo,
+    pl,
+    ccl,
+    dre,
+    servicoDivida,
+    servicoDividaDetalhe,
+    indicadores,
+    radar,
+    patrimonioIrpf,
+    receitaPorCultura
+  };
 }
 
 // ---------------------------------------------------------------------------

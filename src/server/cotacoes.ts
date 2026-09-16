@@ -3,29 +3,73 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requireUser } from '@/lib/session';
-import { fetchDolarBRL, fetchYahooQuote, type QuoteResult } from '@/lib/market-data';
+import { fetchDolarBRL, fetchEuroBRL, fetchYahooQuote, type QuoteResult } from '@/lib/market-data';
 import { converterCotacaoCommodity } from '@/lib/commodity-unidade';
 import { commodityDaCultura } from '@/lib/cultura-commodity';
 import type { Cotacao, PrecoDefinidoSafra } from '@/types';
 
-// Catálogo de commodities acompanhadas — mesmos tickers já usados no mock.
-// Fator de conversão bushel/lb -> saca/arroba vive em commodity-unidade.ts,
-// aplicado em refreshCotacoes() antes de gravar `precoUsd`/`precoBrl`.
+// Catálogo de commodities acompanhadas via bolsa (Yahoo Finance) — mesmos
+// tickers do mock original + os 7 itens novos de 16/09/2026 (Açúcar/Farelo de
+// Soja/Óleo de Soja/Arroz/Álcool/Petróleo/Óleo de Aquecimento), pedidos pelo
+// usuário pra acompanhamento de receita (grãos/proteína bovina) e de CUSTO
+// (Álcool/Petróleo/Óleo de Aquecimento como proxy de diesel/combustível).
+// Fator de conversão de unidade vive em commodity-unidade.ts, aplicado em
+// refreshCotacoes() antes de gravar `precoUsd`/`precoBrl`. Todos podem ter
+// "Preço Definido" travado por safra, igual às commodities originais.
 const COMMODITIES: { commodity: string; bolsa: 'CBOT' | 'CME' | 'ICE'; ticker: string }[] = [
   { commodity: 'Soja Grão', bolsa: 'CBOT', ticker: 'ZS=F' },
   { commodity: 'Milho Grão', bolsa: 'CBOT', ticker: 'ZC=F' },
   { commodity: 'Algodão Pluma', bolsa: 'ICE', ticker: 'CT=F' },
   { commodity: 'Boi Gordo', bolsa: 'CME', ticker: 'GF=F' },
   { commodity: 'Trigo', bolsa: 'CBOT', ticker: 'ZW=F' },
-  { commodity: 'Café Arábica', bolsa: 'ICE', ticker: 'KC=F' }
+  { commodity: 'Café Arábica', bolsa: 'ICE', ticker: 'KC=F' },
+  { commodity: 'Açúcar', bolsa: 'ICE', ticker: 'SB=F' },
+  { commodity: 'Farelo de Soja', bolsa: 'CBOT', ticker: 'ZM=F' },
+  { commodity: 'Óleo de Soja', bolsa: 'CBOT', ticker: 'ZL=F' },
+  { commodity: 'Arroz', bolsa: 'CBOT', ticker: 'ZR=F' },
+  { commodity: 'Álcool', bolsa: 'CBOT', ticker: 'EH=F' },
+  { commodity: 'Petróleo', bolsa: 'CME', ticker: 'CL=F' },
+  { commodity: 'Óleo de Aquecimento', bolsa: 'CME', ticker: 'HO=F' }
 ];
 
-export async function listCotacoes(): Promise<{ dolar: Cotacao | null; commodities: Cotacao[] }> {
+/**
+ * Commodities SEM cotação de bolsa (16/09/2026) — Frango e Suíno. O preço
+ * varia por região e é sempre informado pelo cliente via "Preço Definido"
+ * (nunca por "Atualizar"): `refreshCotacoes()` nunca toca nelas. Precisam de
+ * uma linha `Cotacao` só pra aparecer na listagem — criada aqui uma única vez
+ * (idempotente, nunca sobrescreve) e nunca mais atualizada por este caminho.
+ */
+const COMMODITIES_MANUAIS: { commodity: string; unidade: string }[] = [
+  { commodity: 'Frango', unidade: 'kg' },
+  { commodity: 'Suíno', unidade: 'kg' }
+];
+
+async function garantirCommoditiesManuais() {
+  await db.cotacao.createMany({
+    data: COMMODITIES_MANUAIS.map((c) => ({
+      commodity: c.commodity,
+      bolsa: 'MANUAL' as const,
+      ticker: '—',
+      precoOriginal: 0,
+      unidadeOriginal: 'R$/kg',
+      precoBrl: 0,
+      unidade: c.unidade,
+      variacaoPercentual: 0,
+      maxima: 0,
+      minima: 0
+    })),
+    skipDuplicates: true
+  });
+}
+
+export async function listCotacoes(): Promise<{ dolar: Cotacao | null; euro: Cotacao | null; commodities: Cotacao[] }> {
   await requireUser();
+  await garantirCommoditiesManuais();
   const rows = await db.cotacao.findMany({ orderBy: { commodity: 'asc' } });
-  const dolar = rows.find((r) => r.bolsa === 'PTAX') ?? null;
+  const dolar = rows.find((r) => r.commodity === 'Dólar Americano') ?? null;
+  const euro = rows.find((r) => r.commodity === 'Euro') ?? null;
   const commodities = rows.filter((r) => r.bolsa !== 'PTAX');
-  return { dolar: dolar ? toDTO(dolar) : null, commodities: commodities.map(toDTO) };
+  return { dolar: dolar ? toDTO(dolar) : null, euro: euro ? toDTO(euro) : null, commodities: commodities.map(toDTO) };
 }
 
 /** Todos os preços travados já salvos — filtrado por safra no client (mesmo padrão de culturaSafras). */
@@ -141,6 +185,40 @@ export async function refreshCotacoes(): Promise<ResultadoRefreshCotacoes> {
     falhas.push({ item: 'Dólar Americano', motivo: 'nenhuma fonte de câmbio respondeu' });
   }
 
+  // Euro (16/09/2026) — só informativo no Painel de Indicadores, nunca usado
+  // pra converter commodities (isso continua sendo só o Dólar).
+  const euro = await fetchEuroBRL();
+  if (euro) {
+    await db.cotacao.upsert({
+      where: { commodity: 'Euro' },
+      update: {
+        precoOriginal: euro.precoBrl,
+        precoBrl: euro.precoBrl,
+        variacaoPercentual: euro.variacaoPercentual,
+        maxima: euro.maxima,
+        minima: euro.minima,
+        volume: 0,
+        atualizadoEm: new Date()
+      },
+      create: {
+        commodity: 'Euro',
+        bolsa: 'PTAX',
+        ticker: 'EUR/BRL',
+        precoOriginal: euro.precoBrl,
+        unidadeOriginal: 'R$',
+        precoBrl: euro.precoBrl,
+        unidade: 'R$',
+        variacaoPercentual: euro.variacaoPercentual,
+        maxima: euro.maxima,
+        minima: euro.minima,
+        volume: 0
+      }
+    });
+    atualizados++;
+  } else {
+    falhas.push({ item: 'Euro', motivo: 'nenhuma fonte de câmbio respondeu' });
+  }
+
   const cambioUsado = await resolverCambio(dolar);
 
   for (const c of COMMODITIES) {
@@ -222,7 +300,9 @@ export async function salvarPrecoDefinidoSafra(commodity: string, anoSafra: stri
  */
 export async function aplicarMercadoEmLote(anoSafra: string): Promise<{ aplicados: number }> {
   const user = await requireUser();
-  const rows = await db.cotacao.findMany({ where: { bolsa: { not: 'PTAX' } } });
+  // MANUAL (Frango/Suíno) fica de fora: nunca tem preço de mercado de verdade
+  // pra copiar — sobrescrever com 0 apagaria um preço regional já digitado.
+  const rows = await db.cotacao.findMany({ where: { bolsa: { notIn: ['PTAX', 'MANUAL'] } } });
 
   await db.$transaction(
     rows.map((r) =>
