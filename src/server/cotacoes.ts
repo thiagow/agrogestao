@@ -384,7 +384,7 @@ function toDTO(row: CotacaoRow): Cotacao {
     maxima: Number(row.maxima),
     minima: Number(row.minima),
     volume: Number(row.volume),
-    atualizadoEm: row.atualizadoEm.toLocaleTimeString('pt-BR')
+    atualizadoEm: row.atualizadoEm.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })
   };
 }
 

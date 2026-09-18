@@ -7,6 +7,7 @@ import { RefreshCw, TrendingUp, TrendingDown, Check, Save, ArrowUpCircle, Histor
 import { Cotacao, PrecoDefinidoSafra, CulturaSafraAno } from '../../types';
 import { Card, Tabs, Button, Badge, Input, Select } from '../ui';
 import { refreshCotacoes, salvarPrecoDefinidoSafra, aplicarMercadoEmLote } from '../../server/cotacoes';
+import { atualizarIndices } from '../../server/indices';
 import type { IndicadorPainel } from '../../server/indices';
 
 const LIMITE_DIVERGENCIA = 0.1; // 10% — ver docs/demandas/SPEC_TELA_COTACOES.md, seção 3.3
@@ -169,11 +170,20 @@ interface CotacoesViewProps {
   euro: Cotacao | null;
   commodities: Cotacao[];
   indicadoresPainel: { selic: IndicadorPainel | null; cdi: IndicadorPainel | null; ipca: IndicadorPainel | null };
+  safraAtual?: string | null;
   precosDefinidos: PrecoDefinidoSafra[];
   culturaSafras: CulturaSafraAno[];
 }
 
-export const CotacoesView: React.FC<CotacoesViewProps> = ({ dolar, euro, commodities, indicadoresPainel, precosDefinidos, culturaSafras }) => {
+export const CotacoesView: React.FC<CotacoesViewProps> = ({
+  dolar,
+  euro,
+  commodities,
+  indicadoresPainel,
+  safraAtual,
+  precosDefinidos,
+  culturaSafras
+}) => {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
@@ -184,7 +194,9 @@ export const CotacoesView: React.FC<CotacoesViewProps> = ({ dolar, euro, commodi
 
   const safrasDisponiveis = useMemo(() => Array.from(new Set(culturaSafras.map((r) => r.anoSafra))).sort(), [culturaSafras]);
   const [safraSelecionada, setSafraSelecionada] = useState('');
-  const safraAtiva = safraSelecionada || safrasDisponiveis[safrasDisponiveis.length - 1] || '';
+  const safraPadrao =
+    safraAtual && safrasDisponiveis.includes(safraAtual) ? safraAtual : safrasDisponiveis[safrasDisponiveis.length - 1] ?? '';
+  const safraAtiva = safraSelecionada || safraPadrao;
 
   const precoDefinidoPorCommodity = useMemo(
     () => new Map(precosDefinidos.filter((p) => p.anoSafra === safraAtiva).map((p) => [p.commodity, p])),
@@ -195,13 +207,16 @@ export const CotacoesView: React.FC<CotacoesViewProps> = ({ dolar, euro, commodi
     setErro(null);
     setAvisoCambio(null);
     startTransition(async () => {
-      const result = await refreshCotacoes();
+      const [result, resultIndices] = await Promise.all([refreshCotacoes(), atualizarIndices()]);
 
-      if (result.falhas.length > 0) {
+      const detalhesFalhas = [
+        ...result.falhas.map((f) => `${f.item} (${f.motivo})`),
+        ...resultIndices.falhas
+      ];
+      if (detalhesFalhas.length > 0) {
         // Cada falha carrega o motivo — uma lista de nomes sozinha não diz ao
         // usuário o que aconteceu nem o que fazer a respeito.
-        const detalhes = result.falhas.map((f) => `${f.item} (${f.motivo})`).join(', ');
-        setErro(`Não foi possível atualizar: ${detalhes}.`);
+        setErro(`Não foi possível atualizar: ${detalhesFalhas.join(', ')}.`);
       }
 
       // Câmbio de rodada anterior converte os preços do mesmo jeito, mas o
@@ -406,19 +421,19 @@ export const CotacoesView: React.FC<CotacoesViewProps> = ({ dolar, euro, commodi
                     <IndicadorCard
                       label="Selic"
                       valor={indicadoresPainel.selic ? `${indicadoresPainel.selic.valor.toFixed(2)}% a.a.` : '—'}
-                      referencia={indicadoresPainel.selic ? formatarData(indicadoresPainel.selic.dataReferencia) : 'Sem dado — atualize em Bancos'}
+                      referencia={indicadoresPainel.selic ? formatarData(indicadoresPainel.selic.dataReferencia) : 'Clique em "Atualizar"'}
                       fonte="Meta Selic (Copom) — informativo, cálculos de juros usam o CDI"
                     />
                     <IndicadorCard
                       label="CDI"
                       valor={indicadoresPainel.cdi ? `${indicadoresPainel.cdi.valor.toFixed(2)}% a.a.` : '—'}
-                      referencia={indicadoresPainel.cdi ? formatarData(indicadoresPainel.cdi.dataReferencia) : 'Sem dado — atualize em Bancos'}
+                      referencia={indicadoresPainel.cdi ? formatarData(indicadoresPainel.cdi.dataReferencia) : 'Clique em "Atualizar"'}
                       fonte={indicadoresPainel.cdi?.fonte}
                     />
                     <IndicadorCard
                       label="IPCA Acumulado (12m)"
                       valor={indicadoresPainel.ipca ? `${indicadoresPainel.ipca.valor.toFixed(2)}%` : '—'}
-                      referencia={indicadoresPainel.ipca ? formatarData(indicadoresPainel.ipca.dataReferencia) : 'Sem dado — atualize em Bancos'}
+                      referencia={indicadoresPainel.ipca ? formatarData(indicadoresPainel.ipca.dataReferencia) : 'Clique em "Atualizar"'}
                       fonte={indicadoresPainel.ipca?.fonte}
                     />
                     <IndicadorCard
@@ -434,35 +449,9 @@ export const CotacoesView: React.FC<CotacoesViewProps> = ({ dolar, euro, commodi
                   </div>
                   <p className="text-[10px] text-slate-400 mt-2">
                     Selic e CDI são taxas distintas — o CDI acompanha a Selic de perto, mas os cálculos de juros dos contratos
-                    bancários indexados sempre usam o CDI, nunca a Selic. Selic/CDI/IPCA vêm da mesma atualização feita em
-                    Bancos → Cronograma → &quot;Atualizar Índices&quot;.
+                    bancários indexados sempre usam o CDI, nunca a Selic. Selic/CDI/IPCA são atualizados pelo mesmo botão
+                    &quot;Atualizar&quot; desta tela.
                   </p>
-                </div>
-
-                <div>
-                  <p className="text-xs font-bold uppercase text-slate-500 mb-3">Câmbio</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
-                    {dolar ? (
-                      <CotacaoCard
-                        cotacao={dolar}
-                        precoDefinido={precoDefinidoPorCommodity.get(dolar.commodity)}
-                        safraAtiva={safraAtiva}
-                        onSalvarPreco={handleSalvarPreco}
-                      />
-                    ) : (
-                      <p className="text-xs text-slate-400">Clique em &quot;Atualizar&quot; para buscar a cotação do dólar.</p>
-                    )}
-                    {euro ? (
-                      <CotacaoCard
-                        cotacao={euro}
-                        precoDefinido={precoDefinidoPorCommodity.get(euro.commodity)}
-                        safraAtiva={safraAtiva}
-                        onSalvarPreco={handleSalvarPreco}
-                      />
-                    ) : (
-                      <p className="text-xs text-slate-400">Clique em &quot;Atualizar&quot; para buscar a cotação do euro.</p>
-                    )}
-                  </div>
                 </div>
 
                 <div>

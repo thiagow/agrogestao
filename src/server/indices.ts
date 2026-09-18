@@ -24,10 +24,10 @@ export interface IndicadorPainel {
 }
 
 /**
- * SELIC/CDI/IPCA REALIZADO mais recentes (16/09/2026) — só leitura, para o
- * "Painel de Indicadores" da tela Cotações. Fica atualizado pelo mesmo botão
- * "Atualizar Índices" de Bancos (`atualizarIndices()` acima) — Cotações não
- * dispara uma busca própria pra esses 3, só exibe o que já está gravado.
+ * SELIC/CDI/IPCA REALIZADO mais recentes — só leitura, para o "Painel de
+ * Indicadores" da tela Cotações. Atualizado tanto pelo botão "Atualizar
+ * Índices" de Bancos quanto pelo botão "Atualizar" de Cotações (ambos chamam
+ * `atualizarIndices()` abaixo) — esta função só exibe o que já está gravado.
  */
 export async function listIndicadoresPainel(): Promise<{
   selic: IndicadorPainel | null;

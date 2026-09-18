@@ -375,18 +375,28 @@ export async function fetchSerieBcb(codigo: number): Promise<IndiceResult | null
       `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${codigo}/dados/ultimos/1?formato=json`,
       { next: { revalidate: 0 }, signal: AbortSignal.timeout(8000) }
     );
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`[market-data] SGS ${codigo} respondeu ${res.status} ${res.statusText}`);
+      return null;
+    }
 
     const data = await res.json();
     const ultimo = Array.isArray(data) ? data[data.length - 1] : null;
-    if (!ultimo) return null;
+    if (!ultimo) {
+      console.error(`[market-data] SGS ${codigo} respondeu 200 mas sem dado utilizável`);
+      return null;
+    }
 
     const valor = Number(ultimo.valor);
     const dataReferencia = parseDataBcb(ultimo.data);
-    if (!Number.isFinite(valor) || !dataReferencia) return null;
+    if (!Number.isFinite(valor) || !dataReferencia) {
+      console.error(`[market-data] SGS ${codigo} respondeu 200 mas valor/data inválidos:`, ultimo);
+      return null;
+    }
 
     return { valor, dataReferencia };
-  } catch {
+  } catch (e) {
+    console.error(`[market-data] SGS ${codigo} falhou:`, e instanceof Error ? e.message : e);
     return null;
   }
 }

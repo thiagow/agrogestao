@@ -112,6 +112,8 @@ interface TabViewProps {
   initialCotacoesCommodities?: Cotacao[];
   /** Selic/CDI/IPCA REALIZADO mais recentes (src/server/indices.ts) — só a tela Cotações usa, no "Painel de Indicadores". */
   initialIndicadoresPainel?: { selic: IndicadorPainel | null; cdi: IndicadorPainel | null; ipca: IndicadorPainel | null };
+  /** Safra vigente (src/server/safras.ts) — default do seletor de safra em Cotações, nunca a safra mais distante já cadastrada. */
+  cotacoesSafraAtual?: string | null;
   /** Preço travado por commodity + safra (src/server/cotacoes.ts) — consumido por Comercialização, Fluxo de Safra e pela própria tela Cotações. */
   initialPrecosDefinidos?: PrecoDefinidoSafra[];
   /** Itens manuais extraordinários do Fluxo de Safra — persistidos via src/server/fluxo-safra.ts. */
@@ -155,6 +157,7 @@ export const TabView: React.FC<TabViewProps> = ({
   initialCotacaoEuro = null,
   initialCotacoesCommodities = [],
   initialIndicadoresPainel,
+  cotacoesSafraAtual = null,
   initialPrecosDefinidos = [],
   initialItensFluxoManual = [],
   initialItensLancamentoManualMensal = []
@@ -281,7 +284,11 @@ export const TabView: React.FC<TabViewProps> = ({
         unidadeProducao: data.unidadeProducao || 'sc',
         precoMedio: data.precoMedio || 0,
         custoProducao: data.custoProducao || 0,
-        producaoFixadaPercent: data.producaoFixadaPercent
+        producaoFixadaPercent: data.producaoFixadaPercent,
+        custoPlantioInicio: data.custoPlantioInicio,
+        custoPlantioFim: data.custoPlantioFim,
+        colheitaInicio: data.colheitaInicio,
+        colheitaFim: data.colheitaFim
       });
       setCulturaSafras((prev) => (data.id ? prev.map((s) => (s.id === saved.id ? saved : s)) : [saved, ...prev]));
     } catch (err) {
@@ -798,6 +805,7 @@ export const TabView: React.FC<TabViewProps> = ({
           euro={initialCotacaoEuro}
           commodities={initialCotacoesCommodities}
           indicadoresPainel={initialIndicadoresPainel ?? { selic: null, cdi: null, ipca: null }}
+          safraAtual={cotacoesSafraAtual}
           precosDefinidos={initialPrecosDefinidos}
           culturaSafras={culturaSafras}
         />

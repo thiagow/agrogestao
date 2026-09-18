@@ -368,12 +368,6 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
     { key: 'receitaLiquida', label: 'Total Receita Líquida', formatar: formatCurrency }
   ];
 
-  // Margem final da lavoura (item 1.6) — consolidado da safra vigente, entre
-  // as culturas visíveis no filtro selecionado.
-  const margemLavoura = consolidarMargemLavoura(
-    culturaSafras.filter((s) => culturasVisiveis.includes(s.cultura) && s.anoSafra === referenciaSafra)
-  );
-
   // "Resumo — Quadro de Produção" (16/09/2026, pedido do usuário) — Lavoura +
   // Bovinocultura + Avicultura + Suinocultura consolidados, uma coluna por
   // ano-safra (mesmas colunas de `anosSafra`, TODAS as culturas — nunca
@@ -703,25 +697,6 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
             <span className="w-1.5 h-1.5 rounded-full bg-slate-300" /> Calculado automaticamente
           </span>
         </div>
-
-        {/* Margem final da lavoura (item 1.6) — consolidado da safra vigente. */}
-        {culturasVisiveis.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 px-4 py-4 border-t border-slate-200/80 bg-slate-50/60">
-            <div>
-              <p className="text-[11px] font-bold uppercase text-slate-500">Margem Final da Lavoura ({referenciaSafra})</p>
-              <p className="text-lg font-extrabold text-slate-900">{formatCurrency(margemLavoura.margemRs)}</p>
-              <p className="text-[11px] text-slate-500">
-                Receita {formatCurrency(margemLavoura.receitaTotal)} − Custo {formatCurrency(margemLavoura.custoTotal)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[11px] font-bold uppercase text-slate-500">Margem (%)</p>
-              <p className={`text-lg font-extrabold ${margemLavoura.margemPercent >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                {margemLavoura.margemPercent.toFixed(1)}%
-              </p>
-            </div>
-          </div>
-        )}
       </Card>
 
       {/* Bovinocultura — tabela fixa, sempre exibida, 6 anos civis fixos ancorados na safra vigente

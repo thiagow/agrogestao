@@ -95,6 +95,9 @@ export default async function TabPage({ params }: TabPageProps) {
   // gravada por "Atualizar Índices" (Bancos); Cotações não dispara fetch
   // próprio pra esses 3 (16/09/2026).
   const initialIndicadoresPainel = tab === 'cotacoes' ? await listIndicadoresPainel() : undefined;
+  // Safra vigente também define o default do seletor de safra em Cotações —
+  // sem isso, o default cai na safra mais distante já cadastrada (bug 16/09/2026).
+  const cotacoesSafraAtual = tab === 'cotacoes' ? await getSafraAtual() : undefined;
   const [cronogramaConsolidado, indices, fluxoDetalhadoBancos] =
     tab === 'bancos'
       ? await Promise.all([listCronogramaConsolidado(), listIndices(), listFluxoDetalhado()])
@@ -172,6 +175,7 @@ export default async function TabPage({ params }: TabPageProps) {
       initialCotacaoEuro={cotacoes?.euro}
       initialCotacoesCommodities={cotacoes?.commodities}
       initialIndicadoresPainel={initialIndicadoresPainel}
+      cotacoesSafraAtual={cotacoesSafraAtual}
       initialPrecosDefinidos={initialPrecosDefinidos}
       initialItensFluxoManual={initialItensFluxoManual}
       initialItensLancamentoManualMensal={initialItensLancamentoManualMensal}

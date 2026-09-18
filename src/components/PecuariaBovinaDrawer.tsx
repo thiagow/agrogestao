@@ -4,7 +4,10 @@ import React, { useEffect, useState } from 'react';
 import { PecuariaBovinaAno } from '../types';
 import { calcularPecuariaBovina, custoTotalPorCabecaBovino, estoqueTotalBovino } from '../lib/pecuaria-calc';
 import { formatCurrency } from '../data/initialData';
-import { Drawer, Input, Button } from './ui';
+import { Drawer, Input, Select, Button } from './ui';
+
+const CICLOS_PRODUTIVOS = ['Cria', 'Cria e Recria', 'Recria e Engorda', 'Ciclo Completo'] as const;
+const TIPOS_TERMINACAO = ['A Pasto', 'Semi Confinamento', 'Semi + Confinamento', 'Confinamento'] as const;
 
 interface PecuariaBovinaDrawerProps {
   isOpen: boolean;
@@ -149,11 +152,30 @@ export const PecuariaBovinaDrawer: React.FC<PecuariaBovinaDrawerProps> = ({
       subtitle="Estoque de rebanho, custos e comercialização por ano civil"
     >
       <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
-        <div className="grid grid-cols-2 gap-3">
-          <Input label="Ano" type="number" required value={anoCivil} onChange={(e) => setAnoCivil(e.target.value)} />
-          <Input label="Ciclo Produtivo" type="text" value={cicloProdutivo} onChange={(e) => setCicloProdutivo(e.target.value)} />
+        <div className="grid grid-cols-3 gap-3">
+          <Select label="Ano" required value={anoCivil} onChange={(e) => setAnoCivil(e.target.value)}>
+            {anosDisponiveis.length === 0 && <option value="">Nenhum ano disponível</option>}
+            {anosDisponiveis.map((ano) => (
+              <option key={ano} value={ano}>
+                {ano}
+              </option>
+            ))}
+          </Select>
+          <Select label="Ciclo Produtivo" value={cicloProdutivo} onChange={(e) => setCicloProdutivo(e.target.value)}>
+            {CICLOS_PRODUTIVOS.map((ciclo) => (
+              <option key={ciclo} value={ciclo}>
+                {ciclo}
+              </option>
+            ))}
+          </Select>
+          <Select label="Tipo de Terminação" value={tipoTerminacao} onChange={(e) => setTipoTerminacao(e.target.value)}>
+            {TIPOS_TERMINACAO.map((tipo) => (
+              <option key={tipo} value={tipo}>
+                {tipo}
+              </option>
+            ))}
+          </Select>
         </div>
-        <Input label="Tipo de Terminação" type="text" value={tipoTerminacao} onChange={(e) => setTipoTerminacao(e.target.value)} />
 
         <div>
           <p className="text-[11px] font-bold uppercase text-slate-500 mb-2">Estoque de Rebanho (cabeças)</p>
