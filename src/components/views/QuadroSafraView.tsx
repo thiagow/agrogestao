@@ -73,6 +73,10 @@ const BADGE_STATUS: Record<StatusSafra, { tone: 'slate' | 'emerald' | 'blue'; la
   Previsão: { tone: 'blue', label: 'Previsão' }
 };
 
+/** Largura fixa da 1ª coluna (rótulo) compartilhada pelas tabelas "Estoque Rebanho Atual" e
+ * "Bovinos" — precisa ser idêntica nas duas para as colunas de ano alinharem verticalmente. */
+const PECUARIA_COL_LABEL_WIDTH = 'w-48';
+
 /** "Estoque Rebanho Atual" (16/09/2026, réplica confirmada da planilha do cliente) — as 8 categorias por sexo/faixa etária. */
 const ESTOQUE_REBANHO_LINHAS: { label: string; key: keyof PecuariaBovinaAno }[] = [
   { label: 'Fêmeas 0-12 meses', key: 'femeas0a12' },
@@ -710,9 +714,19 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
           </Button>
         </div>
 
-        {/* Estoque Rebanho Atual — 8 categorias por sexo/faixa etária + total (Plantel). */}
+        {/* Estoque Rebanho Atual — 8 categorias por sexo/faixa etária + total (Plantel).
+            table-fixed + colgroup idêntico ao da tabela "Bovinos" abaixo: com border-collapse
+            simples, cada <table> calcula a largura de coluna de forma independente a partir do
+            próprio conteúdo, e como os rótulos de "Bovinos" são bem mais longos, as colunas de
+            ano ficavam desalinhadas entre as duas tabelas (16/09/2026 bugfix). */}
         <div className="overflow-x-auto border-b border-slate-200/80">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full text-left border-collapse table-fixed text-xs">
+            <colgroup>
+              <col className={PECUARIA_COL_LABEL_WIDTH} />
+              {anosPecuaria.map((ano) => (
+                <col key={ano} />
+              ))}
+            </colgroup>
             <thead>
               <tr>
                 <th
@@ -772,7 +786,13 @@ export const QuadroSafraView: React.FC<QuadroSafraViewProps> = ({
 
         {/* Bovinos — indicadores completos de ciclo, custo e comercialização. */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full text-left border-collapse table-fixed text-xs">
+            <colgroup>
+              <col className={PECUARIA_COL_LABEL_WIDTH} />
+              {anosPecuaria.map((ano) => (
+                <col key={ano} />
+              ))}
+            </colgroup>
             <thead>
               <tr className="text-[11px] uppercase tracking-wider text-white font-bold">
                 <th className="bg-slate-900 py-3 px-4 whitespace-nowrap">Bovinos</th>
