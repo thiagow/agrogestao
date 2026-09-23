@@ -32,39 +32,8 @@ const COMMODITIES: { commodity: string; bolsa: 'CBOT' | 'CME' | 'ICE'; ticker: s
   { commodity: 'Óleo de Aquecimento', bolsa: 'CME', ticker: 'HO=F' }
 ];
 
-/**
- * Commodities SEM cotação de bolsa (16/09/2026) — Frango e Suíno. O preço
- * varia por região e é sempre informado pelo cliente via "Preço Definido"
- * (nunca por "Atualizar"): `refreshCotacoes()` nunca toca nelas. Precisam de
- * uma linha `Cotacao` só pra aparecer na listagem — criada aqui uma única vez
- * (idempotente, nunca sobrescreve) e nunca mais atualizada por este caminho.
- */
-const COMMODITIES_MANUAIS: { commodity: string; unidade: string }[] = [
-  { commodity: 'Frango', unidade: 'kg' },
-  { commodity: 'Suíno', unidade: 'kg' }
-];
-
-async function garantirCommoditiesManuais() {
-  await db.cotacao.createMany({
-    data: COMMODITIES_MANUAIS.map((c) => ({
-      commodity: c.commodity,
-      bolsa: 'MANUAL' as const,
-      ticker: '—',
-      precoOriginal: 0,
-      unidadeOriginal: 'R$/kg',
-      precoBrl: 0,
-      unidade: c.unidade,
-      variacaoPercentual: 0,
-      maxima: 0,
-      minima: 0
-    })),
-    skipDuplicates: true
-  });
-}
-
 export async function listCotacoes(): Promise<{ dolar: Cotacao | null; euro: Cotacao | null; commodities: Cotacao[] }> {
   await requireUser();
-  await garantirCommoditiesManuais();
   const rows = await db.cotacao.findMany({ orderBy: { commodity: 'asc' } });
   const dolar = rows.find((r) => r.commodity === 'Dólar Americano') ?? null;
   const euro = rows.find((r) => r.commodity === 'Euro') ?? null;

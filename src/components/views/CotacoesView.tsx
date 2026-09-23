@@ -40,12 +40,9 @@ const CotacaoCard: React.FC<CotacaoCardProps> = ({ cotacao, precoDefinido, safra
   const [salvo, setSalvo] = useState(false);
   const isUp = cotacao.variacaoPercentual >= 0;
   const semConversaoConfirmada = cotacao.unidade === 'lb'; // Algodão (até 16/09/2026) / Óleo de Soja — sem saca/embalagem padronizada confirmada
-  // Frango/Suíno (16/09/2026) — sem cotação de bolsa, preço só entra manualmente
-  // via "Preço Definido" (varia por região). Nunca mostra "R$ 0,00" de mercado.
-  const isManual = cotacao.bolsa === 'MANUAL';
 
   const divergencia =
-    !isManual && precoDefinido != null && cotacao.precoBrl > 0
+    precoDefinido != null && cotacao.precoBrl > 0
       ? Math.abs(precoDefinido.precoBrl - cotacao.precoBrl) / cotacao.precoBrl
       : null;
   const divergenciaAlta = divergencia != null && divergencia > LIMITE_DIVERGENCIA;
@@ -63,52 +60,42 @@ const CotacaoCard: React.FC<CotacaoCardProps> = ({ cotacao, precoDefinido, safra
       <div className="flex items-center justify-between mb-1.5">
         <div>
           <p className="text-sm font-bold text-slate-900">{cotacao.commodity}</p>
-          <p className="text-[10px] text-slate-400">{isManual ? 'Informado pelo cliente' : `${cotacao.bolsa} · ${cotacao.ticker}`}</p>
+          <p className="text-[10px] text-slate-400">{`${cotacao.bolsa} · ${cotacao.ticker}`}</p>
         </div>
-        {!isManual && (
-          <Badge tone={isUp ? 'emerald' : 'rose'}>
-            <span className="inline-flex items-center gap-0.5">
-              {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-              {isUp ? '+' : ''}
-              {cotacao.variacaoPercentual.toFixed(2)}%
-            </span>
-          </Badge>
+        <Badge tone={isUp ? 'emerald' : 'rose'}>
+          <span className="inline-flex items-center gap-0.5">
+            {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            {isUp ? '+' : ''}
+            {cotacao.variacaoPercentual.toFixed(2)}%
+          </span>
+        </Badge>
+      </div>
+
+      <div className="text-xl font-black text-slate-900 font-sans">
+        R$ {cotacao.precoBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+        <span className="ml-1 text-xs font-semibold text-slate-400">/{cotacao.unidade}</span>
+      </div>
+      {semConversaoConfirmada && (
+        <p className="text-[10px] text-amber-700">Sem unidade comercial padronizada confirmada — preço em R$/lb.</p>
+      )}
+
+      <div className="mt-1.5 space-y-0.5 text-[10px] text-slate-400">
+        <p>
+          Original: {cotacao.precoOriginal.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} {cotacao.unidadeOriginal}
+        </p>
+        {cotacao.precoUsd !== undefined && (
+          <p>
+            USD: {cotacao.precoUsd.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}/{cotacao.unidade}
+          </p>
         )}
       </div>
 
-      {isManual ? (
-        <p className="text-[11px] text-slate-500">
-          Sem cotação de bolsa — o preço varia por região e é definido diretamente abaixo, por safra.
-        </p>
-      ) : (
-        <>
-          <div className="text-xl font-black text-slate-900 font-sans">
-            R$ {cotacao.precoBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-            <span className="ml-1 text-xs font-semibold text-slate-400">/{cotacao.unidade}</span>
-          </div>
-          {semConversaoConfirmada && (
-            <p className="text-[10px] text-amber-700">Sem unidade comercial padronizada confirmada — preço em R$/lb.</p>
-          )}
-
-          <div className="mt-1.5 space-y-0.5 text-[10px] text-slate-400">
-            <p>
-              Original: {cotacao.precoOriginal.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} {cotacao.unidadeOriginal}
-            </p>
-            {cotacao.precoUsd !== undefined && (
-              <p>
-                USD: {cotacao.precoUsd.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}/{cotacao.unidade}
-              </p>
-            )}
-          </div>
-
-          {cotacao.maxima > 0 && (
-            <div className="flex items-center gap-3 text-[10px] text-slate-400 mt-1.5">
-              <span>Máx: {cotacao.maxima.toLocaleString('pt-BR')}</span>
-              <span>Mín: {cotacao.minima.toLocaleString('pt-BR')}</span>
-              {cotacao.volume > 0 ? <span>Vol: {cotacao.volume.toLocaleString('pt-BR')}</span> : <span>Vol: —</span>}
-            </div>
-          )}
-        </>
+      {cotacao.maxima > 0 && (
+        <div className="flex items-center gap-3 text-[10px] text-slate-400 mt-1.5">
+          <span>Máx: {cotacao.maxima.toLocaleString('pt-BR')}</span>
+          <span>Mín: {cotacao.minima.toLocaleString('pt-BR')}</span>
+          {cotacao.volume > 0 ? <span>Vol: {cotacao.volume.toLocaleString('pt-BR')}</span> : <span>Vol: —</span>}
+        </div>
       )}
 
       <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
@@ -128,16 +115,14 @@ const CotacaoCard: React.FC<CotacaoCardProps> = ({ cotacao, precoDefinido, safra
             placeholder="0,0000"
             className="!py-1.5 !text-xs"
           />
-          {!isManual && (
-            <button
-              type="button"
-              title="Aplicar preço de mercado"
-              onClick={() => setValorInput(String(cotacao.precoBrl))}
-              className="flex-shrink-0 p-2 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
-            >
-              <ArrowUpCircle className="w-3.5 h-3.5" />
-            </button>
-          )}
+          <button
+            type="button"
+            title="Aplicar preço de mercado"
+            onClick={() => setValorInput(String(cotacao.precoBrl))}
+            className="flex-shrink-0 p-2 rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
+          >
+            <ArrowUpCircle className="w-3.5 h-3.5" />
+          </button>
           <button
             type="button"
             onClick={handleSalvar}

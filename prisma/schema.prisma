@@ -1465,7 +1465,7 @@ enum Bolsa {
   ICE
   B3
   PTAX
-  /** Sem cotação de bolsa — preço informado manualmente pelo cliente (16/09/2026: Frango, Suíno). Varia por região, nunca buscado em "Atualizar". */
+  /** Sem uso desde 23/09/2026 — era Frango/Suíno (removidos de Cotações), Postgres não remove valor de enum sem recriar o tipo. */
   MANUAL
 }
 

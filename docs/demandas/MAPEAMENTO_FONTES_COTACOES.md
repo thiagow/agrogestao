@@ -60,10 +60,8 @@ A conversão de unidade (`src/lib/commodity-unidade.ts`) tem duas etapas indepen
 | Álcool | `EH=F` | CBOT | USD | galão | L (litro) | Sim |
 | Petróleo | `CL=F` | CME (NYMEX) | USD | barril | bbl (sem conversão) | Sim |
 | Óleo de Aquecimento | `HO=F` | CME (NYMEX) | **USD** | galão | L (litro) | Sim |
-| Frango | — | **MANUAL** | — | — | kg | Sim (único preço que existe — não há cotação de mercado) |
-| Suíno | — | **MANUAL** | — | — | kg | Sim (idem) |
 
-**Frango e Suíno** não têm nenhuma fonte de bolsa — o preço varia por região e é sempre digitado pelo cliente diretamente no campo "Preço Definido". O botão "Atualizar" e o "Aplicar Mercado" nunca tocam nessas duas linhas.
+**Frango e Suíno foram removidos da tela (23/09/2026)**, a pedido do usuário — eram commodities `Bolsa.MANUAL` sem nenhuma fonte de bolsa (preço sempre digitado pelo cliente via "Preço Definido", nunca tocado por "Atualizar"/"Aplicar Mercado"). As linhas seed em `Cotacao` foram apagadas do banco; não havia nenhum `PrecoDefinidoSafra` travado para elas. O valor `MANUAL` permanece no enum `Bolsa` do Prisma sem uso (Postgres não remove valor de enum sem rebuild do tipo) — ver CLAUDE.md.
 
 **Óleo de Soja** fica sem conversão de peso confirmada (mantém USD/lb bruto) pelo mesmo motivo que valia para o Algodão até 16/09/2026: não existe uma embalagem/unidade comercial brasileira padronizada para óleo de soja a granel.
 
@@ -71,7 +69,7 @@ A conversão de unidade (`src/lib/commodity-unidade.ts`) tem duas etapas indepen
 
 ## 4. Preço Definido (trava por safra)
 
-Independente da cotação de mercado, cada commodity pode ter um preço "travado" manualmente por safra (`PrecoDefinidoSafra`, global entre contas). É esse valor — nunca a cotação de mercado bruta — que alimenta Comercialização e Arrendamento (`resolverPrecoFallback()`). O botão "Aplicar Mercado" copia o preço de mercado atual para a trava da safra selecionada, exceto para Frango/Suíno (sem preço de mercado pra copiar).
+Independente da cotação de mercado, cada commodity pode ter um preço "travado" manualmente por safra (`PrecoDefinidoSafra`, global entre contas). É esse valor — nunca a cotação de mercado bruta — que alimenta Comercialização e Arrendamento (`resolverPrecoFallback()`). O botão "Aplicar Mercado" copia o preço de mercado atual para a trava da safra selecionada.
 
 ---
 
