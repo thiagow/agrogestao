@@ -15,7 +15,7 @@
 //
 // A ESCALA (centavos de dólar USX vs. dólares inteiros USD) NÃO vive mais
 // neste catálogo — verificado ao vivo em 16/09/2026 que não é uniforme nem
-// previsível por commodity/bolsa: Soja/Milho/Trigo/Algodão/Boi/Café/Açúcar/
+// previsível por commodity/bolsa: Soja/Milho/Trigo/Algodão/Café/Açúcar/
 // Óleo de Soja vêm em USX, mas Farelo de Soja/Arroz/Álcool/Petróleo/Óleo de
 // Aquecimento vêm em USD — dois desses (Arroz e Óleo de Aquecimento) tinham
 // sido cadastrados errado aqui como USX antes de checar contra a API real,
@@ -23,6 +23,11 @@
 // campo `meta.currency` que a própria Yahoo devolve por ticker
 // (`QuoteResult.moedaOriginal`, `src/lib/market-data.ts`) — nunca mais uma
 // suposição estática por commodity.
+//
+// Boi Gordo saiu deste catálogo em 29/09/2026: trocou o futuro CME (Yahoo,
+// USD) pelo índice físico CEPEA/ESALQ, que já vem pronto em R$/@ direto —
+// não passa mais por conversão de peso/câmbio nenhuma (ver
+// `fetchCepeaIndicador`, src/lib/market-data.ts).
 //
 // Os fatores de peso (bushel/lb/cwt/ton -> kg) são constantes físicas
 // padronizadas (USDA/contrato-futuro), não uma regra de negócio inventada —
@@ -65,7 +70,6 @@ export const FATORES_CONVERSAO_COMMODITY: readonly FatorConversaoCommodity[] = [
   { commodity: 'Soja Grão', fator: KG_POR_SACA / KG_POR_BUSHEL_SOJA_TRIGO, unidadeOriginal: 'USX/bu', unidadeFinal: 'sc' },
   { commodity: 'Milho Grão', fator: KG_POR_SACA / KG_POR_BUSHEL_MILHO, unidadeOriginal: 'USX/bu', unidadeFinal: 'sc' },
   { commodity: 'Trigo', fator: KG_POR_SACA / KG_POR_BUSHEL_SOJA_TRIGO, unidadeOriginal: 'USX/bu', unidadeFinal: 'sc' },
-  { commodity: 'Boi Gordo', fator: KG_POR_ARROBA / KG_POR_LB, unidadeOriginal: 'USX/lb', unidadeFinal: '@' },
   { commodity: 'Café Arábica', fator: KG_POR_SACA / KG_POR_LB, unidadeOriginal: 'USX/lb', unidadeFinal: 'sc' },
   // Algodão (16/09/2026): passou a usar arroba (@), a pedido do usuário — mesma
   // regra de peso do Boi Gordo (arroba de 15kg), a unidade nativa da bolsa

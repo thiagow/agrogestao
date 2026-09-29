@@ -9,11 +9,12 @@ import { converterCotacaoCommodity } from '../src/lib/commodity-unidade';
 
 const db = new PrismaClient();
 
+// Boi Gordo saiu daqui em 29/09/2026 — passou a vir do CEPEA/ESALQ, não mais
+// do Yahoo Finance (ver scripts/verificar-cepea.ts).
 const COMMODITIES = [
   { commodity: 'Soja Grão', ticker: 'ZS=F' },
   { commodity: 'Milho Grão', ticker: 'ZC=F' },
   { commodity: 'Algodão Pluma', ticker: 'CT=F' },
-  { commodity: 'Boi Gordo', ticker: 'GF=F' },
   { commodity: 'Trigo', ticker: 'ZW=F' },
   { commodity: 'Café Arábica', ticker: 'KC=F' }
 ];

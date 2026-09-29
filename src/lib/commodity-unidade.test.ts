@@ -21,13 +21,6 @@ describe('converterCotacaoCommodity', () => {
     expect(r.unidadeFinal).toBe('sc');
   });
 
-  it('boi gordo: USX/lb -> USD/@ usando arroba de 15kg', () => {
-    const r = converterCotacaoCommodity('Boi Gordo', 224.575, CAMBIO, 'USX');
-    // 2.24575 USD/lb * (15/0.45359237) lb/@ ≈ 74.27 USD/@
-    expect(r.precoUsd).toBeCloseTo(74.27, 1);
-    expect(r.unidadeFinal).toBe('@');
-  });
-
   it('café: USX/lb -> USD/sc usando saca de 60kg', () => {
     const r = converterCotacaoCommodity('Café Arábica', 442.72, CAMBIO, 'USX');
     expect(r.unidadeFinal).toBe('sc');

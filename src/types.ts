@@ -825,7 +825,7 @@ export interface FluxoSafraCalculado {
 
 // ---- Cotações de Mercado ----
 
-export type Bolsa = 'CBOT' | 'CME' | 'ICE' | 'B3' | 'PTAX' | 'MANUAL';
+export type Bolsa = 'CBOT' | 'CME' | 'ICE' | 'B3' | 'PTAX' | 'CEPEA' | 'MANUAL';
 
 export interface Cotacao {
   id: string;

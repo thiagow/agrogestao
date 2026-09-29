@@ -25,7 +25,9 @@ const CHIPS_CULTURA: { commodity: string; label: string; ativoPadrao: boolean; c
   { commodity: 'Algodão Pluma', label: '🌿 Algodão', ativoPadrao: false, cor: '#0d9488' },
   { commodity: 'Boi Gordo', label: '🐄 Boi Gordo', ativoPadrao: false, cor: '#7c2d12' },
   { commodity: 'Trigo', label: '🌾 Trigo', ativoPadrao: false, cor: '#a16207' },
-  { commodity: 'Café Arábica', label: '☕ Café Arábica', ativoPadrao: false, cor: '#78350f' }
+  { commodity: 'Café Arábica', label: '☕ Café Arábica', ativoPadrao: false, cor: '#78350f' },
+  { commodity: 'Suíno', label: '🐖 Suíno', ativoPadrao: false, cor: '#be185d' },
+  { commodity: 'Frango', label: '🐔 Frango', ativoPadrao: false, cor: '#ca8a04' }
 ];
 
 interface CotacaoCardProps {

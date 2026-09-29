@@ -50,7 +50,6 @@ A conversão de unidade (`src/lib/commodity-unidade.ts`) tem duas etapas indepen
 | Soja Grão | `ZS=F` | CBOT | USX | bushel (60 lb) | sc (60kg) | Sim |
 | Milho Grão | `ZC=F` | CBOT | USX | bushel (56 lb) | sc (60kg) | Sim |
 | Trigo | `ZW=F` | CBOT | USX | bushel (60 lb) | sc (60kg) | Sim |
-| Boi Gordo | `GF=F` | CME | USX | lb | @ (15kg) | Sim |
 | Café Arábica | `KC=F` | ICE | USX | lb | sc (60kg) | Sim |
 | Algodão Pluma | `CT=F` | ICE | USX | lb | @ (15kg) | Sim |
 | Açúcar | `SB=F` | ICE | USX | lb | sc (50kg) | Sim |
@@ -61,9 +60,38 @@ A conversão de unidade (`src/lib/commodity-unidade.ts`) tem duas etapas indepen
 | Petróleo | `CL=F` | CME (NYMEX) | USD | barril | bbl (sem conversão) | Sim |
 | Óleo de Aquecimento | `HO=F` | CME (NYMEX) | **USD** | galão | L (litro) | Sim |
 
-**Frango e Suíno foram removidos da tela (23/09/2026)**, a pedido do usuário — eram commodities `Bolsa.MANUAL` sem nenhuma fonte de bolsa (preço sempre digitado pelo cliente via "Preço Definido", nunca tocado por "Atualizar"/"Aplicar Mercado"). As linhas seed em `Cotacao` foram apagadas do banco; não havia nenhum `PrecoDefinidoSafra` travado para elas. O valor `MANUAL` permanece no enum `Bolsa` do Prisma sem uso (Postgres não remove valor de enum sem rebuild do tipo) — ver CLAUDE.md.
+**Frango e Suíno foram removidos da tela em 23/09/2026**, a pedido do usuário — eram commodities `Bolsa.MANUAL` sem nenhuma fonte de bolsa (preço sempre digitado pelo cliente via "Preço Definido", nunca tocado por "Atualizar"/"Aplicar Mercado"). As linhas seed em `Cotacao` foram apagadas do banco; não havia nenhum `PrecoDefinidoSafra` travado para elas. O valor `MANUAL` permanece no enum `Bolsa` do Prisma sem uso (Postgres não remove valor de enum sem rebuild do tipo) — ver CLAUDE.md. **Ambas voltaram em 29/09/2026, agora via CEPEA (seção 3.1 abaixo).**
 
 **Óleo de Soja** fica sem conversão de peso confirmada (mantém USD/lb bruto) pelo mesmo motivo que valia para o Algodão até 16/09/2026: não existe uma embalagem/unidade comercial brasileira padronizada para óleo de soja a granel.
+
+---
+
+## 3.1 CEPEA/ESALQ — Boi Gordo, Suíno, Frango (29/09/2026)
+
+**Boi Gordo saiu do Yahoo Finance (CME, `GF=F`, futuro americano em USD) e passou a vir do CEPEA/ESALQ** — o índice físico do mercado brasileiro (R$/@), mais fiel ao que interessa ao produtor do que um contrato futuro americano. Suíno e Frango entram como commodities novas, também via CEPEA (não existiam mais na tela desde 23/09/2026).
+
+Sem API pública — o preço do dia vem embutido numa tabela HTML simples em cada página de indicador. Verificado ao vivo (curl com `User-Agent` explícito) em 29/09/2026: as 3 páginas respondem sem paywall nem bloqueio, com a mesma estrutura:
+
+```html
+<div class="imagenet-table-titulo">TÍTULO DA TABELA</div>
+<table id="imagenet-indicadorN">
+  <tbody><tr><td>28/09/2026</td><td>359,95</td><td>0,32%</td>...</tr></tbody>
+</table>
+```
+
+O `id="imagenet-indicadorN"` da tabela **não é estável entre commodities** (em Boi Gordo é a tabela 1, em Suíno é a tabela 2, em Frango é a tabela 1 — cada página tem várias tabelas: indicador diário, série mensal, produto correlato) — a âncora usada pelo parser (`fetchCepeaIndicador`, `src/lib/market-data.ts`) é sempre o texto do título acima da tabela certa.
+
+| Commodity | URL | Título-âncora | Praça | Unidade final |
+|---|---|---|---|---|
+| Boi Gordo | `cepea.org.br/br/indicador/boi-gordo.aspx` | "INDICADOR DO BOI GORDO" | única (nacional) | R$/@ |
+| Suíno | `cepea.org.br/br/indicador/suino.aspx` | "INDICADOR DO SUÍNO VIVO" | **SP - posto** (uma entre MG/PR/RS/SC/SP publicadas por dia) | R$/kg |
+| Frango | `cepea.org.br/br/indicador/frango.aspx` | "PREÇOS DO FRANGO CONGELADO" | única (Estado SP) | R$/kg |
+
+O valor já vem pronto em R$ na unidade final — **sem câmbio, sem conversão de peso** (diferente do fluxo Yahoo). `fetchCepeaIndicador()` grava `maxima = minima = precoBrl` (publicação única diária, sem intradiário, mesmo critério de `fetchPtaxDolar`) e `volume = 0`.
+
+**Licença dos dados**: CEPEA/ESALQ publica sob CC BY-NC 4.0 (uso não-comercial). Decisão confirmada com o usuário em 29/09/2026: seguir com o scraping mesmo assim — uso interno de referência de preço dentro de um sistema de gestão, não redistribuição do dado em si.
+
+**Risco de scraping**: sem versionamento de API, uma mudança de layout no site do CEPEA pode quebrar o parser silenciosamente. Mitigado pelo fail-soft padrão do módulo (falha de 1 item nunca derruba os outros — `refreshCotacoes()` isola por commodity) e por `scripts/verificar-cepea.ts` (`npx tsx`), que roda o parser contra as páginas reais sem gravar nada, útil como primeiro diagnóstico se algum dos 3 cards parar de atualizar.
 
 ---
 

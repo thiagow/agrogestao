@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requireUser } from '@/lib/session';
-import { fetchDolarBRL, fetchEuroBRL, fetchYahooQuote, type QuoteResult } from '@/lib/market-data';
+import { fetchCepeaIndicador, fetchDolarBRL, fetchEuroBRL, fetchYahooQuote, type QuoteResult } from '@/lib/market-data';
 import { converterCotacaoCommodity } from '@/lib/commodity-unidade';
 import { commodityDaCultura } from '@/lib/cultura-commodity';
 import type { Cotacao, PrecoDefinidoSafra } from '@/types';
@@ -16,11 +16,13 @@ import type { Cotacao, PrecoDefinidoSafra } from '@/types';
 // Fator de conversão de unidade vive em commodity-unidade.ts, aplicado em
 // refreshCotacoes() antes de gravar `precoUsd`/`precoBrl`. Todos podem ter
 // "Preço Definido" travado por safra, igual às commodities originais.
+// Boi Gordo saiu daqui em 29/09/2026 — trocou o futuro CME (GF=F, mercado
+// americano em USD) pelo índice físico CEPEA/ESALQ (R$/@ direto, ver
+// COMMODITIES_CEPEA), mais fiel ao mercado brasileiro.
 const COMMODITIES: { commodity: string; bolsa: 'CBOT' | 'CME' | 'ICE'; ticker: string }[] = [
   { commodity: 'Soja Grão', bolsa: 'CBOT', ticker: 'ZS=F' },
   { commodity: 'Milho Grão', bolsa: 'CBOT', ticker: 'ZC=F' },
   { commodity: 'Algodão Pluma', bolsa: 'ICE', ticker: 'CT=F' },
-  { commodity: 'Boi Gordo', bolsa: 'CME', ticker: 'GF=F' },
   { commodity: 'Trigo', bolsa: 'CBOT', ticker: 'ZW=F' },
   { commodity: 'Café Arábica', bolsa: 'ICE', ticker: 'KC=F' },
   { commodity: 'Açúcar', bolsa: 'ICE', ticker: 'SB=F' },
@@ -30,6 +32,38 @@ const COMMODITIES: { commodity: string; bolsa: 'CBOT' | 'CME' | 'ICE'; ticker: s
   { commodity: 'Álcool', bolsa: 'CBOT', ticker: 'EH=F' },
   { commodity: 'Petróleo', bolsa: 'CME', ticker: 'CL=F' },
   { commodity: 'Óleo de Aquecimento', bolsa: 'CME', ticker: 'HO=F' }
+];
+
+// Índices físicos CEPEA/ESALQ (29/09/2026) — Boi Gordo, Suíno e Frango. Já
+// vêm em R$ direto (sem câmbio/conversão de peso), por isso ficam fora do
+// catálogo `COMMODITIES` acima (que assume fluxo Yahoo em USD/USX). Ver
+// `fetchCepeaIndicador` (src/lib/market-data.ts) pra estrutura da página e
+// por que a âncora é o título da tabela, não o `id` (que não é estável entre
+// as 3 páginas). Frango e Suíno tiveram fonte MANUAL removida em 23/09/2026
+// por falta de mercado real — o CEPEA resolve isso.
+const COMMODITIES_CEPEA: { commodity: string; unidade: string; url: string; tituloAncora: string; praca?: string }[] = [
+  {
+    commodity: 'Boi Gordo',
+    unidade: '@',
+    url: 'https://www.cepea.org.br/br/indicador/boi-gordo.aspx',
+    tituloAncora: 'INDICADOR DO BOI GORDO'
+  },
+  {
+    commodity: 'Suíno',
+    unidade: 'kg',
+    url: 'https://www.cepea.org.br/br/indicador/suino.aspx',
+    tituloAncora: 'INDICADOR DO SUÍNO VIVO',
+    // Única das 3 páginas com várias praças por dia (MG/PR/RS/.../SP) — SP é
+    // a mesma praça de referência que Boi Gordo e Frango já usam.
+    praca: 'SP'
+  },
+  {
+    commodity: 'Frango',
+    unidade: 'kg',
+    url: 'https://www.cepea.org.br/br/indicador/frango.aspx',
+    // "Congelado" é o indicador diário de referência da página — "Resfriado" é uma tabela separada, fora de escopo.
+    tituloAncora: 'PREÇOS DO FRANGO CONGELADO'
+  }
 ];
 
 export async function listCotacoes(): Promise<{ dolar: Cotacao | null; euro: Cotacao | null; commodities: Cotacao[] }> {
@@ -239,6 +273,43 @@ export async function refreshCotacoes(): Promise<ResultadoRefreshCotacoes> {
         maxima,
         minima,
         volume
+      }
+    });
+    atualizados++;
+  }
+
+  // Boi Gordo/Suíno/Frango — CEPEA/ESALQ, já em R$: sem câmbio, sem
+  // converterCotacaoCommodity (esse caminho é só pro fluxo Yahoo USD/USX).
+  for (const c of COMMODITIES_CEPEA) {
+    const quote = await fetchCepeaIndicador({ url: c.url, tituloAncora: c.tituloAncora, praca: c.praca });
+    if (!quote) {
+      falhas.push({ item: c.commodity, motivo: 'CEPEA não respondeu' });
+      continue;
+    }
+
+    await db.cotacao.upsert({
+      where: { commodity: c.commodity },
+      update: {
+        precoOriginal: quote.precoBrl,
+        precoBrl: quote.precoBrl,
+        variacaoPercentual: quote.variacaoPercentual,
+        maxima: quote.maxima,
+        minima: quote.minima,
+        volume: 0,
+        atualizadoEm: new Date()
+      },
+      create: {
+        commodity: c.commodity,
+        bolsa: 'CEPEA',
+        ticker: 'CEPEA/ESALQ',
+        precoOriginal: quote.precoBrl,
+        unidadeOriginal: `R$/${c.unidade}`,
+        precoBrl: quote.precoBrl,
+        unidade: c.unidade,
+        variacaoPercentual: quote.variacaoPercentual,
+        maxima: quote.maxima,
+        minima: quote.minima,
+        volume: 0
       }
     });
     atualizados++;

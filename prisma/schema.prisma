@@ -1465,6 +1465,8 @@ enum Bolsa {
   ICE
   B3
   PTAX
+  /** Índices físicos CEPEA/ESALQ (scraping HTML, 29/09/2026) — Boi Gordo, Suíno, Frango. */
+  CEPEA
   /** Sem uso desde 23/09/2026 — era Frango/Suíno (removidos de Cotações), Postgres não remove valor de enum sem recriar o tipo. */
   MANUAL
 }

@@ -8,9 +8,13 @@
 //    devs brasileiros, gratuita, sem cadastro. Rebaixada a RESERVA do dólar.
 //  - Yahoo Finance (query1.finance.yahoo.com/v8/finance/chart): cotação de
 //    futuros de commodities pelos mesmos tickers que já estavam no mock
-//    (ZS=F soja, ZC=F milho, CT=F algodão, GF=F boi, ZW=F trigo, KC=F café).
+//    (ZS=F soja, ZC=F milho, CT=F algodão, ZW=F trigo, KC=F café).
 //    Endpoint não-oficial, mas amplamente usado publicamente para leitura;
 //    se cair, o refresh simplesmente mantém o último preço salvo (fail-soft).
+//  - CEPEA/ESALQ (cepea.org.br/br/indicador/*.aspx): índices físicos
+//    brasileiros de Boi Gordo, Suíno e Frango (29/09/2026) — scraping HTML,
+//    não há API pública. Já vem pronto em R$ (sem câmbio/conversão de peso).
+//    Licença dos dados é CC BY-NC 4.0 — uso ciente e deliberado.
 //
 // POR QUE O DÓLAR MIGROU PARA A PTAX (27/08/2026): a AwesomeAPI responde 200
 // de uma rede residencial mas nunca gravou uma única vez em produção (função
@@ -340,6 +344,132 @@ export async function fetchYahooQuote(ticker: string, usdBrl: number | null): Pr
     };
   } catch (e) {
     console.error(`[market-data] Yahoo Finance ${ticker} falhou:`, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+// ------------------------------------------------------------------
+// CEPEA/ESALQ — índices físicos de Boi Gordo, Suíno e Frango (29/09/2026)
+// ------------------------------------------------------------------
+//
+// Sem API pública — o valor do dia vem embutido numa tabela HTML simples
+// (`<table id="imagenet-indicadorN">`, sem id nem classe estáveis entre
+// commodities: o número muda de página pra página, então NUNCA usar o `id`
+// como âncora). O que é estável é o texto do título logo acima da tabela
+// certa (ex.: "INDICADOR DO BOI GORDO CEPEA/ESALQ") — verificado ao vivo nas
+// 3 páginas em 29/09/2026, mesma estrutura nas três:
+//   <div class="imagenet-table-titulo">TÍTULO DA TABELA</div>
+//   <table id="imagenet-indicadorN">
+//     <tbody><tr><td>28/09/2026</td><td>359,95</td><td>0,32%</td>...</tr></tbody>
+//   </table>
+// Números vêm em formato BR ("359,95", "4,68%"). Sem máxima/mínima
+// intradiária (publicação única diária) — mesmo critério de `fetchPtaxDolar`.
+//
+// Suíno é a única página com uma coluna extra "Estado" e várias praças por
+// dia (MG/PR/RS/.../SP) — usamos sempre "SP - posto", a mesma praça de
+// referência que Boi Gordo e Frango já usam implicitamente (SP é a praça
+// nacional de referência do CEPEA). Boi Gordo e Frango não têm essa coluna.
+
+interface CepeaTabelaConfig {
+  url: string;
+  /** Texto que aparece no <div class="imagenet-table-titulo"> logo acima da tabela certa — a única âncora estável entre as páginas. */
+  tituloAncora: string;
+  /** Quando a tabela tem uma coluna "Estado" (hoje só Suíno), filtra pela praça com esse prefixo. */
+  praca?: string;
+}
+
+/** Extrai as linhas (uma `string[]` por `<tr>`, célula a célula) da primeira tabela cujo título contém `tituloAncora`. `[]` se a âncora ou a tabela não forem encontradas. */
+function extrairTabelaCepea(html: string, tituloAncora: string): string[][] {
+  const idxTitulo = html.indexOf(tituloAncora);
+  if (idxTitulo === -1) return [];
+  const idxTable = html.indexOf('<table', idxTitulo);
+  if (idxTable === -1) return [];
+  const idxTbodyStart = html.indexOf('<tbody', idxTable);
+  const idxTbodyEnd = idxTbodyStart === -1 ? -1 : html.indexOf('</tbody>', idxTbodyStart);
+  if (idxTbodyStart === -1 || idxTbodyEnd === -1) return [];
+  const tbodyHtml = html.slice(idxTbodyStart, idxTbodyEnd);
+
+  const linhas: string[][] = [];
+  const trRegex = /<tr>([\s\S]*?)<\/tr>/g;
+  let trMatch: RegExpExecArray | null;
+  while ((trMatch = trRegex.exec(tbodyHtml))) {
+    const cols: string[] = [];
+    const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/g;
+    let tdMatch: RegExpExecArray | null;
+    while ((tdMatch = tdRegex.exec(trMatch[1]))) {
+      cols.push(tdMatch[1].replace(/&nbsp;/g, ' ').trim());
+    }
+    if (cols.length > 0) linhas.push(cols);
+  }
+  return linhas;
+}
+
+/** "359,95" -> 359.95; "4,68%" -> 4.68. `NaN` se não for um número BR reconhecível. */
+function parseNumeroBr(valor: string | undefined): number {
+  if (!valor) return NaN;
+  return Number(valor.replace(/\./g, '').replace(',', '.').replace('%', '').trim());
+}
+
+/** "28/09/2026" -> "2026-09-28". `undefined` se não bater o formato esperado. */
+function parseDataCepea(valor: string | undefined): string | undefined {
+  const m = valor?.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : undefined;
+}
+
+/**
+ * Indicador físico diário do CEPEA/ESALQ (scraping HTML — não há API pública).
+ * `precoBrl` já vem pronto na unidade final (R$/@ pro Boi Gordo, R$/kg pra
+ * Suíno/Frango) — ao contrário de `fetchYahooQuote`, não há câmbio nem
+ * conversão de peso a aplicar depois.
+ *
+ * Fail-soft, mesmo contrato do resto do arquivo: `null` em qualquer falha
+ * (rede, âncora não encontrada, layout mudou, valor não numérico), nunca
+ * lança. Como não é uma API versionada, uma mudança de layout no site do
+ * CEPEA pode quebrar o parser — isolado por item em `refreshCotacoes()`
+ * (fail-soft), então a falha de um indicador nunca derruba os outros.
+ */
+export async function fetchCepeaIndicador(config: CepeaTabelaConfig): Promise<QuoteResult | null> {
+  try {
+    const res = await fetch(config.url, {
+      next: { revalidate: 0 },
+      signal: AbortSignal.timeout(10000),
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AgroGestaoBot/1.0)' }
+    });
+    if (!res.ok) {
+      console.error(`[market-data] CEPEA "${config.tituloAncora}" respondeu ${res.status} ${res.statusText}`);
+      return null;
+    }
+
+    const html = await res.text();
+    const linhas = extrairTabelaCepea(html, config.tituloAncora);
+    const linha = config.praca
+      ? linhas.find((l) => l[1]?.toUpperCase().startsWith(config.praca!.toUpperCase()))
+      : linhas[0];
+    if (!linha) {
+      console.error(`[market-data] CEPEA "${config.tituloAncora}" — tabela não encontrada ou vazia (layout da página pode ter mudado)`);
+      return null;
+    }
+
+    const idxValor = config.praca ? 2 : 1;
+    const valor = parseNumeroBr(linha[idxValor]);
+    const variacaoPercentual = parseNumeroBr(linha[idxValor + 1]);
+    if (!Number.isFinite(valor)) {
+      console.error(`[market-data] CEPEA "${config.tituloAncora}" — valor não numérico ("${linha[idxValor]}")`);
+      return null;
+    }
+
+    return {
+      precoBrl: valor,
+      variacaoPercentual: Number.isFinite(variacaoPercentual) ? variacaoPercentual : 0,
+      // Publicação única diária — sem máxima/mínima intradiária, mesmo critério de fetchPtaxDolar.
+      maxima: valor,
+      minima: valor,
+      volume: 0,
+      fonte: 'CEPEA/ESALQ',
+      dataReferencia: parseDataCepea(linha[0]) ?? hojeIso()
+    };
+  } catch (e) {
+    console.error(`[market-data] CEPEA "${config.tituloAncora}" falhou:`, e instanceof Error ? e.message : e);
     return null;
   }
 }
