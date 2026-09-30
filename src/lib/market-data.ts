@@ -417,22 +417,15 @@ function parseDataCepea(valor: string | undefined): string | undefined {
 }
 
 /**
- * Indicador físico diário do CEPEA/ESALQ (scraping HTML — não há API pública).
- * `precoBrl` já vem pronto na unidade final (R$/@ pro Boi Gordo, R$/kg pra
- * Suíno/Frango) — ao contrário de `fetchYahooQuote`, não há câmbio nem
- * conversão de peso a aplicar depois.
- *
- * Fail-soft, mesmo contrato do resto do arquivo: `null` em qualquer falha
- * (rede, âncora não encontrada, layout mudou, valor não numérico), nunca
- * lança. Como não é uma API versionada, uma mudança de layout no site do
- * CEPEA pode quebrar o parser — isolado por item em `refreshCotacoes()`
- * (fail-soft), então a falha de um indicador nunca derruba os outros.
+ * Uma tentativa de buscar o indicador do CEPEA/ESALQ — `null` em qualquer
+ * falha (rede, âncora não encontrada, layout mudou, valor não numérico),
+ * nunca lança. Ver `fetchCepeaIndicador` para o retry e o contrato completo.
  */
-export async function fetchCepeaIndicador(config: CepeaTabelaConfig): Promise<QuoteResult | null> {
+async function tentarFetchCepeaIndicador(config: CepeaTabelaConfig): Promise<QuoteResult | null> {
   try {
     const res = await fetch(config.url, {
       next: { revalidate: 0 },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(15000),
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AgroGestaoBot/1.0)' }
     });
     if (!res.ok) {
@@ -472,6 +465,30 @@ export async function fetchCepeaIndicador(config: CepeaTabelaConfig): Promise<Qu
     console.error(`[market-data] CEPEA "${config.tituloAncora}" falhou:`, e instanceof Error ? e.message : e);
     return null;
   }
+}
+
+/**
+ * Indicador físico diário do CEPEA/ESALQ (scraping HTML — não há API pública).
+ * `precoBrl` já vem pronto na unidade final (R$/@ pro Boi Gordo, R$/kg pra
+ * Suíno/Frango) — ao contrário de `fetchYahooQuote`, não há câmbio nem
+ * conversão de peso a aplicar depois.
+ *
+ * Tenta duas vezes antes de desistir — verificado ao vivo em produção
+ * (30/09/2026): das 3 páginas buscadas na mesma invocação da function da
+ * Netlify, 1 teve sucesso e 2 falharam ("CEPEA não respondeu"), o que
+ * descarta bloqueio sistemático do IP e aponta pra flakiness transitória
+ * (mesmo padrão de instabilidade de rede/CDN já visto com a AwesomeAPI).
+ * Mesmo idioma de retry já usado em `fetchEuroBRL`/`tentarFetchEuroAwesomeApi`
+ * (chamar a mesma fonte duas vezes em sequência, sem backoff artificial).
+ *
+ * Fail-soft, mesmo contrato do resto do arquivo: `null` se as duas
+ * tentativas falharem, nunca lança. Como não é uma API versionada, uma
+ * mudança de layout no site do CEPEA pode quebrar o parser de forma
+ * persistente (não só flakiness) — isolado por item em `refreshCotacoes()`
+ * (fail-soft), então a falha de um indicador nunca derruba os outros.
+ */
+export async function fetchCepeaIndicador(config: CepeaTabelaConfig): Promise<QuoteResult | null> {
+  return (await tentarFetchCepeaIndicador(config)) ?? (await tentarFetchCepeaIndicador(config));
 }
 
 // ------------------------------------------------------------------
