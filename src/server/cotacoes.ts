@@ -289,9 +289,18 @@ export async function refreshCotacoes(): Promise<ResultadoRefreshCotacoes> {
 
     await db.cotacao.upsert({
       where: { commodity: c.commodity },
+      // `bolsa`/`ticker`/`unidade`/`unidadeOriginal` entram também no `update`
+      // (não só no `create`) — Boi Gordo já existia como linha Yahoo/CME antes
+      // de 29/09/2026, então o upsert cai no branch `update`: sem isso, o
+      // preço passa a vir certo do CEPEA mas o rótulo da fonte na tela
+      // continuava preso em "CME · GF=F" (bug real, visto em produção).
       update: {
+        bolsa: 'CEPEA',
+        ticker: 'CEPEA/ESALQ',
         precoOriginal: quote.precoBrl,
+        unidadeOriginal: `R$/${c.unidade}`,
         precoBrl: quote.precoBrl,
+        unidade: c.unidade,
         variacaoPercentual: quote.variacaoPercentual,
         maxima: quote.maxima,
         minima: quote.minima,
