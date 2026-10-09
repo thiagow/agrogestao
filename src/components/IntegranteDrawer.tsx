@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { Socio, TipoPessoa, EstadoCivil, ParticipacaoSocietaria } from '../types';
+import { Socio, TipoPessoa, TipoEmpresa, EstadoCivil, ParticipacaoSocietaria } from '../types';
 import { Drawer, Input, Select, Button } from './ui';
 
 interface IntegranteDrawerProps {
@@ -11,8 +11,7 @@ interface IntegranteDrawerProps {
   onSave: (data: Partial<Socio>) => void;
   editingSocio?: Socio | null;
   /** Todos os demais integrantes/empresas da conta (exclui o que está sendo editado) —
-   * usado tanto pra validar a soma de participação no grupo quanto pra listar os
-   * integrantes PF disponíveis pra compor o cap table de uma PJ. */
+   * lista os donos (PF ou PJ) disponíveis pra compor o cap table de uma PJ. */
   outrosSocios: Socio[];
 }
 
@@ -36,7 +35,7 @@ export const IntegranteDrawer: React.FC<IntegranteDrawerProps> = ({
   const [cpf, setCpf] = useState('');
   const [cnpj, setCnpj] = useState('');
   const [cargoOuAtividade, setCargoOuAtividade] = useState('');
-  const [participacao, setParticipacao] = useState('');
+  const [tipoEmpresa, setTipoEmpresa] = useState<TipoEmpresa | ''>('');
   const [estadoCivil, setEstadoCivil] = useState<EstadoCivil | ''>('');
   const [telefone, setTelefone] = useState('');
   const [email, setEmail] = useState('');
@@ -52,7 +51,7 @@ export const IntegranteDrawer: React.FC<IntegranteDrawerProps> = ({
       setCpf(editingSocio.cpf ?? '');
       setCnpj(editingSocio.cnpj ?? '');
       setCargoOuAtividade(editingSocio.cargoOuAtividade ?? '');
-      setParticipacao(editingSocio.participacao.toString());
+      setTipoEmpresa(editingSocio.tipoEmpresa ?? '');
       setEstadoCivil(editingSocio.estadoCivil ?? '');
       setTelefone(editingSocio.telefone ?? '');
       setEmail(editingSocio.email ?? '');
@@ -65,7 +64,7 @@ export const IntegranteDrawer: React.FC<IntegranteDrawerProps> = ({
       setCpf('');
       setCnpj('');
       setCargoOuAtividade('');
-      setParticipacao('');
+      setTipoEmpresa('');
       setEstadoCivil('');
       setTelefone('');
       setEmail('');
@@ -76,14 +75,16 @@ export const IntegranteDrawer: React.FC<IntegranteDrawerProps> = ({
     setErro('');
   }, [editingSocio, isOpen]);
 
-  const integrantesPF = useMemo(() => outrosSocios.filter((s) => s.tipoPessoa === 'PF'), [outrosSocios]);
+  // Dono pode ser PF ou PJ; `outrosSocios` já exclui a própria empresa em edição, então
+  // uma PJ nunca aparece como sócia dela mesma.
+  const donosDisponiveis = useMemo(() => outrosSocios, [outrosSocios]);
 
   const somaParticipacoesSocietarias = participacoes.reduce((sum, p) => sum + (p.percentual || 0), 0);
 
   const addParticipacao = () => {
-    const disponivel = integrantesPF.find((s) => !participacoes.some((p) => p.socioPfId === s.id));
+    const disponivel = donosDisponiveis.find((s) => !participacoes.some((p) => p.socioDonoId === s.id));
     if (!disponivel) return;
-    setParticipacoes((prev) => [...prev, { socioPfId: disponivel.id, socioPfNome: disponivel.nome, percentual: 0 }]);
+    setParticipacoes((prev) => [...prev, { socioDonoId: disponivel.id, socioDonoNome: disponivel.nome, percentual: 0 }]);
   };
 
   const updateParticipacao = (index: number, patch: Partial<ParticipacaoSocietaria>) => {
@@ -108,10 +109,8 @@ export const IntegranteDrawer: React.FC<IntegranteDrawerProps> = ({
       return;
     }
 
-    const participacaoNum = parseFloat(participacao) || 0;
-    const somaOutros = outrosSocios.reduce((sum, s) => sum + s.participacao, 0);
-    if (somaOutros + participacaoNum > 100) {
-      setErro(`Soma das participações no grupo excede 100% (já alocado: ${somaOutros}%).`);
+    if (tipoPessoa === 'PJ' && !tipoEmpresa) {
+      setErro('Informe o tipo de empresa.');
       return;
     }
 
@@ -126,14 +125,15 @@ export const IntegranteDrawer: React.FC<IntegranteDrawerProps> = ({
       nome: nome.trim(),
       cpf: tipoPessoa === 'PF' ? cpf.trim() : undefined,
       cnpj: tipoPessoa === 'PJ' ? cnpj.trim() : undefined,
-      cargoOuAtividade: cargoOuAtividade.trim() || undefined,
-      participacao: participacaoNum,
+      cargoOuAtividade:
+        tipoPessoa === 'PJ' && tipoEmpresa !== 'Empresa Operacional' ? undefined : cargoOuAtividade.trim() || undefined,
+      tipoEmpresa: tipoPessoa === 'PJ' ? tipoEmpresa || undefined : undefined,
       estadoCivil: tipoPessoa === 'PF' ? estadoCivil || undefined : undefined,
       telefone: telefone.trim() || undefined,
       email: email.trim() || undefined,
       nacionalidade: nacionalidade.trim() || undefined,
       dataNascimento: dataNascimento || undefined,
-      participacoes: tipoPessoa === 'PJ' ? participacoes.filter((p) => p.socioPfId) : undefined
+      participacoes: tipoPessoa === 'PJ' ? participacoes.filter((p) => p.socioDonoId) : undefined
     });
 
     onClose();
@@ -193,23 +193,35 @@ export const IntegranteDrawer: React.FC<IntegranteDrawerProps> = ({
           />
         )}
 
-        <Input
-          label={labels.cargo}
-          type="text"
-          value={cargoOuAtividade}
-          onChange={(e) => setCargoOuAtividade(e.target.value)}
-        />
-
-        <Input
-          label="Participação no Grupo (%)"
-          type="number"
-          required
-          min={0}
-          max={100}
-          step="0.01"
-          value={participacao}
-          onChange={(e) => setParticipacao(e.target.value)}
-        />
+        {tipoPessoa === 'PF' ? (
+          <Input
+            label={labels.cargo}
+            type="text"
+            value={cargoOuAtividade}
+            onChange={(e) => setCargoOuAtividade(e.target.value)}
+          />
+        ) : (
+          <>
+            <Select
+              label="Tipo de Empresa"
+              required
+              value={tipoEmpresa}
+              onChange={(e) => setTipoEmpresa(e.target.value as TipoEmpresa | '')}
+            >
+              <option value="">Selecione…</option>
+              <option value="Holding">Holding</option>
+              <option value="Empresa Operacional">Empresa Operacional</option>
+            </Select>
+            {tipoEmpresa === 'Empresa Operacional' && (
+              <Input
+                label="Atividade Principal"
+                type="text"
+                value={cargoOuAtividade}
+                onChange={(e) => setCargoOuAtividade(e.target.value)}
+              />
+            )}
+          </>
+        )}
 
         {tipoPessoa === 'PF' ? (
           <Select
@@ -236,17 +248,17 @@ export const IntegranteDrawer: React.FC<IntegranteDrawerProps> = ({
               {participacoes.map((p, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <select
-                    value={p.socioPfId}
+                    value={p.socioDonoId}
                     onChange={(e) => {
-                      const socio = integrantesPF.find((s) => s.id === e.target.value);
-                      updateParticipacao(i, { socioPfId: e.target.value, socioPfNome: socio?.nome });
+                      const socio = donosDisponiveis.find((s) => s.id === e.target.value);
+                      updateParticipacao(i, { socioDonoId: e.target.value, socioDonoNome: socio?.nome });
                     }}
                     className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 text-slate-900 font-medium text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600/30 focus:border-emerald-600"
                   >
                     <option value="">Selecione o integrante…</option>
-                    {integrantesPF.map((s) => (
+                    {donosDisponiveis.map((s) => (
                       <option key={s.id} value={s.id}>
-                        {s.nome}
+                        {s.nome} ({s.tipoPessoa})
                       </option>
                     ))}
                   </select>
@@ -273,14 +285,14 @@ export const IntegranteDrawer: React.FC<IntegranteDrawerProps> = ({
             <button
               type="button"
               onClick={addParticipacao}
-              disabled={integrantesPF.length === 0 || participacoes.length >= integrantesPF.length}
+              disabled={donosDisponiveis.length === 0 || participacoes.length >= donosDisponiveis.length}
               className="mt-2 flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-900 disabled:text-slate-300 disabled:cursor-not-allowed"
             >
               <Plus className="w-3.5 h-3.5" /> Adicionar sócio
             </button>
-            {integrantesPF.length === 0 && (
+            {donosDisponiveis.length === 0 && (
               <p className="text-[11px] text-slate-400 mt-1">
-                Cadastre ao menos um integrante PF antes de compor o quadro societário desta empresa.
+                Cadastre ao menos um integrante antes de compor o quadro societário desta empresa.
               </p>
             )}
           </div>

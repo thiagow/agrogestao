@@ -5,8 +5,7 @@ import type { BemDireito, Socio } from '@/types';
 function bem(overrides: Partial<BemDireito> = {}): BemDireito {
   return {
     id: overrides.id ?? 'bem-1',
-    grupoIrpf: 'Bens Imóveis',
-    codigoTipo: '18 — Imóvel Rural',
+    grupoIrpf: 'Benfeitorias e Instalações',
     descricao: 'Fazenda X',
     liquidez: 'Baixa',
     elegivelGarantia: false,
@@ -20,30 +19,29 @@ function socio(overrides: Partial<Socio> = {}): Socio {
     id: overrides.id ?? 'socio-1',
     tipoPessoa: 'PF',
     nome: 'Sócio X',
-    participacao: 50,
     ...overrides
   };
 }
 
 describe('calcularPatrimonioGrupo', () => {
-  it('soma bruto/ponderado usando valorMercadoEstimado quando presente', () => {
-    const socios = [socio({ id: 's1', participacao: 40 })];
+  it('soma bruto/ponderado usando valorMercadoEstimado quando presente (ponderado = bruto, sem % no grupo)', () => {
+    const socios = [socio({ id: 's1' })];
     const bens = [bem({ socioId: 's1', valorMercadoEstimado: 1000 })];
     const resumo = calcularPatrimonioGrupo(bens, socios);
 
     expect(resumo.patrimonioTotalBruto).toBe(1000);
-    expect(resumo.patrimonioPonderado).toBe(400);
+    expect(resumo.patrimonioPonderado).toBe(1000);
   });
 
   it('cai para valorDeclaradoIrpf quando valorMercadoEstimado está ausente (fix do BUG do Painel Consolidado)', () => {
-    const socios = [socio({ id: 's1', participacao: 40 })];
+    const socios = [socio({ id: 's1' })];
     const bens = [bem({ socioId: 's1', valorDeclaradoIrpf: 500 })];
     const resumo = calcularPatrimonioGrupo(bens, socios);
 
     // Antes do fix isso dava 0 — a aba Bens e Direitos já contava esse bem no
     // subtotal por categoria, mas o Painel Consolidado ignorava.
     expect(resumo.patrimonioTotalBruto).toBe(500);
-    expect(resumo.patrimonioPonderado).toBe(200);
+    expect(resumo.patrimonioPonderado).toBe(500);
   });
 
   it('prefere valorMercadoEstimado sobre valorDeclaradoIrpf quando os dois existem', () => {
@@ -64,7 +62,7 @@ describe('calcularPatrimonioGrupo', () => {
   });
 
   it('garantia ponderada só considera valorMercadoEstimado, nunca o valor declarado de IRPF', () => {
-    const socios = [socio({ id: 's1', participacao: 100 })];
+    const socios = [socio({ id: 's1' })];
     const bens = [
       bem({ socioId: 's1', valorDeclaradoIrpf: 500, elegivelGarantia: true, ltv: 60 }) // sem valorMercadoEstimado
     ];
@@ -73,12 +71,12 @@ describe('calcularPatrimonioGrupo', () => {
     expect(resumo.garantiaPonderadaTotal).toBe(0);
   });
 
-  it('calcula garantia ponderada = valorMercadoEstimado × ltv × participação', () => {
-    const socios = [socio({ id: 's1', participacao: 50 })];
+  it('calcula garantia total = valorMercadoEstimado × ltv', () => {
+    const socios = [socio({ id: 's1' })];
     const bens = [bem({ socioId: 's1', valorMercadoEstimado: 1000, elegivelGarantia: true, ltv: 60 })];
     const resumo = calcularPatrimonioGrupo(bens, socios);
 
-    // 1000 * 0.6 (ltv) * 0.5 (participação) = 300
-    expect(resumo.garantiaPonderadaTotal).toBe(300);
+    // 1000 * 0.6 (ltv) = 600
+    expect(resumo.garantiaPonderadaTotal).toBe(600);
   });
 });

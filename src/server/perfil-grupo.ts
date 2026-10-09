@@ -22,27 +22,6 @@ const CAMPOS_TEXTO = [
   'atividadePrincipal',
   'sede',
   'consultorResponsavel',
-  'historicoInicio',
-  'historicoHerancaOrigem',
-  'historicoEvolucaoNegocio',
-  'historicoGestaoCrises',
-  'gestaoAdministracao',
-  'gestaoParceriasSocios',
-  'gestaoDivisaoCustosFaturamento',
-  'gestaoPlanoSucessorioHerdeiros',
-  'agriculturaCustos',
-  'agriculturaCronogramaPlantioColheita',
-  'agriculturaCapacidadeArmazenamento',
-  'agriculturaFornecedoresClientes',
-  'agriculturaModalidadesCompra',
-  'agriculturaExportacao',
-  'pecuariaCicloProducao',
-  'pecuariaConfinamento',
-  'pecuariaCustosCronogramaCompraAbate',
-  'financeiroFinanciamentos',
-  'financeiroPoliticaHedge',
-  'financeiroPosicaoComercializadaSafraAtual',
-  'empresasColigadas',
   'missao',
   'visao',
   'valores'
@@ -58,6 +37,20 @@ export async function savePerfilGrupo(input: Partial<PerfilGrupoEconomico>): Pro
     if (valor !== undefined) data[campo] = valor || null;
   }
   if (parsed.fundacao !== undefined) data.fundacao = parsed.fundacao ? new Date(parsed.fundacao) : null;
+  if (parsed.respostas !== undefined) {
+    // Merge com o que já está salvo: salvar um subconjunto de perguntas nunca apaga as
+    // outras; resposta vazia remove a chave.
+    const atual = await db.perfilGrupoEconomico.findUnique({
+      where: { contaId: ctx.conta.id },
+      select: { respostas: true }
+    });
+    const merged: Record<string, string> = { ...(atual?.respostas as Record<string, string> | null) };
+    for (const [chave, valor] of Object.entries(parsed.respostas)) {
+      if (valor.trim()) merged[chave] = valor.trim();
+      else delete merged[chave];
+    }
+    data.respostas = merged;
+  }
   if (parsed.pecuariaTaxaDesfrutePercent !== undefined) {
     data.pecuariaTaxaDesfrutePercent = parsed.pecuariaTaxaDesfrutePercent ?? null;
   }
@@ -79,28 +72,8 @@ function toPerfilGrupoDTO(row: {
   fundacao: Date | null;
   sede: string | null;
   consultorResponsavel: string | null;
-  historicoInicio: string | null;
-  historicoHerancaOrigem: string | null;
-  historicoEvolucaoNegocio: string | null;
-  historicoGestaoCrises: string | null;
-  gestaoAdministracao: string | null;
-  gestaoParceriasSocios: string | null;
-  gestaoDivisaoCustosFaturamento: string | null;
-  gestaoPlanoSucessorioHerdeiros: string | null;
-  agriculturaCustos: string | null;
-  agriculturaCronogramaPlantioColheita: string | null;
-  agriculturaCapacidadeArmazenamento: string | null;
-  agriculturaFornecedoresClientes: string | null;
-  agriculturaModalidadesCompra: string | null;
-  agriculturaExportacao: string | null;
-  pecuariaCicloProducao: string | null;
-  pecuariaConfinamento: string | null;
+  respostas: unknown;
   pecuariaTaxaDesfrutePercent: unknown;
-  pecuariaCustosCronogramaCompraAbate: string | null;
-  financeiroFinanciamentos: string | null;
-  financeiroPoliticaHedge: string | null;
-  financeiroPosicaoComercializadaSafraAtual: string | null;
-  empresasColigadas: string | null;
   missao: string | null;
   visao: string | null;
   valores: string | null;
@@ -112,28 +85,8 @@ function toPerfilGrupoDTO(row: {
     fundacao: row.fundacao ? row.fundacao.toISOString().slice(0, 10) : undefined,
     sede: row.sede ?? undefined,
     consultorResponsavel: row.consultorResponsavel ?? undefined,
-    historicoInicio: row.historicoInicio ?? undefined,
-    historicoHerancaOrigem: row.historicoHerancaOrigem ?? undefined,
-    historicoEvolucaoNegocio: row.historicoEvolucaoNegocio ?? undefined,
-    historicoGestaoCrises: row.historicoGestaoCrises ?? undefined,
-    gestaoAdministracao: row.gestaoAdministracao ?? undefined,
-    gestaoParceriasSocios: row.gestaoParceriasSocios ?? undefined,
-    gestaoDivisaoCustosFaturamento: row.gestaoDivisaoCustosFaturamento ?? undefined,
-    gestaoPlanoSucessorioHerdeiros: row.gestaoPlanoSucessorioHerdeiros ?? undefined,
-    agriculturaCustos: row.agriculturaCustos ?? undefined,
-    agriculturaCronogramaPlantioColheita: row.agriculturaCronogramaPlantioColheita ?? undefined,
-    agriculturaCapacidadeArmazenamento: row.agriculturaCapacidadeArmazenamento ?? undefined,
-    agriculturaFornecedoresClientes: row.agriculturaFornecedoresClientes ?? undefined,
-    agriculturaModalidadesCompra: row.agriculturaModalidadesCompra ?? undefined,
-    agriculturaExportacao: row.agriculturaExportacao ?? undefined,
-    pecuariaCicloProducao: row.pecuariaCicloProducao ?? undefined,
-    pecuariaConfinamento: row.pecuariaConfinamento ?? undefined,
+    respostas: (row.respostas as Record<string, string> | null) ?? undefined,
     pecuariaTaxaDesfrutePercent: row.pecuariaTaxaDesfrutePercent != null ? Number(row.pecuariaTaxaDesfrutePercent) : undefined,
-    pecuariaCustosCronogramaCompraAbate: row.pecuariaCustosCronogramaCompraAbate ?? undefined,
-    financeiroFinanciamentos: row.financeiroFinanciamentos ?? undefined,
-    financeiroPoliticaHedge: row.financeiroPoliticaHedge ?? undefined,
-    financeiroPosicaoComercializadaSafraAtual: row.financeiroPosicaoComercializadaSafraAtual ?? undefined,
-    empresasColigadas: row.empresasColigadas ?? undefined,
     missao: row.missao ?? undefined,
     visao: row.visao ?? undefined,
     valores: row.valores ?? undefined

@@ -73,7 +73,6 @@ export const ImovelRuralModal: React.FC<ImovelRuralModalProps> = ({
       id: editingBem?.id,
       socioId: socioId || undefined,
       grupoIrpf: 'Imóveis Rurais - ANEXO A',
-      codigoTipo: '18 — Imóvel Rural',
       descricao: denominacaoImovel.trim(),
       valorMercadoEstimado: valorMercadoTotal || undefined,
       liquidez: editingBem?.liquidez ?? 'Baixa',

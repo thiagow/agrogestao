@@ -65,14 +65,15 @@ export type ActiveTab =
 export type EstadoCivil = 'Solteiro' | 'Casado' | 'Viúvo' | 'Divorciado' | 'Separado';
 export type TipoPessoa = 'PF' | 'PJ';
 
-// Cap table de uma empresa (Socio tipoPessoa=PJ) — cada linha é "este PF possui X%
-// desta PJ". Concepto separado de Socio.participacao (que é a % no GRUPO
-// ECONÔMICO como um todo, usada em src/lib/patrimonio.ts) — os dois nunca se
-// somam nem se substituem (decisão registrada em 20/08/2026).
+export type TipoEmpresa = 'Holding' | 'Empresa Operacional';
+
+// Cap table de uma empresa (Socio tipoPessoa=PJ) — cada linha é "este integrante
+// (PF ou PJ) possui X% desta PJ". É a única noção de participação do sistema: a %
+// "no grupo" foi eliminada a pedido do cliente (09/10/2026).
 export interface ParticipacaoSocietaria {
   id?: string; // ausente numa linha ainda não salva no formulário
-  socioPfId: string;
-  socioPfNome?: string; // só leitura, resolvido no server
+  socioDonoId: string;
+  socioDonoNome?: string; // só leitura, resolvido no server
   percentual: number; // 0-100
 }
 
@@ -82,8 +83,8 @@ export interface Socio {
   nome: string; // "Nome Completo" (PF) / "Razão Social" (PJ)
   cpf?: string; // só PF
   cnpj?: string; // só PJ
-  cargoOuAtividade?: string; // "Cargo" (PF) / "Atividade Principal" (PJ)
-  participacao: number; // 0-100, % no grupo econômico
+  cargoOuAtividade?: string; // "Cargo" (PF) / "Atividade Principal" (PJ Operacional)
+  tipoEmpresa?: TipoEmpresa; // só PJ
   estadoCivil?: EstadoCivil; // só PF
   telefone?: string;
   email?: string;
@@ -96,17 +97,20 @@ export interface Socio {
 // Design próprio (fonte AgroFlow não especifica campos para essas abas, exceto
 // Bens e Direitos, que tem "campos estimados" replicados abaixo).
 
+// "Bem / Direito" — classificação gerencial do patrimônio (09/10/2026, validação do
+// cliente; antes era a taxonomia IRPF). Nome do tipo mantido por compatibilidade.
 export type GrupoIrpfBem =
-  | 'Bens Imóveis'
-  | 'Bens Móveis'
-  | 'Participações Societárias'
-  | 'Aplicações e Investimentos'
-  | 'Depósitos à Vista e Poupança'
-  | 'Créditos e Outros Direitos'
-  | 'Criptoativos'
-  | 'Outros Bens e Direitos'
   | 'Imóveis Rurais - ANEXO A'
-  | 'Imóveis Urbanos - ANEXO B';
+  | 'Imóveis Urbanos - ANEXO B'
+  | 'Benfeitorias e Instalações'
+  | 'Máquinas Agrícolas'
+  | 'Implementos'
+  | 'Veículos'
+  | 'Estoque (Insumos e Grãos)'
+  | 'Participações Societárias'
+  | 'Disponibilidade e aplicações'
+  | 'Contas a receber'
+  | 'Direitos e bens diversos';
 
 export type LiquidezBem = 'Alta' | 'Média' | 'Baixa';
 
@@ -137,7 +141,7 @@ export interface BemDireito {
   socioId?: string; // vazio = "Grupo (sem sócio específico)"
   socioNome?: string; // só leitura, resolvido no server pro join da tabela
   grupoIrpf: GrupoIrpfBem;
-  codigoTipo: string; // ex: "18 — Imóvel Rural" (texto livre — ver nota em schema.prisma)
+  codigoTipo?: string; // DEPRECADO: removido do formulário, só dado legado
   descricao: string;
   valorDeclaradoIrpf?: number;
   valorMercadoEstimado?: number;
@@ -186,9 +190,8 @@ export interface Capex {
   observacoes?: string;
 }
 
-// "Histórico do Grupo" reestruturado (20/08/2026) de 5 campos-blob soltos para 7
-// blocos de questionário, um campo por sub-pergunta — ver comentário em
-// schema.prisma. Bloco 6 reaproveita empresasColigadas (já existia).
+// Questionário do Grupo Econômico (perguntas do cliente, 09/10/2026): respostas por
+// chave estável — ver src/lib/perfil-grupo-perguntas.ts.
 export interface PerfilGrupoEconomico {
   email?: string;
   telefone?: string;
@@ -197,39 +200,8 @@ export interface PerfilGrupoEconomico {
   sede?: string;
   consultorResponsavel?: string;
 
-  // Bloco 1 — Histórico
-  historicoInicio?: string;
-  historicoHerancaOrigem?: string;
-  historicoEvolucaoNegocio?: string;
-  historicoGestaoCrises?: string;
-
-  // Bloco 2 — Gestão-Sucessão
-  gestaoAdministracao?: string;
-  gestaoParceriasSocios?: string;
-  gestaoDivisaoCustosFaturamento?: string;
-  gestaoPlanoSucessorioHerdeiros?: string;
-
-  // Bloco 3 — Modus Operandi (Agricultura)
-  agriculturaCustos?: string;
-  agriculturaCronogramaPlantioColheita?: string;
-  agriculturaCapacidadeArmazenamento?: string;
-  agriculturaFornecedoresClientes?: string;
-  agriculturaModalidadesCompra?: string;
-  agriculturaExportacao?: string;
-
-  // Bloco 4 — Modus Operandi (Pecuária)
-  pecuariaCicloProducao?: string;
-  pecuariaConfinamento?: string;
+  respostas?: Record<string, string>;
   pecuariaTaxaDesfrutePercent?: number; // 0-100
-  pecuariaCustosCronogramaCompraAbate?: string;
-
-  // Bloco 5 — Gestão Financeira
-  financeiroFinanciamentos?: string;
-  financeiroPoliticaHedge?: string;
-  financeiroPosicaoComercializadaSafraAtual?: string;
-
-  // Bloco 6 — Outras Atividades / Empresas Coligadas
-  empresasColigadas?: string;
 
   // Bloco 7 — Missão, Visão e Valores
   missao?: string;
@@ -573,8 +545,10 @@ export interface PatrimonioIrpfResumo {
   fazendasProprias: { valor: number; itens: number };
   maquinasEquipamentos: { valor: number; itens: number };
   aplicacoesFinanceiras: { valor: number; itens: number };
+  estoqueBens: { valor: number; itens: number }; // Bem/Direito "Estoque" — Ativo Circulante
+  contasReceberBens: { valor: number; itens: number }; // Bem/Direito "Contas a receber" — Ativo Circulante
   outrosBens: { valor: number; itens: number };
-  totalBensIrpf: number; // soma dos 4 grupos acima
+  totalBensIrpf: number; // soma de todos os grupos acima
   patrimonioTotal: number; // totalBensIrpf + Ativo.fazendas (imobilizado via Aquisição)
   categorias: CategoriaPatrimonioIrpf[];
 }

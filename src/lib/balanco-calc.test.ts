@@ -32,8 +32,7 @@ function registroSoja(overrides: Partial<CulturaSafraAno> = {}): CulturaSafraAno
 function bem(overrides: Partial<BemDireito> = {}): BemDireito {
   return {
     id: 'b1',
-    grupoIrpf: 'Outros Bens e Direitos',
-    codigoTipo: '99',
+    grupoIrpf: 'Direitos e bens diversos',
     descricao: 'Bem genérico',
     liquidez: 'Baixa',
     elegivelGarantia: false,
@@ -65,8 +64,8 @@ describe('montarBalanco — fechamento contábil', () => {
     const input = inputBase();
     input.bensDireitos = [
       bem({ id: 'b1', grupoIrpf: 'Imóveis Rurais - ANEXO A', valorMercadoEstimado: 2_000_000 }),
-      bem({ id: 'b2', grupoIrpf: 'Bens Móveis', valorMercadoEstimado: 80_000 }),
-      bem({ id: 'b3', grupoIrpf: 'Aplicações e Investimentos', valorMercadoEstimado: 5_000 })
+      bem({ id: 'b2', grupoIrpf: 'Máquinas Agrícolas', valorMercadoEstimado: 80_000 }),
+      bem({ id: 'b3', grupoIrpf: 'Disponibilidade e aplicações', valorMercadoEstimado: 5_000 })
     ];
     input.suppliers = [
       { id: 's1', nome: 'Fornecedor A', categoria: 'INSUMOS' as any, cultura: 'Soja', safra: SAFRA, dividaTotal: 10_000, moeda: 'BRL', vencimento: '2026-10-01', status: 'PENDENTE' }
@@ -99,10 +98,48 @@ describe('montarBalanco — fechamento contábil', () => {
 
   it('"Aplicações Financeiras" do Ativo Circulante vem de BemDireito, não duplica em Bens IRPF do Não Circulante', () => {
     const input = inputBase();
-    input.bensDireitos = [bem({ grupoIrpf: 'Aplicações e Investimentos', valorMercadoEstimado: 5_000_000, descricao: 'CDB Santander' })];
+    input.bensDireitos = [bem({ grupoIrpf: 'Disponibilidade e aplicações', valorMercadoEstimado: 5_000_000, descricao: 'CDB Santander' })];
     const balanco = montarBalanco(input);
     expect(balanco.ativo.aplicacoesFinanceiras).toBe(5_000_000);
     expect(balanco.ativo.bensIrpf).toBe(0); // já contabilizado no Circulante, não repete no Não Circulante
+  });
+});
+
+describe('montarBalanco — nova lista Bem / Direito (09/10/2026)', () => {
+  it('Máquinas Agrícolas, Implementos e Veículos somam juntos em Máquinas e Equipamentos', () => {
+    const input = inputBase();
+    input.bensDireitos = [
+      bem({ id: 'a', grupoIrpf: 'Máquinas Agrícolas', valorMercadoEstimado: 100 }),
+      bem({ id: 'b', grupoIrpf: 'Implementos', valorMercadoEstimado: 20 }),
+      bem({ id: 'c', grupoIrpf: 'Veículos', valorMercadoEstimado: 3 })
+    ];
+    const balanco = montarBalanco(input);
+    expect(balanco.patrimonioIrpf.maquinasEquipamentos).toEqual({ valor: 123, itens: 3 });
+  });
+
+  it('Estoque e Contas a receber entram no Ativo Circulante, não em Bens IRPF do Não Circulante', () => {
+    const base = montarBalanco(inputBase());
+    const input = inputBase();
+    input.bensDireitos = [
+      bem({ id: 'e', grupoIrpf: 'Estoque (Insumos e Grãos)', valorMercadoEstimado: 500 }),
+      bem({ id: 'r', grupoIrpf: 'Contas a receber', valorMercadoEstimado: 70 })
+    ];
+    const balanco = montarBalanco(input);
+    expect(balanco.ativo.estoqueInsumos - base.ativo.estoqueInsumos).toBe(500);
+    expect(balanco.ativo.outrosCreditosCp - base.ativo.outrosCreditosCp).toBe(70);
+    expect(balanco.ativo.bensIrpf).toBe(0);
+    expect(balanco.ativo.totalCirculante - base.ativo.totalCirculante).toBe(570);
+  });
+
+  it('Imóvel Urbano, Benfeitorias, Participações e Direitos diversos ficam em Bens IRPF do Não Circulante', () => {
+    const input = inputBase();
+    input.bensDireitos = [
+      bem({ id: 'u', grupoIrpf: 'Imóveis Urbanos - ANEXO B', valorMercadoEstimado: 10 }),
+      bem({ id: 'f', grupoIrpf: 'Benfeitorias e Instalações', valorMercadoEstimado: 20 }),
+      bem({ id: 'p', grupoIrpf: 'Participações Societárias', valorMercadoEstimado: 30 }),
+      bem({ id: 'd', grupoIrpf: 'Direitos e bens diversos', valorMercadoEstimado: 40 })
+    ];
+    expect(montarBalanco(input).ativo.bensIrpf).toBe(100);
   });
 });
 
@@ -134,7 +171,7 @@ describe('calcularPatrimonioIrpf — resolve BUGs #2/#3 da spec', () => {
     const input = inputBase();
     input.bensDireitos = [
       bem({ id: 'f1', grupoIrpf: 'Imóveis Rurais - ANEXO A', valorMercadoEstimado: 2_030_673_990, descricao: 'Fazenda X' }),
-      bem({ id: 'm1', grupoIrpf: 'Bens Móveis', valorMercadoEstimado: 82_521_000, descricao: 'Maquinário' })
+      bem({ id: 'm1', grupoIrpf: 'Máquinas Agrícolas', valorMercadoEstimado: 82_521_000, descricao: 'Maquinário' })
     ];
     const balanco = montarBalanco(input);
     expect(balanco.patrimonioIrpf.fazendasProprias.valor).toBe(2_030_673_990);
@@ -144,11 +181,11 @@ describe('calcularPatrimonioIrpf — resolve BUGs #2/#3 da spec', () => {
 
   it('"Máquinas e Equipamentos" nunca cai na categoria de Imóveis Urbanos (BUG #3 não se reproduz)', () => {
     const input = inputBase();
-    input.bensDireitos = [bem({ grupoIrpf: 'Bens Móveis', valorMercadoEstimado: 82_521_000, descricao: 'Maquinário' })];
+    input.bensDireitos = [bem({ grupoIrpf: 'Máquinas Agrícolas', valorMercadoEstimado: 82_521_000, descricao: 'Maquinário' })];
     const balanco = montarBalanco(input);
-    const categoriaUrbana = balanco.patrimonioIrpf.categorias.find((c) => c.categoria === 'Imóveis Urbanos (IRPF)');
+    const categoriaUrbana = balanco.patrimonioIrpf.categorias.find((c) => c.categoria === 'Imóveis Urbanos');
     expect(categoriaUrbana).toBeUndefined();
-    const categoriaMaquinas = balanco.patrimonioIrpf.categorias.find((c) => c.categoria === 'Máquinas e Equipamentos (IRPF)');
+    const categoriaMaquinas = balanco.patrimonioIrpf.categorias.find((c) => c.categoria === 'Máquinas, Implementos e Veículos');
     expect(categoriaMaquinas?.subtotal).toBe(82_521_000);
   });
 });

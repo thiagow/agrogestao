@@ -408,6 +408,14 @@ enum TipoPessoa {
   PJ
 }
 
+// Validação do cliente (09/10/2026): toda PJ do grupo é Holding ou Empresa
+// Operacional — separa as faixas do organograma e decide se "Atividade Principal"
+// se aplica (só Operacional).
+enum TipoEmpresa {
+  HOLDING     @map("Holding")
+  OPERACIONAL @map("Empresa Operacional")
+}
+
 // Refatoração "Sócios e Empresas" (20/08/2026): Socio passou a representar tanto
 // integrantes PF quanto empresas PJ do grupo — o mesmo model, discriminado por
 // tipoPessoa. Campos existentes (nome, cpf, nacionalidade, dataNascimento) foram
@@ -427,8 +435,13 @@ model Socio {
   nome             String // "Nome Completo" (PF) / "Razão Social" (PJ)
   cpf              String? // só PF
   cnpj             String? // só PJ
-  cargoOuAtividade String? // "Cargo" (PF) / "Atividade Principal" (PJ)
-  participacao     Decimal      @db.Decimal(5, 2) // 0-100, % no grupo econômico
+  cargoOuAtividade String? // "Cargo" (PF) / "Atividade Principal" (PJ Operacional)
+  tipoEmpresa      TipoEmpresa? // só PJ
+  // DEPRECADO (09/10/2026): a % "no grupo" foi eliminada a pedido do cliente — só
+  // restam as participações entre integrantes (ParticipacaoSocietaria). Coluna
+  // mantida nullable, sem leitura nem escrita, pra não destruir o dado dos sócios
+  // existentes; dropar numa migration futura, depois de confirmada em produção.
+  participacao     Decimal?     @db.Decimal(5, 2)
   estadoCivil      EstadoCivil? // só PF
   telefone         String?
   email            String?
@@ -439,9 +452,10 @@ model Socio {
   conta        Conta        @relation(fields: [contaId], references: [id], onDelete: Cascade)
   bensDireitos BemDireito[]
 
-  // Cap table: quando este Socio é uma PJ, participacoesNaEmpresa lista os PF donos
-  // dela e o % de cada um. Quando é PF, participacoesComoDono lista as PJ das quais
-  // é dono e o % que tem em cada uma. As duas pontas da mesma relação.
+  // Cap table: quando este Socio é uma PJ, participacoesNaEmpresa lista os donos
+  // dela (PF ou PJ) e o % de cada um. participacoesComoDono lista as PJ das quais
+  // este Socio (PF ou PJ) é dono e o % que tem em cada uma. As duas pontas da
+  // mesma relação.
   participacoesComoDono  ParticipacaoSocietaria[] @relation("Dono")
   participacoesNaEmpresa ParticipacaoSocietaria[] @relation("Empresa")
 
@@ -456,24 +470,25 @@ model Socio {
   @@map("socios")
 }
 
-// Cap table de uma PJ do grupo — cada linha é "este Socio PF possui X% desta
-// Socio PJ". Validação de soma <= 100% por socioPjId feita em src/server/socios.ts
-// (não dá pra validar agregação no schema).
+// Cap table de uma PJ do grupo — cada linha é "este Socio (PF ou PJ) possui X%
+// desta Socio PJ". Dono PJ é permitido (holding dona de operacional); só não pode
+// ser a própria empresa (validado em src/server/socios.ts). Soma <= 100% por
+// socioPjId também validada lá (não dá pra validar agregação no schema).
 model ParticipacaoSocietaria {
-  id         String  @id @default(cuid())
-  socioPjId  String // a empresa
-  socioPfId  String // o dono (pessoa física)
-  percentual Decimal @db.Decimal(5, 2) // 0-100
+  id          String  @id @default(cuid())
+  socioPjId   String // a empresa
+  socioDonoId String // o dono (PF ou PJ)
+  percentual  Decimal @db.Decimal(5, 2) // 0-100
 
-  socioPj Socio @relation("Empresa", fields: [socioPjId], references: [id], onDelete: Cascade)
-  socioPf Socio @relation("Dono", fields: [socioPfId], references: [id], onDelete: Cascade)
+  socioPj   Socio @relation("Empresa", fields: [socioPjId], references: [id], onDelete: Cascade)
+  socioDono Socio @relation("Dono", fields: [socioDonoId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([socioPjId, socioPfId])
+  @@unique([socioPjId, socioDonoId])
   @@index([socioPjId])
-  @@index([socioPfId])
+  @@index([socioDonoId])
   @@map("participacoes_societarias")
 }
 
@@ -492,19 +507,22 @@ model ParticipacaoSocietaria {
 // (grupo econômico), mesmo raciocínio de Socio; Bens e Direitos também aceita
 // vínculo opcional a um Socio específico (Sócio Titular).
 
+// Reescrito em 09/10/2026 (validação do cliente): deixou de ser a taxonomia da
+// Declaração de Bens e Direitos da Receita e virou a classificação gerencial do
+// patrimônio do grupo. O nome do enum/coluna (`grupoIrpf`) foi mantido só pra não
+// propagar rename por todo o código — semanticamente é "Bem / Direito".
 enum GrupoIrpfBem {
-  BENS_IMOVEIS              @map("Bens Imóveis")
-  BENS_MOVEIS               @map("Bens Móveis")
-  PARTICIPACOES_SOCIETARIAS @map("Participações Societárias")
-  APLICACOES_INVESTIMENTOS  @map("Aplicações e Investimentos")
-  DEPOSITOS_POUPANCA        @map("Depósitos à Vista e Poupança")
-  CREDITOS_DIREITOS         @map("Créditos e Outros Direitos")
-  CRIPTOATIVOS              @map("Criptoativos")
-  OUTROS_BENS               @map("Outros Bens e Direitos")
-  // Adicionados em 20/08/2026 — cada um ganha um grid/modal próprio (DetalheImovelRural/
-  // DetalheImovelUrbano abaixo) em vez do formulário genérico de Bens e Direitos.
-  IMOVEIS_RURAIS_ANEXO_A    @map("Imóveis Rurais - ANEXO A")
-  IMOVEIS_URBANOS_ANEXO_B   @map("Imóveis Urbanos - ANEXO B")
+  IMOVEIS_RURAIS_ANEXO_A     @map("Imóveis Rurais - ANEXO A")
+  IMOVEIS_URBANOS_ANEXO_B    @map("Imóveis Urbanos - ANEXO B")
+  BENFEITORIAS_INSTALACOES   @map("Benfeitorias e Instalações")
+  MAQUINAS_AGRICOLAS         @map("Máquinas Agrícolas")
+  IMPLEMENTOS                @map("Implementos")
+  VEICULOS                   @map("Veículos")
+  ESTOQUE                    @map("Estoque (Insumos e Grãos)")
+  PARTICIPACOES_SOCIETARIAS  @map("Participações Societárias")
+  DISPONIBILIDADE_APLICACOES @map("Disponibilidade e aplicações")
+  CONTAS_A_RECEBER           @map("Contas a receber")
+  DIREITOS_BENS_DIVERSOS     @map("Direitos e bens diversos")
 }
 
 enum LiquidezBem {
@@ -521,7 +539,7 @@ model BemDireito {
   contaId              String
   socioId              String? // opcional — vazio = "Grupo (sem sócio específico)"
   grupoIrpf            GrupoIrpfBem
-  codigoTipo           String // ex: "18 — Imóvel Rural" (texto livre, ver nota acima)
+  codigoTipo           String? // DEPRECADO (09/10/2026): "Código" saiu do formulário; só dado legado
   descricao            String
   valorDeclaradoIrpf   Decimal?     @db.Decimal(18, 2)
   valorMercadoEstimado Decimal?     @db.Decimal(18, 2)
@@ -693,11 +711,11 @@ model Capex {
 // extras que o próprio usuário da conta preenche por cima disso (contato, atividade,
 // fundação, sede, consultor).
 //
-// "Histórico do Grupo" (20/08/2026): reestruturado de 5 campos-blob soltos para 7
-// blocos de questionário, um campo String? por sub-pergunta — mesmo padrão 100%
-// tipado do resto do schema, sem JSON solto (tabela estava vazia em produção, sem
-// risco de perda de dado na troca). Bloco 6 reaproveita empresasColigadas (já
-// existia, mapeia 1:1). Bloco 7 (Missão/Visão/Valores) é novo.
+// Questionário do grupo (09/10/2026): as ~21 colunas String? por pergunta (20/08/2026)
+// viraram um único JSON `respostas` por chave estável (src/lib/perfil-grupo-perguntas.ts)
+// — o cliente reescreve e acrescenta perguntas com frequência, e uma coluna por pergunta
+// exigiria migration a cada ajuste de texto. Os textos já salvos foram copiados pra
+// chave equivalente na migration 20261009200000.
 model PerfilGrupoEconomico {
   id                   String    @id @default(cuid())
   contaId              String    @unique
@@ -708,41 +726,15 @@ model PerfilGrupoEconomico {
   sede                 String?
   consultorResponsavel String?
 
-  // Bloco 1 — Histórico
-  historicoInicio          String?
-  historicoHerancaOrigem   String?
-  historicoEvolucaoNegocio String?
-  historicoGestaoCrises    String?
+  // Questionário (perguntas do cliente, 09/10/2026): respostas em JSON { chave: texto },
+  // chaves estáveis definidas em src/lib/perfil-grupo-perguntas.ts. Antes eram ~21
+  // colunas de texto, uma por pergunta — migradas pra cá e removidas.
+  respostas Json?
 
-  // Bloco 2 — Gestão-Sucessão
-  gestaoAdministracao            String?
-  gestaoParceriasSocios          String?
-  gestaoDivisaoCustosFaturamento String?
-  gestaoPlanoSucessorioHerdeiros String?
+  // Única pergunta numérica do questionário (Pecuária — taxa de desfrute), 0-100.
+  pecuariaTaxaDesfrutePercent Decimal? @db.Decimal(5, 2)
 
-  // Bloco 3 — Modus Operandi (Agricultura)
-  agriculturaCustos                    String?
-  agriculturaCronogramaPlantioColheita String?
-  agriculturaCapacidadeArmazenamento   String?
-  agriculturaFornecedoresClientes      String?
-  agriculturaModalidadesCompra         String?
-  agriculturaExportacao                String?
-
-  // Bloco 4 — Modus Operandi (Pecuária)
-  pecuariaCicloProducao               String?
-  pecuariaConfinamento                String?
-  pecuariaTaxaDesfrutePercent         Decimal? @db.Decimal(5, 2) // 0-100, único campo numérico do bloco
-  pecuariaCustosCronogramaCompraAbate String?
-
-  // Bloco 5 — Gestão Financeira
-  financeiroFinanciamentos                  String?
-  financeiroPoliticaHedge                   String?
-  financeiroPosicaoComercializadaSafraAtual String?
-
-  // Bloco 6 — Outras Atividades / Empresas Coligadas (campo pré-existente, só re-rotulado na UI)
-  empresasColigadas String?
-
-  // Bloco 7 — Missão, Visão e Valores
+  // Missão, Visão e Valores
   missao  String?
   visao   String?
   valores String?

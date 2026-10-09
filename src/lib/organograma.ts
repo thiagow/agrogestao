@@ -1,26 +1,40 @@
-// Monta a árvore do organograma societário do grupo — função pura, sem I/O, pra
-// poder ser testada isoladamente (mesmo critério de amortizacao.ts/patrimonio.ts).
+// Monta o organograma societário do grupo — função pura, sem I/O, pra poder ser
+// testada isoladamente (mesmo critério de amortizacao.ts/patrimonio.ts).
 // Usado por src/components/OrganogramaGrupo.tsx.
 //
-// Estrutura: 2 níveis (a spec de "Sócios e Empresas" só permite vincular PF já
-// cadastrados como donos de uma PJ, nunca PJ dona de outra PJ — ver decisão
-// registrada em 20/08/2026). Nós raiz = todo Socio (PF e PJ) da conta. Cada nó PJ
-// ganha filhos = seus donos PF (via ParticipacaoSocietaria), com o percentual
-// daquela relação. Um PF que também é dono de uma PJ aparece como raiz **e** como
-// filho da PJ — reflete a realidade (é a mesma pessoa em 2 papéis: sócio do grupo
-// e sócio da empresa).
+// Estrutura (validação do cliente, 09/10/2026): 3 faixas — Sócios PF (topo), Holdings
+// (meio) e Empresas Operacionais (base). Cada integrante aparece UMA única vez; o
+// vínculo societário não é uma linha desenhada entre cards, é uma lista de rótulos
+// "% | Dono" abaixo do card da empresa, na cor da faixa do dono. PJ pode ser dona de
+// PJ e PF e PJ podem dividir uma mesma empresa. PJ sem `tipoEmpresa` (cadastrada antes
+// dessa classificação existir) cai em Empresas Operacionais até ser reclassificada.
 
 import type { Socio } from '@/types';
+
+export type FaixaOrganograma = 'PF' | 'HOLDING' | 'OPERACIONAL';
+
+export interface VinculoOrganograma {
+  donoId: string;
+  donoNome: string;
+  faixaDono: FaixaOrganograma; // define a cor do rótulo
+  percentual: number;
+}
 
 export interface NoOrganograma {
   socioId: string;
   nome: string;
   documento: string; // CPF ou CNPJ, "—" se ausente
   tipoPessoa: 'PF' | 'PJ';
+  faixa: FaixaOrganograma;
   idadeOuAnoFundacao: string; // "42 anos" (PF) ou "Fundada em 2010" (PJ), "—" se sem data
   cargoOuAtividade?: string;
-  percentual: number; // % no grupo (raiz) ou % na empresa (filho)
-  filhos: NoOrganograma[];
+  vinculos: VinculoOrganograma[]; // donos desta empresa (sempre vazio pra PF)
+}
+
+export interface Organograma {
+  pessoasFisicas: NoOrganograma[];
+  holdings: NoOrganograma[];
+  operacionais: NoOrganograma[];
 }
 
 // Parsing manual em vez de `new Date(iso)` de propósito: uma string "YYYY-MM-DD"
@@ -52,36 +66,44 @@ function idadeOuAnoFundacao(socio: Socio, hoje: Date): string {
   return `${calcularIdade(socio.dataNascimento, hoje)} anos`;
 }
 
-function montarNo(socio: Socio, percentual: number, hoje: Date): NoOrganograma {
-  return {
+function faixaDoSocio(socio: Socio): FaixaOrganograma {
+  if (socio.tipoPessoa === 'PF') return 'PF';
+  return socio.tipoEmpresa === 'Holding' ? 'HOLDING' : 'OPERACIONAL';
+}
+
+export function montarOrganograma(socios: Socio[], hoje: Date = new Date()): Organograma {
+  const socioMap = new Map(socios.map((s) => [s.id, s]));
+
+  const montarNo = (socio: Socio): NoOrganograma => ({
     socioId: socio.id,
     nome: socio.nome,
     documento: socio.tipoPessoa === 'PJ' ? socio.cnpj ?? '—' : socio.cpf ?? '—',
     tipoPessoa: socio.tipoPessoa,
+    faixa: faixaDoSocio(socio),
     idadeOuAnoFundacao: idadeOuAnoFundacao(socio, hoje),
     cargoOuAtividade: socio.cargoOuAtividade,
-    percentual,
-    filhos: []
-  };
-}
-
-export function montarOrganograma(socios: Socio[], hoje: Date = new Date()): NoOrganograma[] {
-  const socioMap = new Map(socios.map((s) => [s.id, s]));
-
-  return socios.map((socio) => {
-    const raiz = montarNo(socio, socio.participacao, hoje);
-
-    if (socio.tipoPessoa === 'PJ') {
-      raiz.filhos = (socio.participacoes ?? [])
-        .map((p) => {
-          const dono = socioMap.get(p.socioPfId);
-          if (!dono) return null;
-          return montarNo(dono, p.percentual, hoje);
-        })
-        .filter((n): n is NoOrganograma => n !== null)
-        .sort((a, b) => b.percentual - a.percentual);
-    }
-
-    return raiz;
+    vinculos:
+      socio.tipoPessoa === 'PJ'
+        ? (socio.participacoes ?? [])
+            .map((p): VinculoOrganograma | null => {
+              const dono = socioMap.get(p.socioDonoId);
+              if (!dono || dono.id === socio.id) return null;
+              return {
+                donoId: dono.id,
+                donoNome: dono.nome,
+                faixaDono: faixaDoSocio(dono),
+                percentual: p.percentual
+              };
+            })
+            .filter((v): v is VinculoOrganograma => v !== null)
+            .sort((a, b) => b.percentual - a.percentual)
+        : []
   });
+
+  const nos = socios.map(montarNo);
+  return {
+    pessoasFisicas: nos.filter((n) => n.faixa === 'PF'),
+    holdings: nos.filter((n) => n.faixa === 'HOLDING'),
+    operacionais: nos.filter((n) => n.faixa === 'OPERACIONAL')
+  };
 }

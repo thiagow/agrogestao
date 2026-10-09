@@ -4,21 +4,26 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requireContext } from '@/lib/session';
 import { socioSchema } from '@/lib/validation';
-import { ESTADO_CIVIL_TO_DB, ESTADO_CIVIL_FROM_DB } from '@/lib/enum-maps';
+import {
+  ESTADO_CIVIL_TO_DB,
+  ESTADO_CIVIL_FROM_DB,
+  TIPO_EMPRESA_TO_DB,
+  TIPO_EMPRESA_FROM_DB
+} from '@/lib/enum-maps';
 import type { Socio } from '@/types';
 
 export async function listSocios(): Promise<Socio[]> {
   const ctx = await requireContext();
   const rows = await db.socio.findMany({
     where: { contaId: ctx.conta.id, ativo: true },
-    include: { participacoesNaEmpresa: { include: { socioPf: { select: { nome: true } } } } },
+    include: { participacoesNaEmpresa: { include: { socioDono: { select: { nome: true } } } } },
     orderBy: { nome: 'asc' }
   });
   return rows.map(toSocioDTO);
 }
 
 interface SaveParticipacaoInput {
-  socioPfId: string;
+  socioDonoId: string;
   percentual: number;
 }
 
@@ -29,7 +34,7 @@ interface SaveSocioInput {
   cpf?: string;
   cnpj?: string;
   cargoOuAtividade?: string;
-  participacao: number;
+  tipoEmpresa?: 'Holding' | 'Empresa Operacional';
   estadoCivil?: string;
   telefone?: string;
   email?: string;
@@ -41,18 +46,6 @@ interface SaveSocioInput {
 export async function saveSocio(input: SaveSocioInput): Promise<Socio> {
   const ctx = await requireContext();
   const parsed = socioSchema.parse(input);
-
-  // Regra da engenharia reversa: soma das participações (no GRUPO) da conta não
-  // pode passar de 100% — vale pra PF e PJ, é a mesma régua de participação
-  // societária do grupo econômico como um todo.
-  const outros = await db.socio.findMany({
-    where: { contaId: ctx.conta.id, ativo: true, ...(input.id ? { id: { not: input.id } } : {}) },
-    select: { participacao: true }
-  });
-  const somaOutros = outros.reduce((acc, s) => acc + Number(s.participacao), 0);
-  if (somaOutros + parsed.participacao > 100) {
-    throw new Error(`Soma das participações no grupo excede 100% (já alocado: ${somaOutros}%).`);
-  }
 
   if (parsed.tipoPessoa === 'PF' && parsed.cpf) {
     const cpfDuplicado = await db.socio.findFirst({
@@ -78,19 +71,22 @@ export async function saveSocio(input: SaveSocioInput): Promise<Socio> {
     if (cnpjDuplicado) throw new Error('Já existe uma empresa com este CNPJ.');
   }
 
-  // Cada dono do cap table precisa ser um integrante PF já cadastrado nesta conta —
-  // não dá pra validar isso no Zod (depende de I/O), então checa aqui.
+  // Cada dono do cap table precisa ser um integrante (PF ou PJ) já cadastrado nesta
+  // conta, nunca a própria empresa — não dá pra validar isso no Zod (depende de I/O),
+  // então checa aqui.
   const participacoes = parsed.tipoPessoa === 'PJ' ? (parsed.participacoes ?? []) : [];
   if (participacoes.length > 0) {
+    const donoIds = participacoes.map((p) => p.socioDonoId);
+    if (input.id && donoIds.includes(input.id)) {
+      throw new Error('Uma empresa não pode ser sócia dela mesma.');
+    }
+    if (new Set(donoIds).size !== donoIds.length) {
+      throw new Error('O mesmo integrante foi informado mais de uma vez na participação societária.');
+    }
     const donosValidos = await db.socio.count({
-      where: {
-        contaId: ctx.conta.id,
-        ativo: true,
-        tipoPessoa: 'PF',
-        id: { in: participacoes.map((p) => p.socioPfId) }
-      }
+      where: { contaId: ctx.conta.id, ativo: true, id: { in: donoIds } }
     });
-    if (donosValidos !== new Set(participacoes.map((p) => p.socioPfId)).size) {
+    if (donosValidos !== donoIds.length) {
       throw new Error('Um dos integrantes selecionados na participação societária é inválido.');
     }
   }
@@ -100,8 +96,12 @@ export async function saveSocio(input: SaveSocioInput): Promise<Socio> {
     nome: parsed.nome,
     cpf: parsed.tipoPessoa === 'PF' ? parsed.cpf || null : null,
     cnpj: parsed.tipoPessoa === 'PJ' ? parsed.cnpj || null : null,
-    cargoOuAtividade: parsed.cargoOuAtividade || null,
-    participacao: parsed.participacao,
+    // "Atividade Principal" só existe para PJ Operacional; Holding não tem.
+    cargoOuAtividade:
+      parsed.tipoPessoa === 'PJ' && parsed.tipoEmpresa !== 'Empresa Operacional'
+        ? null
+        : parsed.cargoOuAtividade || null,
+    tipoEmpresa: parsed.tipoPessoa === 'PJ' && parsed.tipoEmpresa ? TIPO_EMPRESA_TO_DB[parsed.tipoEmpresa] : null,
     estadoCivil: parsed.tipoPessoa === 'PF' && parsed.estadoCivil ? ESTADO_CIVIL_TO_DB[parsed.estadoCivil] : null,
     telefone: parsed.telefone || null,
     email: parsed.email || null,
@@ -121,7 +121,7 @@ export async function saveSocio(input: SaveSocioInput): Promise<Socio> {
       await tx.participacaoSocietaria.createMany({
         data: participacoes.map((p) => ({
           socioPjId: row.id,
-          socioPfId: p.socioPfId,
+          socioDonoId: p.socioDonoId,
           percentual: p.percentual
         }))
       });
@@ -134,7 +134,7 @@ export async function saveSocio(input: SaveSocioInput): Promise<Socio> {
 
   const saved = await db.socio.findUniqueOrThrow({
     where: { id: socioId },
-    include: { participacoesNaEmpresa: { include: { socioPf: { select: { nome: true } } } } }
+    include: { participacoesNaEmpresa: { include: { socioDono: { select: { nome: true } } } } }
   });
   return toSocioDTO(saved);
 }
@@ -155,13 +155,13 @@ function toSocioDTO(row: {
   cpf: string | null;
   cnpj: string | null;
   cargoOuAtividade: string | null;
-  participacao: unknown;
+  tipoEmpresa: string | null;
   estadoCivil: string | null;
   telefone: string | null;
   email: string | null;
   nacionalidade: string | null;
   dataNascimento: Date | null;
-  participacoesNaEmpresa: { socioPfId: string; percentual: unknown; socioPf: { nome: string } }[];
+  participacoesNaEmpresa: { socioDonoId: string; percentual: unknown; socioDono: { nome: string } }[];
 }): Socio {
   return {
     id: row.id,
@@ -170,7 +170,7 @@ function toSocioDTO(row: {
     cpf: row.cpf ?? undefined,
     cnpj: row.cnpj ?? undefined,
     cargoOuAtividade: row.cargoOuAtividade ?? undefined,
-    participacao: Number(row.participacao),
+    tipoEmpresa: row.tipoEmpresa ? TIPO_EMPRESA_FROM_DB[row.tipoEmpresa as keyof typeof TIPO_EMPRESA_FROM_DB] : undefined,
     estadoCivil: row.estadoCivil ? ESTADO_CIVIL_FROM_DB[row.estadoCivil as keyof typeof ESTADO_CIVIL_FROM_DB] : undefined,
     telefone: row.telefone ?? undefined,
     email: row.email ?? undefined,
@@ -179,8 +179,8 @@ function toSocioDTO(row: {
     participacoes:
       row.tipoPessoa === 'PJ'
         ? row.participacoesNaEmpresa.map((p) => ({
-            socioPfId: p.socioPfId,
-            socioPfNome: p.socioPf.nome,
+            socioDonoId: p.socioDonoId,
+            socioDonoNome: p.socioDono.nome,
             percentual: Number(p.percentual)
           }))
         : undefined

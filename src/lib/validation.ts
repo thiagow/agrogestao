@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CHAVES_RESPOSTAS_GRUPO } from '@/lib/perfil-grupo-perguntas';
 
 // Schemas zod usados apenas no boundary de servidor (server actions / rotas).
 // Os forms de client continuam com useState + `required` HTML nativo — este
@@ -32,14 +33,14 @@ export const propriedadeSchema = z.object({
 });
 
 const participacaoSocietariaSchema = z.object({
-  socioPfId: z.string().trim().min(1, 'Selecione o integrante'),
+  socioDonoId: z.string().trim().min(1, 'Selecione o integrante'),
   percentual: z.coerce.number().min(0, 'Percentual não pode ser negativo').max(100, 'Percentual não pode passar de 100%')
 });
 
 // Sócios e Empresas: PF exige CPF, PJ exige CNPJ + cap table (participacoes) cuja
 // soma não pode passar de 100% — validação de negócio, feita com .refine porque
-// depende de mais de um campo. A checagem de que cada socioPfId aponta pra um
-// Socio tipoPessoa=PF da mesma conta é feita no server (não dá pra validar I/O
+// depende de mais de um campo. A checagem de que cada socioDonoId aponta pra um
+// Socio da mesma conta (e não é a própria empresa) é feita no server (não dá pra validar I/O
 // dentro do Zod puro).
 export const socioSchema = z
   .object({
@@ -48,7 +49,7 @@ export const socioSchema = z
     cpf: z.string().trim().optional().or(z.literal('')),
     cnpj: z.string().trim().optional().or(z.literal('')),
     cargoOuAtividade: z.string().trim().optional().or(z.literal('')),
-    participacao: z.coerce.number().min(0).max(100),
+    tipoEmpresa: z.enum(['Holding', 'Empresa Operacional']).optional(),
     estadoCivil: z.enum(['Solteiro', 'Casado', 'Viúvo', 'Divorciado', 'Separado']).optional(),
     telefone: z.string().trim().optional().or(z.literal('')),
     email: z.string().trim().email('E-mail inválido').optional().or(z.literal('')),
@@ -63,6 +64,10 @@ export const socioSchema = z
   .refine((data) => data.tipoPessoa !== 'PJ' || (data.cnpj && data.cnpj.trim().length >= 14), {
     message: 'CNPJ inválido',
     path: ['cnpj']
+  })
+  .refine((data) => data.tipoPessoa !== 'PJ' || !!data.tipoEmpresa, {
+    message: 'Informe o tipo de empresa',
+    path: ['tipoEmpresa']
   })
   .refine(
     (data) =>
@@ -91,23 +96,20 @@ const detalheImovelUrbanoSchema = z.object({
 export const bemDireitoSchema = z.object({
   socioId: z.string().trim().optional().or(z.literal('')),
   grupoIrpf: z.enum([
-    'Bens Imóveis',
-    'Bens Móveis',
-    'Participações Societárias',
-    'Aplicações e Investimentos',
-    'Depósitos à Vista e Poupança',
-    'Créditos e Outros Direitos',
-    'Criptoativos',
-    'Outros Bens e Direitos',
     'Imóveis Rurais - ANEXO A',
-    'Imóveis Urbanos - ANEXO B'
+    'Imóveis Urbanos - ANEXO B',
+    'Benfeitorias e Instalações',
+    'Máquinas Agrícolas',
+    'Implementos',
+    'Veículos',
+    'Estoque (Insumos e Grãos)',
+    'Participações Societárias',
+    'Disponibilidade e aplicações',
+    'Contas a receber',
+    'Direitos e bens diversos'
   ]),
-  codigoTipo: z.string().trim().min(1, 'Informe o código/tipo'),
   descricao: z.string().trim().min(2, 'Informe a descrição'),
-  valorDeclaradoIrpf: z.coerce.number().nonnegative('Valor não pode ser negativo').optional(),
   valorMercadoEstimado: z.coerce.number().nonnegative('Valor não pode ser negativo').optional(),
-  dataAquisicao: z.string().trim().optional().or(z.literal('')),
-  valorAquisicao: z.coerce.number().nonnegative('Valor não pode ser negativo').optional(),
   liquidez: z.enum(['Alta', 'Média', 'Baixa']).default('Baixa'),
   ltv: z.coerce.number().min(0, 'LTV não pode ser negativo').max(100, 'LTV não pode passar de 100%').optional(),
   elegivelGarantia: z.coerce.boolean().default(false),
@@ -150,9 +152,13 @@ export const capexSchema = z.object({
 
 const textoLivreOpcional = z.string().trim().optional().or(z.literal(''));
 
-// Histórico do Grupo reestruturado em 7 blocos (20/08/2026) — ver comentário em
-// schema.prisma. Todos os campos são texto livre opcional, exceto o único campo
-// numérico do bloco 4 (taxa de desfrute).
+// Questionário do Grupo Econômico (09/10/2026): respostas em JSON por chave estável.
+// Chave desconhecida (pergunta removida/typo) é descartada em vez de rejeitar o save,
+// pra uma pergunta aposentada no código não travar o formulário de quem ainda a tem em tela.
+const respostasGrupoSchema = z
+  .record(z.string(), z.string().max(10_000, 'Resposta muito longa'))
+  .transform((r) => Object.fromEntries(Object.entries(r).filter(([k]) => CHAVES_RESPOSTAS_GRUPO.includes(k))));
+
 export const perfilGrupoSchema = z.object({
   email: textoLivreOpcional,
   telefone: textoLivreOpcional,
@@ -160,42 +166,8 @@ export const perfilGrupoSchema = z.object({
   fundacao: textoLivreOpcional,
   sede: textoLivreOpcional,
   consultorResponsavel: textoLivreOpcional,
-
-  // Bloco 1 — Histórico
-  historicoInicio: textoLivreOpcional,
-  historicoHerancaOrigem: textoLivreOpcional,
-  historicoEvolucaoNegocio: textoLivreOpcional,
-  historicoGestaoCrises: textoLivreOpcional,
-
-  // Bloco 2 — Gestão-Sucessão
-  gestaoAdministracao: textoLivreOpcional,
-  gestaoParceriasSocios: textoLivreOpcional,
-  gestaoDivisaoCustosFaturamento: textoLivreOpcional,
-  gestaoPlanoSucessorioHerdeiros: textoLivreOpcional,
-
-  // Bloco 3 — Modus Operandi (Agricultura)
-  agriculturaCustos: textoLivreOpcional,
-  agriculturaCronogramaPlantioColheita: textoLivreOpcional,
-  agriculturaCapacidadeArmazenamento: textoLivreOpcional,
-  agriculturaFornecedoresClientes: textoLivreOpcional,
-  agriculturaModalidadesCompra: textoLivreOpcional,
-  agriculturaExportacao: textoLivreOpcional,
-
-  // Bloco 4 — Modus Operandi (Pecuária)
-  pecuariaCicloProducao: textoLivreOpcional,
-  pecuariaConfinamento: textoLivreOpcional,
+  respostas: respostasGrupoSchema.optional(),
   pecuariaTaxaDesfrutePercent: z.coerce.number().min(0).max(100).optional(),
-  pecuariaCustosCronogramaCompraAbate: textoLivreOpcional,
-
-  // Bloco 5 — Gestão Financeira
-  financeiroFinanciamentos: textoLivreOpcional,
-  financeiroPoliticaHedge: textoLivreOpcional,
-  financeiroPosicaoComercializadaSafraAtual: textoLivreOpcional,
-
-  // Bloco 6 — Outras Atividades / Empresas Coligadas
-  empresasColigadas: textoLivreOpcional,
-
-  // Bloco 7 — Missão, Visão e Valores
   missao: textoLivreOpcional,
   visao: textoLivreOpcional,
   valores: textoLivreOpcional

@@ -1,9 +1,11 @@
 // Painel Consolidado do Grupo (aba "Grupo Econômico") — computado ao vivo a partir dos
 // Bens e Direitos e dos Sócios já persistidos, nunca armazenado como número solto (mesmo
-// critério de src/lib/indicadores.ts). Fórmula deriva do hint já existente em
-// BemDireitoDrawer.tsx: "Vincule ao sócio para calcular o PL ponderado pela participação
-// societária" — bem vinculado a um sócio entra ponderado pela participação dele; bem sem
-// sócio ("Grupo") entra 100% (não é diluído por ninguém).
+// critério de src/lib/indicadores.ts).
+//
+// Mudança (09/10/2026, validação do cliente): a % de participação "no grupo" deixou de
+// existir, então o ponderamento por sócio perdeu a base. Todo bem entra 100% — o
+// "ponderado" é igual ao bruto; os campos continuam no resumo pra não quebrar a UI.
+// "Patrimônio por Sócio" segue agrupando pelo sócio titular vinculado ao bem.
 //
 // Fix (20/08/2026): bruto/ponderado usam o mesmo fallback já usado pela aba Bens e
 // Direitos pra somar o subtotal por categoria (valorMercadoEstimado ?? valorDeclaradoIrpf
@@ -34,8 +36,6 @@ function valorGarantiaEstimado(bem: BemDireito): number {
 }
 
 export function calcularPatrimonioGrupo(bens: BemDireito[], socios: Socio[]): PatrimonioGrupoResumo {
-  const socioMap = new Map(socios.map((s) => [s.id, s]));
-
   let patrimonioTotalBruto = 0;
   let patrimonioPonderado = 0;
   let garantiaPonderadaTotal = 0;
@@ -46,13 +46,11 @@ export function calcularPatrimonioGrupo(bens: BemDireito[], socios: Socio[]): Pa
   for (const bem of bens) {
     const bruto = bem.valorMercadoEstimado ?? bem.valorDeclaradoIrpf ?? 0;
     const garantia = valorGarantiaEstimado(bem);
-    const socio = bem.socioId ? socioMap.get(bem.socioId) : undefined;
-    const participacao = socio ? (socio.participacao ?? 0) / 100 : 1; // sem sócio = "Grupo", 100%
     const chave = bem.socioId ?? null;
 
     patrimonioTotalBruto += bruto;
-    patrimonioPonderado += bruto * participacao;
-    garantiaPonderadaTotal += garantia * participacao;
+    patrimonioPonderado += bruto;
+    garantiaPonderadaTotal += garantia;
 
     brutoPorSocio.set(chave, (brutoPorSocio.get(chave) ?? 0) + bruto);
     garantiaPorSocio.set(chave, (garantiaPorSocio.get(chave) ?? 0) + garantia);
@@ -66,7 +64,7 @@ export function calcularPatrimonioGrupo(bens: BemDireito[], socios: Socio[]): Pa
         socioId: s.id,
         nome: s.nome,
         patrimonioBruto: bruto,
-        patrimonioPonderado: bruto * ((s.participacao ?? 0) / 100)
+        patrimonioPonderado: bruto
       };
     });
 

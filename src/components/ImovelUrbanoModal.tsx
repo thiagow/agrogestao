@@ -54,7 +54,6 @@ export const ImovelUrbanoModal: React.FC<ImovelUrbanoModalProps> = ({
       id: editingBem?.id,
       socioId: socioId || undefined,
       grupoIrpf: 'Imóveis Urbanos - ANEXO B',
-      codigoTipo: '11 — Imóvel Urbano',
       descricao: descricao.trim(),
       valorMercadoEstimado: valorAtual ? parseFloat(valorAtual) : undefined,
       liquidez: editingBem?.liquidez ?? 'Baixa',

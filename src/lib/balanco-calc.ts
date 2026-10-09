@@ -55,53 +55,78 @@ function valorBem(bem: BemDireito): number {
   return bem.valorMercadoEstimado ?? bem.valorDeclaradoIrpf ?? 0;
 }
 
-/** Soma de todo `BemDireito` de um grupo IRPF específico — mesmo fallback de valor já usado em patrimonio.ts/CadastroMestreView.tsx. */
-function somaGrupoIrpf(bens: BemDireito[], grupo: BemDireito['grupoIrpf']): { valor: number; itens: number } {
-  const doGrupo = bens.filter((b) => b.grupoIrpf === grupo);
+/** Soma de todo `BemDireito` de um ou mais tipos — mesmo fallback de valor já usado em patrimonio.ts/CadastroMestreView.tsx. */
+function somaGrupoIrpf(bens: BemDireito[], grupos: BemDireito['grupoIrpf'] | BemDireito['grupoIrpf'][]): { valor: number; itens: number } {
+  const lista = Array.isArray(grupos) ? grupos : [grupos];
+  const doGrupo = bens.filter((b) => lista.includes(b.grupoIrpf));
   return { valor: doGrupo.reduce((s, b) => s + valorBem(b), 0), itens: doGrupo.length };
 }
 
-/** Bloco "Bens e Direitos IRPF — Detalhamento por Categoria" (spec seção 4.6). */
+const TIPOS_MAQUINAS: BemDireito['grupoIrpf'][] = ['Máquinas Agrícolas', 'Implementos', 'Veículos'];
+const TIPOS_CLASSIFICADOS: BemDireito['grupoIrpf'][] = [
+  'Imóveis Rurais - ANEXO A',
+  ...TIPOS_MAQUINAS,
+  'Disponibilidade e aplicações',
+  'Estoque (Insumos e Grãos)',
+  'Contas a receber'
+];
+
+/** Bloco "Bens e Direitos — Detalhamento por Categoria" (spec seção 4.6), sobre a lista "Bem / Direito" validada em 09/10/2026. */
 export function calcularPatrimonioIrpf(bens: BemDireito[], fazendasImobilizado: number): PatrimonioIrpfResumo {
   const fazendasProprias = somaGrupoIrpf(bens, 'Imóveis Rurais - ANEXO A');
-  const maquinasEquipamentos = somaGrupoIrpf(bens, 'Bens Móveis');
-  const aplicacoesFinanceiras = somaGrupoIrpf(bens, 'Aplicações e Investimentos');
+  const maquinasEquipamentos = somaGrupoIrpf(bens, TIPOS_MAQUINAS);
+  const aplicacoesFinanceiras = somaGrupoIrpf(bens, 'Disponibilidade e aplicações');
+  const estoqueBens = somaGrupoIrpf(bens, 'Estoque (Insumos e Grãos)');
+  const contasReceberBens = somaGrupoIrpf(bens, 'Contas a receber');
 
-  const gruposClassificados = new Set<BemDireito['grupoIrpf']>([
-    'Imóveis Rurais - ANEXO A',
-    'Bens Móveis',
-    'Aplicações e Investimentos'
-  ]);
-  const outros = bens.filter((b) => !gruposClassificados.has(b.grupoIrpf));
+  const outros = bens.filter((b) => !TIPOS_CLASSIFICADOS.includes(b.grupoIrpf));
   const outrosBens = { valor: outros.reduce((s, b) => s + valorBem(b), 0), itens: outros.length };
 
-  const totalBensIrpf = fazendasProprias.valor + maquinasEquipamentos.valor + aplicacoesFinanceiras.valor + outrosBens.valor;
+  const totalBensIrpf =
+    fazendasProprias.valor +
+    maquinasEquipamentos.valor +
+    aplicacoesFinanceiras.valor +
+    estoqueBens.valor +
+    contasReceberBens.valor +
+    outrosBens.valor;
+
+  const itensDe = (lista: BemDireito[]) => lista.map((b) => ({ descricao: b.descricao, valor: valorBem(b) }));
 
   const categorias: CategoriaPatrimonioIrpf[] = [
     {
-      categoria: 'Imóveis Rurais (IRPF)',
-      itens: bens.filter((b) => b.grupoIrpf === 'Imóveis Rurais - ANEXO A').map((b) => ({ descricao: b.descricao, valor: valorBem(b) })),
+      categoria: 'Imóveis Rurais',
+      itens: itensDe(bens.filter((b) => b.grupoIrpf === 'Imóveis Rurais - ANEXO A')),
       subtotal: fazendasProprias.valor
     },
     {
-      categoria: 'Imóveis Urbanos (IRPF)',
-      itens: bens.filter((b) => b.grupoIrpf === 'Imóveis Urbanos - ANEXO B').map((b) => ({ descricao: b.descricao, valor: valorBem(b) })),
+      categoria: 'Imóveis Urbanos',
+      itens: itensDe(bens.filter((b) => b.grupoIrpf === 'Imóveis Urbanos - ANEXO B')),
       subtotal: somaGrupoIrpf(bens, 'Imóveis Urbanos - ANEXO B').valor
     },
     {
-      categoria: 'Máquinas e Equipamentos (IRPF)',
-      itens: bens.filter((b) => b.grupoIrpf === 'Bens Móveis').map((b) => ({ descricao: b.descricao, valor: valorBem(b) })),
+      categoria: 'Máquinas, Implementos e Veículos',
+      itens: itensDe(bens.filter((b) => TIPOS_MAQUINAS.includes(b.grupoIrpf))),
       subtotal: maquinasEquipamentos.valor
     },
     {
-      categoria: 'Aplicações Financeiras',
-      itens: bens.filter((b) => b.grupoIrpf === 'Aplicações e Investimentos').map((b) => ({ descricao: b.descricao, valor: valorBem(b) })),
+      categoria: 'Disponibilidade e Aplicações',
+      itens: itensDe(bens.filter((b) => b.grupoIrpf === 'Disponibilidade e aplicações')),
       subtotal: aplicacoesFinanceiras.valor
     },
     {
-      categoria: 'Outros Bens e Direitos (IRPF)',
-      itens: outros.map((b) => ({ descricao: b.descricao, valor: valorBem(b) })),
-      subtotal: outrosBens.valor
+      categoria: 'Estoque (Insumos e Grãos)',
+      itens: itensDe(bens.filter((b) => b.grupoIrpf === 'Estoque (Insumos e Grãos)')),
+      subtotal: estoqueBens.valor
+    },
+    {
+      categoria: 'Contas a Receber',
+      itens: itensDe(bens.filter((b) => b.grupoIrpf === 'Contas a receber')),
+      subtotal: contasReceberBens.valor
+    },
+    {
+      categoria: 'Outros Bens e Direitos',
+      itens: itensDe(outros.filter((b) => b.grupoIrpf !== 'Imóveis Urbanos - ANEXO B')),
+      subtotal: outros.filter((b) => b.grupoIrpf !== 'Imóveis Urbanos - ANEXO B').reduce((s, b) => s + valorBem(b), 0)
     }
   ].filter((c) => c.itens.length > 0);
 
@@ -109,6 +134,8 @@ export function calcularPatrimonioIrpf(bens: BemDireito[], fazendasImobilizado: 
     fazendasProprias,
     maquinasEquipamentos,
     aplicacoesFinanceiras,
+    estoqueBens,
+    contasReceberBens,
     outrosBens,
     totalBensIrpf,
     patrimonioTotal: totalBensIrpf + fazendasImobilizado,
@@ -264,7 +291,12 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
   // ---- Patrimônio IRPF ----
   const fazendasImobilizado = input.aquisicoes.reduce((s, a) => s + a.valorTotalFluxo, 0);
   const patrimonioIrpf = calcularPatrimonioIrpf(input.bensDireitos, fazendasImobilizado);
-  const bensIrpfNaoCirculante = patrimonioIrpf.totalBensIrpf - patrimonioIrpf.aplicacoesFinanceiras.valor;
+  // Estoque e Contas a receber cadastrados em Bens e Direitos são ativo circulante; Disponibilidade/aplicações idem.
+  const bensIrpfNaoCirculante =
+    patrimonioIrpf.totalBensIrpf -
+    patrimonioIrpf.aplicacoesFinanceiras.valor -
+    patrimonioIrpf.estoqueBens.valor -
+    patrimonioIrpf.contasReceberBens.valor;
 
   // ---- Ativo ----
   const totalCirculante =
@@ -273,8 +305,10 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
     receitaBruta +
     complementares.estoqueGraos +
     complementares.estoqueInsumos +
+    patrimonioIrpf.estoqueBens.valor +
     estoqueRebanhoBovino +
-    complementares.outrosCreditosCp;
+    complementares.outrosCreditosCp +
+    patrimonioIrpf.contasReceberBens.valor;
 
   const totalNaoCirculante =
     complementares.contasReceberLp +
@@ -291,9 +325,9 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
     aplicacoesFinanceiras: patrimonioIrpf.aplicacoesFinanceiras.valor,
     contasReceberSafra: receitaBruta,
     estoqueGraos: complementares.estoqueGraos,
-    estoqueInsumos: complementares.estoqueInsumos,
+    estoqueInsumos: complementares.estoqueInsumos + patrimonioIrpf.estoqueBens.valor,
     estoqueRebanhoBovino,
-    outrosCreditosCp: complementares.outrosCreditosCp,
+    outrosCreditosCp: complementares.outrosCreditosCp + patrimonioIrpf.contasReceberBens.valor,
     totalCirculante,
     contasReceberLp: complementares.contasReceberLp,
     outrosCreditosLp: complementares.outrosCreditosLp,

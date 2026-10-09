@@ -44,12 +44,8 @@ interface SaveBemDireitoInput {
   id?: string;
   socioId?: string;
   grupoIrpf: string;
-  codigoTipo: string;
   descricao: string;
-  valorDeclaradoIrpf?: number;
   valorMercadoEstimado?: number;
-  dataAquisicao?: string;
-  valorAquisicao?: number;
   liquidez?: string;
   ltv?: number;
   elegivelGarantia?: boolean;
@@ -72,12 +68,8 @@ export async function saveBemDireito(input: SaveBemDireitoInput): Promise<BemDir
   const data = {
     socioId,
     grupoIrpf: GRUPO_IRPF_TO_DB[parsed.grupoIrpf],
-    codigoTipo: parsed.codigoTipo,
     descricao: parsed.descricao,
-    valorDeclaradoIrpf: parsed.valorDeclaradoIrpf ?? null,
     valorMercadoEstimado: parsed.valorMercadoEstimado ?? null,
-    dataAquisicao: parsed.dataAquisicao ? new Date(parsed.dataAquisicao) : null,
-    valorAquisicao: parsed.valorAquisicao ?? null,
     liquidez: LIQUIDEZ_BEM_TO_DB[parsed.liquidez],
     ltv: parsed.ltv ?? null,
     elegivelGarantia: parsed.elegivelGarantia,
@@ -135,7 +127,7 @@ function toBemDireitoDTO(row: {
   socioId: string | null;
   socio: { nome: string } | null;
   grupoIrpf: string;
-  codigoTipo: string;
+  codigoTipo: string | null;
   descricao: string;
   valorDeclaradoIrpf: unknown;
   valorMercadoEstimado: unknown;
@@ -163,7 +155,7 @@ function toBemDireitoDTO(row: {
     socioId: row.socioId ?? undefined,
     socioNome: row.socio?.nome,
     grupoIrpf: GRUPO_IRPF_FROM_DB[row.grupoIrpf as keyof typeof GRUPO_IRPF_FROM_DB],
-    codigoTipo: row.codigoTipo,
+    codigoTipo: row.codigoTipo ?? undefined,
     descricao: row.descricao,
     valorDeclaradoIrpf: row.valorDeclaradoIrpf != null ? Number(row.valorDeclaradoIrpf) : undefined,
     valorMercadoEstimado: row.valorMercadoEstimado != null ? Number(row.valorMercadoEstimado) : undefined,

@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Plus, Edit2, Trash2, MapPin, Building } from 'lucide-react';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { Socio, BemDireito, Garantia, Capex, PerfilGrupoEconomico, DividaPf } from '../../types';
 import { Card, Tabs, Button, Badge, KpiCard, Textarea, Input } from '../ui';
 import { IntegranteDrawer } from '../IntegranteDrawer';
 import { BemDireitoDrawer } from '../BemDireitoDrawer';
+import { SECOES_PERGUNTAS_GRUPO } from '../../lib/perfil-grupo-perguntas';
+import { TIPOS_BEM_DIREITO } from '../../lib/bens-direitos-constantes';
 import { ImovelRuralModal } from '../ImovelRuralModal';
 import { ImovelUrbanoModal } from '../ImovelUrbanoModal';
 import { GarantiaDrawer } from '../GarantiaDrawer';
@@ -78,38 +80,17 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
   const [perfilGrupo, setPerfilGrupo] = useState<PerfilGrupoEconomico | null>(initialPerfilGrupo);
   const [isPerfilDrawerOpen, setIsPerfilDrawerOpen] = useState(false);
 
-  // Histórico do Grupo — 7 blocos de questionário (20/08/2026). Um draft por
-  // sub-pergunta, tudo salvo de uma vez no botão "Salvar" (handleSalvarHistorico).
-  const [historicoDraft, setHistoricoDraft] = useState({
-    historicoInicio: initialPerfilGrupo?.historicoInicio ?? '',
-    historicoHerancaOrigem: initialPerfilGrupo?.historicoHerancaOrigem ?? '',
-    historicoEvolucaoNegocio: initialPerfilGrupo?.historicoEvolucaoNegocio ?? '',
-    historicoGestaoCrises: initialPerfilGrupo?.historicoGestaoCrises ?? '',
-    gestaoAdministracao: initialPerfilGrupo?.gestaoAdministracao ?? '',
-    gestaoParceriasSocios: initialPerfilGrupo?.gestaoParceriasSocios ?? '',
-    gestaoDivisaoCustosFaturamento: initialPerfilGrupo?.gestaoDivisaoCustosFaturamento ?? '',
-    gestaoPlanoSucessorioHerdeiros: initialPerfilGrupo?.gestaoPlanoSucessorioHerdeiros ?? '',
-    agriculturaCustos: initialPerfilGrupo?.agriculturaCustos ?? '',
-    agriculturaCronogramaPlantioColheita: initialPerfilGrupo?.agriculturaCronogramaPlantioColheita ?? '',
-    agriculturaCapacidadeArmazenamento: initialPerfilGrupo?.agriculturaCapacidadeArmazenamento ?? '',
-    agriculturaFornecedoresClientes: initialPerfilGrupo?.agriculturaFornecedoresClientes ?? '',
-    agriculturaModalidadesCompra: initialPerfilGrupo?.agriculturaModalidadesCompra ?? '',
-    agriculturaExportacao: initialPerfilGrupo?.agriculturaExportacao ?? '',
-    pecuariaCicloProducao: initialPerfilGrupo?.pecuariaCicloProducao ?? '',
-    pecuariaConfinamento: initialPerfilGrupo?.pecuariaConfinamento ?? '',
-    pecuariaTaxaDesfrutePercent: initialPerfilGrupo?.pecuariaTaxaDesfrutePercent?.toString() ?? '',
-    pecuariaCustosCronogramaCompraAbate: initialPerfilGrupo?.pecuariaCustosCronogramaCompraAbate ?? '',
-    financeiroFinanciamentos: initialPerfilGrupo?.financeiroFinanciamentos ?? '',
-    financeiroPoliticaHedge: initialPerfilGrupo?.financeiroPoliticaHedge ?? '',
-    financeiroPosicaoComercializadaSafraAtual: initialPerfilGrupo?.financeiroPosicaoComercializadaSafraAtual ?? '',
-    empresasColigadas: initialPerfilGrupo?.empresasColigadas ?? '',
+  // Questionário do Grupo (perguntas do cliente, 09/10/2026): respostas por chave
+  // estável (src/lib/perfil-grupo-perguntas.ts), tudo salvo de uma vez no botão "Salvar".
+  const [respostasDraft, setRespostasDraft] = useState<Record<string, string>>(initialPerfilGrupo?.respostas ?? {});
+  const [desfruteDraft, setDesfruteDraft] = useState(initialPerfilGrupo?.pecuariaTaxaDesfrutePercent?.toString() ?? '');
+  const [narrativaDraft, setNarrativaDraft] = useState({
     missao: initialPerfilGrupo?.missao ?? '',
     visao: initialPerfilGrupo?.visao ?? '',
     valores: initialPerfilGrupo?.valores ?? ''
   });
 
-  const setHistoricoCampo = (campo: keyof typeof historicoDraft, valor: string) =>
-    setHistoricoDraft((prev) => ({ ...prev, [campo]: valor }));
+  const setResposta = (chave: string, valor: string) => setRespostasDraft((prev) => ({ ...prev, [chave]: valor }));
 
   // ---- Sócios ----
 
@@ -122,7 +103,7 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
         cpf: data.cpf,
         cnpj: data.cnpj,
         cargoOuAtividade: data.cargoOuAtividade,
-        participacao: data.participacao || 0,
+        tipoEmpresa: data.tipoEmpresa,
         estadoCivil: data.estadoCivil,
         telefone: data.telefone,
         email: data.email,
@@ -150,11 +131,16 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
 
   // Calcular dados para gráficos e resumo por categoria
   const bemsOrdenados = useMemo(() => {
-    const grupos: Record<string, BemDireito[]> = {};
+    const porGrupo: Record<string, BemDireito[]> = {};
     bensDireitos.forEach((bem) => {
-      const grupo = bem.grupoIrpf || 'Outros Bens e Direitos';
-      if (!grupos[grupo]) grupos[grupo] = [];
-      grupos[grupo].push(bem);
+      const grupo = bem.grupoIrpf || 'Direitos e bens diversos';
+      if (!porGrupo[grupo]) porGrupo[grupo] = [];
+      porGrupo[grupo].push(bem);
+    });
+    // Ordem de exibição = ordem da lista "Bem / Direito" (não a de inserção).
+    const grupos: Record<string, BemDireito[]> = {};
+    TIPOS_BEM_DIREITO.forEach((tipo) => {
+      if (porGrupo[tipo]) grupos[tipo] = porGrupo[tipo];
     });
     return grupos;
   }, [bensDireitos]);
@@ -189,13 +175,9 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
       const saved = await saveBemDireito({
         id: data.id,
         socioId: data.socioId,
-        grupoIrpf: data.grupoIrpf || 'Outros Bens e Direitos',
-        codigoTipo: data.codigoTipo || '',
+        grupoIrpf: data.grupoIrpf || 'Direitos e bens diversos',
         descricao: data.descricao || '',
-        valorDeclaradoIrpf: data.valorDeclaradoIrpf,
         valorMercadoEstimado: data.valorMercadoEstimado,
-        dataAquisicao: data.dataAquisicao,
-        valorAquisicao: data.valorAquisicao,
         liquidez: data.liquidez || 'Baixa',
         ltv: data.ltv,
         elegivelGarantia: data.elegivelGarantia || false,
@@ -358,10 +340,9 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
   const handleSalvarHistorico = async () => {
     try {
       const saved = await savePerfilGrupo({
-        ...historicoDraft,
-        pecuariaTaxaDesfrutePercent: historicoDraft.pecuariaTaxaDesfrutePercent
-          ? parseFloat(historicoDraft.pecuariaTaxaDesfrutePercent)
-          : undefined
+        respostas: respostasDraft,
+        pecuariaTaxaDesfrutePercent: desfruteDraft ? parseFloat(desfruteDraft) : undefined,
+        ...narrativaDraft
       });
       setPerfilGrupo(saved);
     } catch (err) {
@@ -409,7 +390,6 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                           <th className="py-3 px-4">Tipo</th>
                           <th className="py-3 px-4">Nome / Razão Social</th>
                           <th className="py-3 px-4">Documento</th>
-                          <th className="py-3 px-4">Participação</th>
                           <th className="py-3 px-4">Estado Civil</th>
                           <th className="py-3 px-4 text-right">Ações</th>
                         </tr>
@@ -424,7 +404,6 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                             <td className="py-3 px-4 font-mono text-slate-600">
                               {socio.tipoPessoa === 'PJ' ? socio.cnpj : socio.cpf}
                             </td>
-                            <td className="py-3 px-4 font-semibold text-slate-800">{socio.participacao}%</td>
                             <td className="py-3 px-4 text-slate-600">{socio.estadoCivil ?? '—'}</td>
                             <td className="py-3 px-4 text-right whitespace-nowrap">
                               <div className="flex items-center justify-end gap-2">
@@ -635,26 +614,6 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                           <h3 className="text-sm font-bold text-slate-900">Bens e Direitos</h3>
                           <div className="flex flex-wrap items-center gap-2">
                             <Button
-                              variant="secondary"
-                              onClick={() => {
-                                setEditingBem(null);
-                                setIsImovelRuralOpen(true);
-                              }}
-                              className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
-                            >
-                              <MapPin className="w-3.5 h-3.5" /> Imóvel Rural (ANEXO A)
-                            </Button>
-                            <Button
-                              variant="secondary"
-                              onClick={() => {
-                                setEditingBem(null);
-                                setIsImovelUrbanoOpen(true);
-                              }}
-                              className="w-auto flex items-center gap-1.5 px-3.5 py-2 text-xs"
-                            >
-                              <Building className="w-3.5 h-3.5" /> Imóvel Urbano (ANEXO B)
-                            </Button>
-                            <Button
                               variant="primary"
                               onClick={() => {
                                 setEditingBem(null);
@@ -803,9 +762,7 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                                         <tr className="bg-white border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 font-bold">
                                           <th className="py-2.5 px-4">Descrição</th>
                                           <th className="py-2.5 px-4">Sócio Titular</th>
-                                          <th className="py-2.5 px-4">Código / Tipo</th>
                                           <th className="py-2.5 px-4">Liquidez</th>
-                                          <th className="py-2.5 px-4 text-right">Valor Declarado IRPF</th>
                                           <th className="py-2.5 px-4 text-right">Valor de Mercado</th>
                                           <th className="py-2.5 px-4 text-right">Ações</th>
                                         </tr>
@@ -822,11 +779,7 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                                               )}
                                             </td>
                                             <td className="py-3 px-4 text-slate-600">{bem.socioNome ?? 'Grupo'}</td>
-                                            <td className="py-3 px-4 text-slate-600">{bem.codigoTipo}</td>
                                             <td className="py-3 px-4 text-slate-600">{bem.liquidez}</td>
-                                            <td className="py-3 px-4 text-right font-semibold text-slate-800">
-                                              {bem.valorDeclaradoIrpf != null ? formatCurrency(bem.valorDeclaradoIrpf) : '—'}
-                                            </td>
                                             <td className="py-3 px-4 text-right font-bold text-emerald-700">
                                               {bem.valorMercadoEstimado != null ? formatCurrency(bem.valorMercadoEstimado) : '—'}
                                             </td>
@@ -1179,9 +1132,9 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                   <Card className="p-5">
                     <div className="flex items-center gap-2 mb-4">
                       <h3 className="text-sm font-bold text-slate-900">Painel Consolidado do Grupo</h3>
-                      <Badge tone="emerald">Patrimônio × Participação</Badge>
+                      <Badge tone="emerald">Bens e Direitos</Badge>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
                       <KpiCard
                         title="Patrimônio Total Bruto"
                         value={formatCurrency(patrimonioGrupo.patrimonioTotalBruto)}
@@ -1189,15 +1142,9 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                         valueClassName="text-emerald-700"
                       />
                       <KpiCard
-                        title="Patrimônio Ponderado (% Part.)"
-                        value={formatCurrency(patrimonioGrupo.patrimonioPonderado)}
-                        subtitle="Proporcional à participação"
-                        valueClassName="text-blue-700"
-                      />
-                      <KpiCard
-                        title="Garantia Ponderada Total"
+                        title="Garantia Total"
                         value={formatCurrency(patrimonioGrupo.garantiaPonderadaTotal)}
-                        subtitle="Bens elegíveis × participação"
+                        subtitle="Bens elegíveis × LTV"
                         valueClassName="text-purple-700"
                       />
                     </div>
@@ -1211,13 +1158,13 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                         >
                           <span className="text-slate-700">{s.nome}</span>
                           <span className="font-semibold text-slate-800">
-                            {formatCurrency(s.patrimonioPonderado)}
+                            {formatCurrency(s.patrimonioBruto)}
                           </span>
                         </div>
                       ))}
                       <div className="flex items-center justify-between px-3 py-2 bg-emerald-50 rounded-lg text-xs font-bold">
                         <span className="text-emerald-900">Total Consolidado</span>
-                        <span className="text-emerald-900">{formatCurrency(patrimonioGrupo.patrimonioPonderado)}</span>
+                        <span className="text-emerald-900">{formatCurrency(patrimonioGrupo.patrimonioTotalBruto)}</span>
                       </div>
                     </div>
                   </Card>
@@ -1225,104 +1172,56 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
               );
             }
 
-            // Histórico do Grupo — 7 blocos de questionário (reestruturado em 20/08/2026)
-            type CampoHistorico = keyof typeof historicoDraft;
-            const BLOCOS_HISTORICO: {
-              titulo: string;
-              descricao?: string;
-              campos: { campo: CampoHistorico; label: string; rows?: number }[];
-            }[] = [
-              {
-                titulo: '1. Histórico',
-                descricao:
-                  'Este texto é utilizado na Apresentação do Grupo (Slide 2) e no Parecer Executivo.',
-                campos: [
-                  { campo: 'historicoInicio', label: 'Início' },
-                  { campo: 'historicoHerancaOrigem', label: 'Herança/Origem' },
-                  { campo: 'historicoEvolucaoNegocio', label: 'Evolução do negócio' },
-                  { campo: 'historicoGestaoCrises', label: 'Gestão de crises climáticas/financeiras' }
-                ]
-              },
-              {
-                titulo: '2. Gestão — Sucessão',
-                campos: [
-                  { campo: 'gestaoAdministracao', label: 'Administração' },
-                  { campo: 'gestaoParceriasSocios', label: 'Parcerias/Sócios' },
-                  { campo: 'gestaoDivisaoCustosFaturamento', label: 'Divisão de custos/faturamento' },
-                  { campo: 'gestaoPlanoSucessorioHerdeiros', label: 'Plano sucessório/Herdeiros' }
-                ]
-              },
-              {
-                titulo: '3. Modus Operandi — Agricultura',
-                campos: [
-                  { campo: 'agriculturaCustos', label: 'Custos' },
-                  { campo: 'agriculturaCronogramaPlantioColheita', label: 'Cronogramas de plantio/colheita' },
-                  { campo: 'agriculturaCapacidadeArmazenamento', label: 'Capacidade de Armazenamento estático' },
-                  { campo: 'agriculturaFornecedoresClientes', label: 'Fornecedores/Clientes' },
-                  { campo: 'agriculturaModalidadesCompra', label: 'Modalidades de compra' },
-                  { campo: 'agriculturaExportacao', label: 'Exportação' }
-                ]
-              },
-              {
-                titulo: '4. Modus Operandi — Pecuária',
-                campos: [
-                  { campo: 'pecuariaCicloProducao', label: 'Ciclo de produção' },
-                  { campo: 'pecuariaConfinamento', label: 'Confinamento' },
-                  { campo: 'pecuariaCustosCronogramaCompraAbate', label: 'Custos e Cronograma de compra/abate' }
-                ]
-              },
-              {
-                titulo: '5. Gestão Financeira',
-                campos: [
-                  { campo: 'financeiroFinanciamentos', label: 'Financiamentos' },
-                  { campo: 'financeiroPoliticaHedge', label: 'Política de Hedge para commodities e câmbio' },
-                  { campo: 'financeiroPosicaoComercializadaSafraAtual', label: 'Posição comercializada da safra atual' }
-                ]
-              },
-              {
-                titulo: '6. Outras Atividades / Empresas Coligadas',
-                campos: [{ campo: 'empresasColigadas', label: 'Empresas Coligadas', rows: 8 }]
-              }
-            ];
+            // Questionário do Grupo — texto das perguntas fornecido pelo cliente (09/10/2026)
+            const TOM_SECAO = {
+              verde: 'bg-emerald-50 text-emerald-900 border-emerald-200',
+              azul: 'bg-blue-50 text-blue-900 border-blue-200',
+              laranja: 'bg-amber-50 text-amber-900 border-amber-200'
+            } as const;
 
             return (
               <Card className="p-5">
                 <div className="space-y-8">
-                  {BLOCOS_HISTORICO.map((bloco, i) => (
-                    <div key={bloco.titulo} className={i === 0 ? '' : 'border-t border-slate-200 pt-6'}>
-                      <h4 className="text-sm font-bold text-slate-900 mb-1.5">{bloco.titulo}</h4>
-                      {bloco.descricao && <p className="text-xs text-slate-500 mb-3">{bloco.descricao}</p>}
+                  {SECOES_PERGUNTAS_GRUPO.map((secao, i) => (
+                    <div key={secao.id} className={i === 0 ? '' : 'border-t border-slate-200 pt-6'}>
+                      <h4 className={`text-sm font-bold mb-4 inline-block rounded-lg border px-3 py-1.5 ${TOM_SECAO[secao.tom]}`}>
+                        {i + 1}. {secao.titulo}
+                      </h4>
                       <div className="space-y-4">
-                        {bloco.campos.map(({ campo, label, rows }) => (
-                          <Textarea
-                            key={campo}
-                            label={label}
-                            rows={rows ?? 4}
-                            value={historicoDraft[campo]}
-                            onChange={(e) => setHistoricoCampo(campo, e.target.value)}
-                          />
-                        ))}
+                        {secao.perguntas.map((pergunta, j) => {
+                          const numero = `${i + 1}.${j + 1}`;
+                          if (pergunta.tipo === 'percentual') {
+                            return (
+                              <Input
+                                key={pergunta.coluna}
+                                label={`${numero}. ${pergunta.texto}`}
+                                type="number"
+                                min={0}
+                                max={100}
+                                step="0.01"
+                                value={desfruteDraft}
+                                onChange={(e) => setDesfruteDraft(e.target.value)}
+                                hint="Informe em %."
+                              />
+                            );
+                          }
+                          return (
+                            <Textarea
+                              key={pergunta.chave}
+                              label={`${numero}. ${pergunta.texto}`}
+                              rows={4}
+                              value={respostasDraft[pergunta.chave] ?? ''}
+                              onChange={(e) => setResposta(pergunta.chave, e.target.value)}
+                            />
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
 
-                  {/* 4. campo numérico — taxa de desfrute (único número do bloco Pecuária) */}
-                  <div className="border-t border-slate-200 pt-6 -mt-4">
-                    <Input
-                      label="Taxa de desfrute (%)"
-                      type="number"
-                      min={0}
-                      max={100}
-                      step="0.01"
-                      value={historicoDraft.pecuariaTaxaDesfrutePercent}
-                      onChange={(e) => setHistoricoCampo('pecuariaTaxaDesfrutePercent', e.target.value)}
-                      hint="Percentual de animais abatidos/comercializados sobre o rebanho total — bloco 4, Pecuária."
-                    />
-                  </div>
-
                   {/* 7. Missão, Visão e Valores — destacado do restante do formulário */}
                   <div className="border-t border-slate-200 pt-6">
-                    <h4 className="text-sm font-bold text-slate-900 mb-3">7. Missão, Visão e Valores</h4>
+                    <h4 className="text-sm font-bold text-slate-900 mb-3">{SECOES_PERGUNTAS_GRUPO.length + 1}. Missão, Visão e Valores</h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {(
                         [
@@ -1335,8 +1234,8 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                           <p className="text-xs font-extrabold uppercase tracking-wide text-slate-700 mb-2">{label}</p>
                           <Textarea
                             rows={6}
-                            value={historicoDraft[campo]}
-                            onChange={(e) => setHistoricoCampo(campo, e.target.value)}
+                            value={narrativaDraft[campo]}
+                            onChange={(e) => setNarrativaDraft((prev) => ({ ...prev, [campo]: e.target.value }))}
                             className="bg-white/70"
                           />
                         </div>
@@ -1374,6 +1273,11 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
         onSave={handleSaveBem}
         editingBem={editingBem}
         socios={socios}
+        onEscolherImovel={(grupo) => {
+          setEditingBem(null);
+          if (grupo === 'Imóveis Rurais - ANEXO A') setIsImovelRuralOpen(true);
+          else setIsImovelUrbanoOpen(true);
+        }}
       />
 
       <ImovelRuralModal

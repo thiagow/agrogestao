@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { BemDireito, GrupoIrpfBem, LiquidezBem, Socio } from '../types';
 import { Drawer, Input, Select, Textarea, Button } from './ui';
 import { formatCurrency } from '../lib/format';
-import { GRUPOS_IRPF, ANEXOS_IMOVEL } from '../lib/bens-direitos-constantes';
+import { TIPOS_BEM_DIREITO, isAnexoImovel } from '../lib/bens-direitos-constantes';
 
 interface BemDireitoDrawerProps {
   isOpen: boolean;
@@ -12,27 +12,23 @@ interface BemDireitoDrawerProps {
   onSave: (data: Partial<BemDireito>) => void;
   editingBem?: BemDireito | null;
   socios?: Socio[];
+  /** Escolher Imóvel Rural/Urbano no select de um bem NOVO fecha este formulário e abre o
+   * modal próprio (ANEXO A/B) — o botão "Adicionar" é o único ponto de entrada. */
+  onEscolherImovel?: (grupo: GrupoIrpfBem) => void;
 }
-
-// ANEXO A/B (Imóveis Rurais/Urbanos) têm grid/modal próprio (ImovelRuralModal/
-// ImovelUrbanoModal) — não aparecem aqui pra não duplicar o caminho de cadastro.
-const GRUPOS_IRPF_GENERICOS = GRUPOS_IRPF.filter((g) => !(ANEXOS_IMOVEL as string[]).includes(g));
 
 export const BemDireitoDrawer: React.FC<BemDireitoDrawerProps> = ({
   isOpen,
   onClose,
   onSave,
   editingBem,
-  socios = []
+  socios = [],
+  onEscolherImovel
 }) => {
   const [socioId, setSocioId] = useState('');
-  const [grupoIrpf, setGrupoIrpf] = useState<GrupoIrpfBem>('Bens Imóveis');
-  const [codigoTipo, setCodigoTipo] = useState('');
+  const [grupoIrpf, setGrupoIrpf] = useState<GrupoIrpfBem>('Máquinas Agrícolas');
   const [descricao, setDescricao] = useState('');
-  const [valorDeclaradoIrpf, setValorDeclaradoIrpf] = useState('');
   const [valorMercadoEstimado, setValorMercadoEstimado] = useState('');
-  const [dataAquisicao, setDataAquisicao] = useState('');
-  const [valorAquisicao, setValorAquisicao] = useState('');
   const [liquidez, setLiquidez] = useState<LiquidezBem>('Baixa');
   const [ltv, setLtv] = useState('65');
   const [elegivelGarantia, setElegivelGarantia] = useState(false);
@@ -43,12 +39,8 @@ export const BemDireitoDrawer: React.FC<BemDireitoDrawerProps> = ({
     if (editingBem) {
       setSocioId(editingBem.socioId ?? '');
       setGrupoIrpf(editingBem.grupoIrpf);
-      setCodigoTipo(editingBem.codigoTipo);
       setDescricao(editingBem.descricao);
-      setValorDeclaradoIrpf(editingBem.valorDeclaradoIrpf?.toString() ?? '');
       setValorMercadoEstimado(editingBem.valorMercadoEstimado?.toString() ?? '');
-      setDataAquisicao(editingBem.dataAquisicao ?? '');
-      setValorAquisicao(editingBem.valorAquisicao?.toString() ?? '');
       setLiquidez(editingBem.liquidez);
       setLtv(editingBem.ltv?.toString() ?? '');
       setElegivelGarantia(editingBem.elegivelGarantia);
@@ -56,13 +48,9 @@ export const BemDireitoDrawer: React.FC<BemDireitoDrawerProps> = ({
       setObservacoes(editingBem.observacoes ?? '');
     } else {
       setSocioId('');
-      setGrupoIrpf('Bens Imóveis');
-      setCodigoTipo('');
+      setGrupoIrpf('Máquinas Agrícolas');
       setDescricao('');
-      setValorDeclaradoIrpf('');
       setValorMercadoEstimado('');
-      setDataAquisicao('');
-      setValorAquisicao('');
       setLiquidez('Baixa');
       setLtv('65');
       setElegivelGarantia(false);
@@ -76,20 +64,25 @@ export const BemDireitoDrawer: React.FC<BemDireitoDrawerProps> = ({
       ? (parseFloat(valorMercadoEstimado) || 0) * ((parseFloat(ltv) || 0) / 100)
       : undefined;
 
+  const handleTipoChange = (novo: GrupoIrpfBem) => {
+    if (!editingBem && isAnexoImovel(novo) && onEscolherImovel) {
+      onClose();
+      onEscolherImovel(novo);
+      return;
+    }
+    setGrupoIrpf(novo);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!descricao.trim() || !codigoTipo.trim()) return;
+    if (!descricao.trim()) return;
 
     onSave({
       id: editingBem?.id,
       socioId: socioId || undefined,
       grupoIrpf,
-      codigoTipo: codigoTipo.trim(),
       descricao: descricao.trim(),
-      valorDeclaradoIrpf: valorDeclaradoIrpf ? parseFloat(valorDeclaradoIrpf) : undefined,
       valorMercadoEstimado: valorMercadoEstimado ? parseFloat(valorMercadoEstimado) : undefined,
-      dataAquisicao: dataAquisicao || undefined,
-      valorAquisicao: valorAquisicao ? parseFloat(valorAquisicao) : undefined,
       liquidez,
       ltv: ltv ? parseFloat(ltv) : undefined,
       elegivelGarantia,
@@ -112,7 +105,7 @@ export const BemDireitoDrawer: React.FC<BemDireitoDrawerProps> = ({
           label="Sócio Titular (opcional)"
           value={socioId}
           onChange={(e) => setSocioId(e.target.value)}
-          hint="Vincule ao sócio para calcular o PL ponderado pela participação societária."
+          hint="Vincule o bem a um integrante, ou deixe no Grupo."
         >
           <option value="">Grupo (sem sócio específico)</option>
           {socios.map((s) => (
@@ -122,28 +115,18 @@ export const BemDireitoDrawer: React.FC<BemDireitoDrawerProps> = ({
           ))}
         </Select>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Select
-            label="Grupo IRPF"
-            required
-            value={grupoIrpf}
-            onChange={(e) => setGrupoIrpf(e.target.value as GrupoIrpfBem)}
-          >
-            {GRUPOS_IRPF_GENERICOS.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </Select>
-          <Input
-            label="Código / Tipo"
-            required
-            placeholder="Ex: 18 — Imóvel Rural"
-            hint="Código da Declaração de Bens e Direitos (IRPF)."
-            value={codigoTipo}
-            onChange={(e) => setCodigoTipo(e.target.value)}
-          />
-        </div>
+        <Select
+          label="Bem / Direito"
+          required
+          value={grupoIrpf}
+          onChange={(e) => handleTipoChange(e.target.value as GrupoIrpfBem)}
+        >
+          {TIPOS_BEM_DIREITO.filter((g) => !editingBem || !isAnexoImovel(g)).map((g) => (
+            <option key={g} value={g}>
+              {g}
+            </option>
+          ))}
+        </Select>
 
         <Textarea
           label="Descrição"
@@ -154,41 +137,14 @@ export const BemDireitoDrawer: React.FC<BemDireitoDrawerProps> = ({
           onChange={(e) => setDescricao(e.target.value)}
         />
 
-        <div className="grid grid-cols-2 gap-3">
-          <Input
-            label="Valor Declarado IRPF (R$)"
-            type="number"
-            min={0}
-            step="0.01"
-            value={valorDeclaradoIrpf}
-            onChange={(e) => setValorDeclaradoIrpf(e.target.value)}
-          />
-          <Input
-            label="Valor de Mercado Estimado (R$)"
-            type="number"
-            min={0}
-            step="0.01"
-            value={valorMercadoEstimado}
-            onChange={(e) => setValorMercadoEstimado(e.target.value)}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Input
-            label="Data de Aquisição"
-            type="date"
-            value={dataAquisicao}
-            onChange={(e) => setDataAquisicao(e.target.value)}
-          />
-          <Input
-            label="Valor de Aquisição (R$)"
-            type="number"
-            min={0}
-            step="0.01"
-            value={valorAquisicao}
-            onChange={(e) => setValorAquisicao(e.target.value)}
-          />
-        </div>
+        <Input
+          label="Valor de Mercado Estimado (R$)"
+          type="number"
+          min={0}
+          step="0.01"
+          value={valorMercadoEstimado}
+          onChange={(e) => setValorMercadoEstimado(e.target.value)}
+        />
 
         <div className="grid grid-cols-2 gap-3">
           <Select label="Liquidez" value={liquidez} onChange={(e) => setLiquidez(e.target.value as LiquidezBem)}>
@@ -242,7 +198,7 @@ export const BemDireitoDrawer: React.FC<BemDireitoDrawerProps> = ({
         <Textarea
           label="Observações"
           rows={3}
-          placeholder="Matrícula, localização, observações relevantes..."
+          placeholder="Matrícula, localização, datas (ex.: vencimento de contas a receber), observações relevantes..."
           value={observacoes}
           onChange={(e) => setObservacoes(e.target.value)}
         />

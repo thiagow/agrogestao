@@ -7,6 +7,7 @@
 import type {
   Category,
   EstadoCivil,
+  TipoEmpresa,
   TipoTaxaBancaria,
   PeriodicidadeLiquidacao,
   PeriodicidadeArrendamento,
@@ -19,6 +20,7 @@ import type {
 import {
   Category as PrismaCategory,
   EstadoCivil as PrismaEstadoCivil,
+  TipoEmpresa as PrismaTipoEmpresa,
   TipoTaxaBancaria as PrismaTipoTaxaBancaria,
   PeriodicidadeLiquidacao as PrismaPeriodicidadeLiquidacao,
   PeriodicidadeArrendamento as PrismaPeriodicidadeArrendamento,
@@ -63,6 +65,16 @@ export const ESTADO_CIVIL_FROM_DB: Record<PrismaEstadoCivil, EstadoCivil> = {
   VIUVO: 'Viúvo',
   DIVORCIADO: 'Divorciado',
   SEPARADO: 'Separado'
+};
+
+export const TIPO_EMPRESA_TO_DB: Record<TipoEmpresa, PrismaTipoEmpresa> = {
+  Holding: PrismaTipoEmpresa.HOLDING,
+  'Empresa Operacional': PrismaTipoEmpresa.OPERACIONAL
+};
+
+export const TIPO_EMPRESA_FROM_DB: Record<PrismaTipoEmpresa, TipoEmpresa> = {
+  HOLDING: 'Holding',
+  OPERACIONAL: 'Empresa Operacional'
 };
 
 export const TIPO_TAXA_TO_DB: Record<TipoTaxaBancaria, PrismaTipoTaxaBancaria> = {
@@ -164,29 +176,31 @@ export const PERIODICIDADE_ARRENDAMENTO_FROM_DB: Record<PrismaPeriodicidadeArren
 };
 
 export const GRUPO_IRPF_TO_DB: Record<GrupoIrpfBem, PrismaGrupoIrpfBem> = {
-  'Bens Imóveis': PrismaGrupoIrpfBem.BENS_IMOVEIS,
-  'Bens Móveis': PrismaGrupoIrpfBem.BENS_MOVEIS,
-  'Participações Societárias': PrismaGrupoIrpfBem.PARTICIPACOES_SOCIETARIAS,
-  'Aplicações e Investimentos': PrismaGrupoIrpfBem.APLICACOES_INVESTIMENTOS,
-  'Depósitos à Vista e Poupança': PrismaGrupoIrpfBem.DEPOSITOS_POUPANCA,
-  'Créditos e Outros Direitos': PrismaGrupoIrpfBem.CREDITOS_DIREITOS,
-  Criptoativos: PrismaGrupoIrpfBem.CRIPTOATIVOS,
-  'Outros Bens e Direitos': PrismaGrupoIrpfBem.OUTROS_BENS,
   'Imóveis Rurais - ANEXO A': PrismaGrupoIrpfBem.IMOVEIS_RURAIS_ANEXO_A,
-  'Imóveis Urbanos - ANEXO B': PrismaGrupoIrpfBem.IMOVEIS_URBANOS_ANEXO_B
+  'Imóveis Urbanos - ANEXO B': PrismaGrupoIrpfBem.IMOVEIS_URBANOS_ANEXO_B,
+  'Benfeitorias e Instalações': PrismaGrupoIrpfBem.BENFEITORIAS_INSTALACOES,
+  'Máquinas Agrícolas': PrismaGrupoIrpfBem.MAQUINAS_AGRICOLAS,
+  'Implementos': PrismaGrupoIrpfBem.IMPLEMENTOS,
+  'Veículos': PrismaGrupoIrpfBem.VEICULOS,
+  'Estoque (Insumos e Grãos)': PrismaGrupoIrpfBem.ESTOQUE,
+  'Participações Societárias': PrismaGrupoIrpfBem.PARTICIPACOES_SOCIETARIAS,
+  'Disponibilidade e aplicações': PrismaGrupoIrpfBem.DISPONIBILIDADE_APLICACOES,
+  'Contas a receber': PrismaGrupoIrpfBem.CONTAS_A_RECEBER,
+  'Direitos e bens diversos': PrismaGrupoIrpfBem.DIREITOS_BENS_DIVERSOS
 };
 
 export const GRUPO_IRPF_FROM_DB: Record<PrismaGrupoIrpfBem, GrupoIrpfBem> = {
-  BENS_IMOVEIS: 'Bens Imóveis',
-  BENS_MOVEIS: 'Bens Móveis',
-  PARTICIPACOES_SOCIETARIAS: 'Participações Societárias',
-  APLICACOES_INVESTIMENTOS: 'Aplicações e Investimentos',
-  DEPOSITOS_POUPANCA: 'Depósitos à Vista e Poupança',
-  CREDITOS_DIREITOS: 'Créditos e Outros Direitos',
-  CRIPTOATIVOS: 'Criptoativos',
-  OUTROS_BENS: 'Outros Bens e Direitos',
   IMOVEIS_RURAIS_ANEXO_A: 'Imóveis Rurais - ANEXO A',
-  IMOVEIS_URBANOS_ANEXO_B: 'Imóveis Urbanos - ANEXO B'
+  IMOVEIS_URBANOS_ANEXO_B: 'Imóveis Urbanos - ANEXO B',
+  BENFEITORIAS_INSTALACOES: 'Benfeitorias e Instalações',
+  MAQUINAS_AGRICOLAS: 'Máquinas Agrícolas',
+  IMPLEMENTOS: 'Implementos',
+  VEICULOS: 'Veículos',
+  ESTOQUE: 'Estoque (Insumos e Grãos)',
+  PARTICIPACOES_SOCIETARIAS: 'Participações Societárias',
+  DISPONIBILIDADE_APLICACOES: 'Disponibilidade e aplicações',
+  CONTAS_A_RECEBER: 'Contas a receber',
+  DIREITOS_BENS_DIVERSOS: 'Direitos e bens diversos'
 };
 
 export const LIQUIDEZ_BEM_TO_DB: Record<LiquidezBem, PrismaLiquidezBem> = {
