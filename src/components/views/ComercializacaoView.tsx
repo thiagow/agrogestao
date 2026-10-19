@@ -1,5 +1,6 @@
 'use client';
 
+import { safraAtualDaData } from '../../lib/safra-periodo';
 import React, { useMemo, useState } from 'react';
 import {
   Bar,
@@ -66,7 +67,7 @@ export const ComercializacaoView: React.FC<ComercializacaoViewProps> = ({
     [culturaSafras]
   );
   const [safraSelecionada, setSafraSelecionada] = useState<string>('');
-  const safraAtiva = safraSelecionada || safrasDisponiveis[safrasDisponiveis.length - 1] || '';
+  const safraAtiva = safraSelecionada || safraAtualDaData(safrasDisponiveis);
 
   const { porCultura, porComprador } = useMemo(
     () => calcularPosicaoComercializacao({ quadroSafra: culturaSafras, contratos, precosDefinidos, safra: safraAtiva }),

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { montarBalanco, complementaresVazio, splitBancosCpLp, splitAquisicaoCpLp } from './balanco-calc';
+import { montarBalanco, complementaresVazio, splitBancosCpLp, splitAquisicaoCpLp, calcularScoreRadar, fracaoRampa } from './balanco-calc';
 import type {
   Aquisicao,
   BemDireito,
@@ -360,8 +360,9 @@ describe('Pecuária/Suinocultura/Avicultura (02/09/2026)', () => {
     // 100 cabeças em estoque x R$1.000/cabeça = R$100.000
     expect(com.ativo.estoqueRebanhoBovino).toBe(100_000);
     // totalCirculante também sobe com a receita comercializada (contasReceberSafra):
-    // faturamentoMachos = 10 * 1 * 500 = 5.000.
-    expect(com.ativo.totalCirculante).toBeCloseTo(sem.ativo.totalCirculante + 100_000 + 5_000, 2);
+    // faturamentoMachos = 10 * 1 * 500 = 5.000, e o registro (ano civil 2027) pesa 50%
+    // na safra 2026/2027 (blend, igual ao Resumo do Quadro de Safra) = 2.500.
+    expect(com.ativo.totalCirculante).toBeCloseTo(sem.ativo.totalCirculante + 100_000 + 2_500, 2);
   });
 
   it('registro de outro ano civil (fora da safra selecionada) não entra no estoque', () => {
@@ -382,8 +383,9 @@ describe('Pecuária/Suinocultura/Avicultura (02/09/2026)', () => {
     const com = montarBalanco(input);
 
     // Bovino: receita 10*1*500=5.000, custo 1000*10=10.000. Aves: receita 100*20=2.000, custo 100*12=1.200.
-    expect(com.dre.receitaBruta).toBeCloseTo(sem.dre.receitaBruta + 5_000 + 2_000, 2);
-    expect(com.dre.custos).toBeCloseTo(sem.dre.custos + 10_000 + 1_200, 2);
+    // Cada ano civil entra com 50% na safra (blend 50/50 — mesma regra do Resumo do Quadro de Safra).
+    expect(com.dre.receitaBruta).toBeCloseTo(sem.dre.receitaBruta + (5_000 + 2_000) * 0.5, 2);
+    expect(com.dre.custos).toBeCloseTo(sem.dre.custos + (10_000 + 1_200) * 0.5, 2);
   });
 
   it('Suínos/Aves não têm estoque — não entram no Ativo Circulante além da receita/custo', () => {
@@ -393,5 +395,37 @@ describe('Pecuária/Suinocultura/Avicultura (02/09/2026)', () => {
     ];
     const balanco = montarBalanco(input);
     expect(balanco.ativo.estoqueRebanhoBovino).toBe(0);
+  });
+});
+
+describe('Radar Saúde Financeira — fórmula do cliente (13/10/2026)', () => {
+  const ind = (id: string, valor: number | null) =>
+    ({ id, grupo: 'Liquidez', nome: id, valor, unidade: '', status: 'Bom', formula: '', referencia: '' }) as never;
+  const eixo = (r: { dimensao: string; valor: number }[], nome: string) => r.find((e) => e.dimensao === nome)!.valor;
+
+  it('rampa linear nos dois sentidos, limitada nas pontas', () => {
+    expect(fracaoRampa(2.5, 2.0, 0.5)).toBe(1);
+    expect(fracaoRampa(0.2, 2.0, 0.5)).toBe(0);
+    expect(fracaoRampa(1.25, 2.0, 0.5)).toBeCloseTo(0.5);
+    expect(fracaoRampa(50, 30, 70)).toBeCloseTo(0.5); // invertida: 50% de endividamento
+  });
+
+  it('Solvência: PL/Ativo de 40% preenche 50% do eixo', () => {
+    const r = calcularScoreRadar([ind('endividamento-geral', 60)]);
+    expect(eixo(r, 'Solvência')).toBe(50);
+  });
+
+  it('Liquidez pondera 70/30', () => {
+    const r = calcularScoreRadar([ind('liquidez-corrente', 2.0), ind('liquidez-geral', 0.5)]);
+    expect(eixo(r, 'Liquidez')).toBe(70);
+  });
+
+  it('indicador sem valor sai da conta e redistribui o peso', () => {
+    const r = calcularScoreRadar([ind('dscr', 2.0), ind('capacidade-pagamento', null)]);
+    expect(eixo(r, 'Cobertura')).toBe(100);
+  });
+
+  it('eixo sem nenhum indicador disponível fica em 0', () => {
+    expect(eixo(calcularScoreRadar([]), 'Eficiência')).toBe(0);
   });
 });

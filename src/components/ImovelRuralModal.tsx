@@ -100,7 +100,7 @@ export const ImovelRuralModal: React.FC<ImovelRuralModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       icon={<Building2 className="w-5 h-5" />}
-      title={editingBem ? 'Editar Imóvel Rural — ANEXO A' : 'Novo Imóvel Rural — ANEXO A'}
+      title={editingBem ? 'Editar Imóvel Rural' : 'Novo Imóvel Rural'}
       subtitle="Declaração de Bens e Direitos — imóveis rurais do grupo"
       footer={
         <div className="flex gap-3">

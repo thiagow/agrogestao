@@ -30,7 +30,7 @@ import type {
 } from '../../types';
 import { formatCurrency } from '../../data/initialData';
 import { montarBalanco, complementaresVazio } from '../../lib/balanco-calc';
-import { safraDoAnoCivil } from '../../lib/safra-periodo';
+import { safraAtualDaData, safrasDoAnoCivilBlend } from '../../lib/safra-periodo';
 import { Card, KpiCard, Badge, Select, Tabs, Tooltip } from '../ui';
 import { DadosComplementaresForm } from '../DadosComplementaresForm';
 import type { FluxoDetalhado, CronogramaConsolidado } from '../../server/contratos-bancarios';
@@ -78,14 +78,14 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
       Array.from(
         new Set([
           ...culturaSafras.map((r) => r.anoSafra),
-          ...pecuariaBovina.map((r) => safraDoAnoCivil(r.anoCivil)),
-          ...producaoAnimal.map((r) => safraDoAnoCivil(r.anoCivil))
+          ...pecuariaBovina.map((r) => safrasDoAnoCivilBlend(r.anoCivil)).flat(),
+          ...producaoAnimal.map((r) => safrasDoAnoCivilBlend(r.anoCivil)).flat()
         ])
       ).sort(),
     [culturaSafras, pecuariaBovina, producaoAnimal]
   );
   const [safraSelecionada, setSafraSelecionada] = useState('');
-  const safraAtiva = safraSelecionada || safrasDisponiveis[safrasDisponiveis.length - 1] || '';
+  const safraAtiva = safraSelecionada || safraAtualDaData(safrasDisponiveis);
 
   const complementaresAtivo = useMemo(
     () => dadosComplementares.find((d) => d.safra === safraAtiva) ?? complementaresVazio(safraAtiva),
@@ -183,8 +183,8 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                         </RadarChart>
                       </ResponsiveContainer>
                       <p className="text-[10px] text-slate-400 mt-1">
-                        Score próprio (0-100, média por status dos indicadores de cada eixo) — a fórmula de agregação do
-                        AgroFlow original não é documentada.
+                        Score de 0 a 100 por eixo: média ponderada de indicadores-chave, cada um com meta que preenche o
+                        eixo por completo (ex.: Liquidez Corrente ≥ 2,0 · Endividamento Geral ≤ 30% · PL/Ativo ≥ 80%).
                       </p>
                     </div>
 

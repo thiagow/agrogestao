@@ -18,8 +18,8 @@
 // 4. CP/LP de Bancos e Aquisição de Fazenda calculado de verdade pelas datas
 //    reais das parcelas (vencimento ≤ 12 meses de hoje = Curto Prazo), reaproveitando
 //    isCurtoPrazo() — antes o schema não distinguia isso por contrato.
-// 5. Radar "Saúde Financeira": fórmula de agregação própria (score 0-100 por
-//    status, média por eixo) — a spec não confirma a fórmula exata do original.
+// 5. Radar "Saúde Financeira": fórmula definida pelo cliente (13/10/2026) —
+//    média ponderada de indicadores com rampas lineares por eixo.
 // 6. Despesa Comercial usa `despesaComercialScHa` da conta (default 3), não um
 //    "3" fixo — spec confirma que é configurável (corrige a suposição de
 //    SPEC_TELA_FLUXO_DE_SAFRA.md).
@@ -27,7 +27,7 @@
 import { calcularSafra, isCurtoPrazo } from '@/lib/agro';
 import { anoInicioSafra, anoCivilDaSafra } from '@/lib/safra-periodo';
 import { commodityDaCultura } from '@/lib/cultura-commodity';
-import { receitaCustoPecuariaDaSafra, valorEstoqueBovino } from '@/lib/pecuaria-calc';
+import { receitaCustoPecuariaSafraBlend, valorEstoqueBovino } from '@/lib/pecuaria-calc';
 import type { AnoFluxo, FluxoContrato } from '@/server/contratos-bancarios';
 import type {
   AtivoCalculado,
@@ -200,7 +200,7 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
 
   const registrosSafra = input.quadroSafra.filter((r) => r.anoSafra === safra);
   const areaTotalHa = registrosSafra.reduce((s, r) => s + r.hectares, 0);
-  const pecuaria = receitaCustoPecuariaDaSafra(safra, input.pecuariaBovina, input.producaoAnimal);
+  const pecuaria = receitaCustoPecuariaSafraBlend(safra, input.pecuariaBovina, input.producaoAnimal);
   const receitaBruta = registrosSafra.reduce((s, r) => s + calcularSafra(r).receitaBruta, 0) + pecuaria.receitaBruta;
   const custos = registrosSafra.reduce((s, r) => s + calcularSafra(r).despesa, 0) + pecuaria.despesa;
 
@@ -585,33 +585,57 @@ export function calcularIndicadores(input: CalcularIndicadoresInput): IndicadorC
 }
 
 // ---------------------------------------------------------------------------
-// Radar "Saúde Financeira" — score próprio (decisão documentada, spec não confirma a fórmula original)
+// Radar "Saúde Financeira" — fórmula de agregação definida pelo cliente (13/10/2026,
+// validação). Cada eixo é a média ponderada de indicadores escolhidos, cada um
+// com rampa linear entre um piso (0%) e uma meta (100%). Lê `.valor` direto
+// (percentuais em 0-100, razões como número puro), nunca o status.
 // ---------------------------------------------------------------------------
 
-const SCORE_POR_STATUS: Record<StatusIndicador, number> = {
-  Excelente: 100,
-  Bom: 75,
-  Adequado: 50,
-  Atenção: 25,
-  Crítico: 0,
-  'Sem dados': 50 // neutro — não puxa o eixo pra baixo por ausência de dado
-};
+interface RegraRadar {
+  /** Id de um indicador de `calcularIndicadores`, ou `pl-ativo` (derivado). */
+  id: string;
+  peso: number;
+  /** Valor que atinge 100% do eixo. */
+  meta: number;
+  /** Valor que zera o eixo. Se `meta < zero`, a rampa é invertida (menor é melhor). */
+  zero: number;
+}
 
-/** Mapeamento de quais indicadores compõem cada eixo do radar — decisão própria, a spec não confirma a fórmula original (seção 3.2). */
-const EIXOS_RADAR: Record<string, string[]> = {
-  Liquidez: ['liquidez-corrente', 'liquidez-seca', 'liquidez-imediata', 'liquidez-geral'],
-  Endividamento: ['endividamento-geral', 'composicao-cp-lp', 'grau-endividamento', 'alavancagem', 'endividamento-cp'],
-  Rentabilidade: ['margem-bruta', 'margem-ebitda', 'margem-operacional', 'margem-liquida', 'roe', 'roa', 'roic', 'giro-ativo'],
-  Cobertura: ['dscr', 'cobertura-cp', 'capacidade-pagamento', 'cobertura-arrendamento', 'divida-ebitda', 'cobertura-juros'],
-  Eficiência: ['pmr', 'pmp', 'giro-estoque'],
-  Solvência: ['imobilizacao-pl', 'bancabilidade']
-};
+const EIXOS_RADAR: { dimensao: string; regras: RegraRadar[] }[] = [
+  { dimensao: 'Liquidez', regras: [{ id: 'liquidez-corrente', peso: 0.7, meta: 2.0, zero: 0.5 }, { id: 'liquidez-geral', peso: 0.3, meta: 1.5, zero: 0.5 }] },
+  { dimensao: 'Endividamento', regras: [{ id: 'endividamento-geral', peso: 0.5, meta: 30, zero: 70 }, { id: 'divida-ebitda', peso: 0.5, meta: 1.5, zero: 4.0 }] },
+  { dimensao: 'Rentabilidade', regras: [{ id: 'margem-ebitda', peso: 0.6, meta: 35, zero: 0 }, { id: 'margem-liquida', peso: 0.4, meta: 25, zero: 0 }] },
+  { dimensao: 'Cobertura', regras: [{ id: 'dscr', peso: 0.6, meta: 2.0, zero: 1.0 }, { id: 'capacidade-pagamento', peso: 0.4, meta: 1.5, zero: 1.0 }] },
+  { dimensao: 'Eficiência', regras: [{ id: 'margem-ha', peso: 0.6, meta: 3000, zero: 0 }, { id: 'receita-ha', peso: 0.4, meta: 8000, zero: 0 }] },
+  { dimensao: 'Solvência', regras: [{ id: 'pl-ativo', peso: 1, meta: 80, zero: 0 }] }
+];
 
+/** Fração 0-1 da rampa linear entre `zero` (0) e `meta` (1), limitada às pontas. Funciona nos dois sentidos. */
+export function fracaoRampa(valor: number, meta: number, zero: number): number {
+  const f = (valor - zero) / (meta - zero);
+  return Math.min(1, Math.max(0, f));
+}
+
+/**
+ * Score 0-100 de cada eixo. Indicador sem valor (null, ex. DSCR sem serviço da
+ * dívida) sai da conta e os pesos dos demais são redistribuídos; eixo sem
+ * nenhum indicador disponível fica em 0. Regra de "sem dado" sugerida ao
+ * cliente — ver documento de decisões.
+ */
 export function calcularScoreRadar(indicadores: IndicadorCalculado[]): { dimensao: string; valor: number }[] {
   const porId = new Map(indicadores.map((i) => [i.id, i]));
-  return Object.entries(EIXOS_RADAR).map(([dimensao, ids]) => {
-    const scores = ids.map((id) => porId.get(id)).filter((i): i is IndicadorCalculado => !!i).map((i) => SCORE_POR_STATUS[i.status]);
-    const valor = scores.length > 0 ? scores.reduce((s, v) => s + v, 0) / scores.length : 0;
+  // Solvência (PL/Ativo %): o PL é sempre o residual Ativo − Passivo, então PL/Ativo = 100 − Endividamento Geral.
+  const endividamento = porId.get('endividamento-geral')?.valor;
+  const valorDe = (id: string): number | null =>
+    id === 'pl-ativo' ? (typeof endividamento === 'number' ? 100 - endividamento : null) : (porId.get(id)?.valor ?? null);
+
+  return EIXOS_RADAR.map(({ dimensao, regras }) => {
+    const disponiveis = regras.flatMap((r) => {
+      const v = valorDe(r.id);
+      return v === null ? [] : [{ r, v }];
+    });
+    const pesoTotal = disponiveis.reduce((s, { r }) => s + r.peso, 0);
+    const valor = pesoTotal > 0 ? (disponiveis.reduce((s, { r, v }) => s + r.peso * fracaoRampa(v, r.meta, r.zero), 0) / pesoTotal) * 100 : 0;
     return { dimensao, valor: Math.round(valor) };
   });
 }

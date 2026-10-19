@@ -18,7 +18,7 @@
 
 import { calcularSafra } from '@/lib/agro';
 import { anoInicioSafra, safraDoAno, janelaSafra } from '@/lib/safra-periodo';
-import { receitaCustoPecuariaDaSafra } from '@/lib/pecuaria-calc';
+import { receitaCustoPecuariaSafraBlend } from '@/lib/pecuaria-calc';
 import type {
   CategoriaItemFluxoManual,
   ContratoBancario,
@@ -72,7 +72,7 @@ export function classificarCobertura(indice: number): StatusIndiceCobertura {
 export interface MontarFluxoSafraInput {
   safra: string;
   quadroSafra: CulturaSafraAno[];
-  /** Pecuária/Suinocultura/Avicultura (organizadas por ano civil) — somam em receitaProjetada/custoProducao via receitaCustoPecuariaDaSafra. */
+  /** Pecuária/Suinocultura/Avicultura (organizadas por ano civil) — somam em receitaProjetada/custoProducao via receitaCustoPecuariaSafraBlend. */
   pecuariaBovina: PecuariaBovinaAno[];
   producaoAnimal: ProducaoAnimalAno[];
   suppliers: Supplier[];
@@ -115,7 +115,7 @@ export function montarFluxoSafraDTO(input: MontarFluxoSafraInput): FluxoSafraDTO
   const janelaProxima = janelaSafra(proximaSafra);
 
   const registrosSafra = input.quadroSafra.filter((q) => q.anoSafra === safra);
-  const pecuaria = receitaCustoPecuariaDaSafra(safra, input.pecuariaBovina, input.producaoAnimal);
+  const pecuaria = receitaCustoPecuariaSafraBlend(safra, input.pecuariaBovina, input.producaoAnimal);
   const receitaProjetada = registrosSafra.reduce((sum, q) => sum + calcularSafra(q).receitaBruta, 0) + pecuaria.receitaBruta;
   const custoProducao = registrosSafra.reduce((sum, q) => sum + calcularSafra(q).despesa, 0) + pecuaria.despesa;
 

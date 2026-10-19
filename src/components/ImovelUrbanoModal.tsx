@@ -74,7 +74,7 @@ export const ImovelUrbanoModal: React.FC<ImovelUrbanoModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       icon={<Building2 className="w-5 h-5" />}
-      title={editingBem ? 'Editar Imóvel Urbano — ANEXO B' : 'Novo Imóvel Urbano — ANEXO B'}
+      title={editingBem ? 'Editar Imóvel Urbano' : 'Novo Imóvel Urbano'}
       subtitle="Declaração de Bens e Direitos — imóveis urbanos do grupo"
       footer={
         <div className="flex gap-3">

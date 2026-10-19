@@ -23,3 +23,8 @@ export const ANEXOS_IMOVEL: GrupoIrpfBem[] = ['Imóveis Rurais - ANEXO A', 'Imó
 export function isAnexoImovel(grupo: GrupoIrpfBem): boolean {
   return (ANEXOS_IMOVEL as string[]).includes(grupo);
 }
+
+/** Rótulo de exibição: o valor armazenado/comparado continua com o sufixo "ANEXO A/B"; a tela não mostra (validação do cliente, 13/10/2026). */
+export function rotuloTipoBem(grupo: string): string {
+  return grupo.replace(/\s*-\s*ANEXO [AB]$/, '');
+}

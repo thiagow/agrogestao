@@ -19,6 +19,7 @@ export type CategoriaCalendarioAgricola =
   | 'MILHO_1_SAFRA'
   | 'MILHO_SAFRINHA'
   | 'ALGODAO'
+  | 'CAFE'
   | 'PECUARIA_BOVINA'
   | 'OUTRAS_CULTURAS';
 
@@ -45,9 +46,9 @@ export const CALENDARIO_AGRICOLA_CENTRO_OESTE: EtapaCalendarioAgricola[] = [
   {
     categoria: 'SOJA',
     label: 'Soja',
-    // Jan/Fev crescimento, Mar/Abr colheita (confirmado), Mai-Ago pousio,
-    // Set-Nov plantio/custeio, Dez crescimento.
-    fasesPorMes: [C, C, R, R, N, N, N, N, P, P, P, C]
+    // Definido pelo cliente (13/10/2026): Set-Out plantio/custeio, Nov-Jan
+    // crescimento, Fev-Abr colheita, Mai-Ago pousio.
+    fasesPorMes: [C, R, R, R, N, N, N, N, P, P, C, C]
   },
   {
     categoria: 'MILHO_1_SAFRA',
@@ -67,6 +68,13 @@ export const CALENDARIO_AGRICOLA_CENTRO_OESTE: EtapaCalendarioAgricola[] = [
     label: 'Algodão Safra',
     // Colheita Ago/Set confirmada; plantio/custeio Dez/Jan; Fev-Jul crescimento.
     fasesPorMes: [P, C, C, C, C, C, C, R, R, N, N, P]
+  },
+  {
+    categoria: 'CAFE',
+    label: 'Café',
+    // Definido pelo cliente (13/10/2026): Mai-Jul custeio, Ago-Abr colheita/receita,
+    // sem fase de crescimento (a mensuração do café é diferente das anuais).
+    fasesPorMes: [R, R, R, R, P, P, P, R, R, R, R, R]
   },
   {
     categoria: 'PECUARIA_BOVINA',
@@ -102,7 +110,10 @@ const CULTURA_CATEGORIA_MAP: Record<string, CategoriaCalendarioAgricola> = {
   Milho: 'MILHO_1_SAFRA',
   'Milho Safrinha': 'MILHO_SAFRINHA',
   'Algodão Safra': 'ALGODAO',
-  'Algodão Safrinha': 'ALGODAO'
+  'Algodão Safrinha': 'ALGODAO',
+  Café: 'CAFE',
+  'Café Arábica': 'CAFE',
+  'Café Irrigado': 'CAFE'
 };
 
 /** Cultura sem correspondência mapeada cai em OUTRAS_CULTURAS — nunca lança erro (mesmo critério de commodityDaCultura). */
@@ -114,4 +125,17 @@ export function categoriaCalendarioDaCultura(culturaNome: string): CategoriaCale
 
 export function etapaCalendarioDaCategoria(categoria: CategoriaCalendarioAgricola): EtapaCalendarioAgricola {
   return CALENDARIO_POR_CATEGORIA.get(categoria)!;
+}
+
+/** Uma linha do heatmap por cultura real do Quadro de Safra (nome da cultura como rótulo), sem repetir nome. */
+export function linhasCalendarioPorCultura(culturaNomes: string[]): { cultura: string; etapa: EtapaCalendarioAgricola }[] {
+  const vistos = new Set<string>();
+  const linhas: { cultura: string; etapa: EtapaCalendarioAgricola }[] = [];
+  for (const nome of culturaNomes) {
+    const chave = nome.trim().toLowerCase();
+    if (!chave || vistos.has(chave)) continue;
+    vistos.add(chave);
+    linhas.push({ cultura: nome.trim(), etapa: etapaCalendarioDaCategoria(categoriaCalendarioDaCultura(nome)) });
+  }
+  return linhas;
 }

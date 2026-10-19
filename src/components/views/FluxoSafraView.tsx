@@ -16,7 +16,7 @@ import type {
 } from '../../types';
 import { formatCurrency } from '../../data/initialData';
 import { montarFluxoSafraDTO, calcularFluxoSafra } from '../../lib/fluxo-safra-calc';
-import { safraDoAnoCivil } from '../../lib/safra-periodo';
+import { safraAtualDaData, safrasDoAnoCivilBlend } from '../../lib/safra-periodo';
 import { commodityDaCultura } from '../../lib/cultura-commodity';
 import { Card, KpiCard, Badge, Select, Button, Tooltip } from '../ui';
 import { FluxoManualItemModal } from '../FluxoManualItemModal';
@@ -75,14 +75,14 @@ export const FluxoSafraView: React.FC<FluxoSafraViewProps> = ({
       Array.from(
         new Set([
           ...culturaSafras.map((r) => r.anoSafra),
-          ...pecuariaBovina.map((r) => safraDoAnoCivil(r.anoCivil)),
-          ...producaoAnimal.map((r) => safraDoAnoCivil(r.anoCivil))
+          ...pecuariaBovina.map((r) => safrasDoAnoCivilBlend(r.anoCivil)).flat(),
+          ...producaoAnimal.map((r) => safrasDoAnoCivilBlend(r.anoCivil)).flat()
         ])
       ).sort(),
     [culturaSafras, pecuariaBovina, producaoAnimal]
   );
   const [safraSelecionada, setSafraSelecionada] = useState('');
-  const safraAtiva = safraSelecionada || safrasDisponiveis[safrasDisponiveis.length - 1] || '';
+  const safraAtiva = safraSelecionada || safraAtualDaData(safrasDisponiveis);
 
   const [entradasAbertas, setEntradasAbertas] = useState(true);
   const [saidasAbertas, setSaidasAbertas] = useState(true);

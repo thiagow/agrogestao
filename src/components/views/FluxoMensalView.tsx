@@ -30,14 +30,15 @@ import {
   gerarLancamentosManuais,
   gerarLancamentosVinculados,
   horizonteMeses,
+  safrasDaJanela,
   type ContratoBancarioParcelaFluxo
 } from '../../lib/fluxo-mensal-calc';
 import {
   CALENDARIO_AGRICOLA_CENTRO_OESTE,
-  categoriaCalendarioDaCultura,
+  linhasCalendarioPorCultura,
   etapaCalendarioDaCategoria
 } from '../../lib/calendario-agricola';
-import { safraDoAnoCivil } from '../../lib/safra-periodo';
+import { safraAtualDaData, safraDoAnoCivil } from '../../lib/safra-periodo';
 import { Card, KpiCard, Badge, Select, Button } from '../ui';
 import { LancamentoMensalModal } from '../LancamentoMensalModal';
 import type { FluxoDetalhado } from '../../server/contratos-bancarios';
@@ -90,13 +91,17 @@ export const FluxoMensalView: React.FC<FluxoMensalViewProps> = ({
     [culturaSafras, pecuariaBovina, producaoAnimal]
   );
   const [safraSelecionada, setSafraSelecionada] = useState('');
-  const safraAtiva = safraSelecionada || safrasDisponiveis[safrasDisponiveis.length - 1] || '';
+  const safraAtiva = safraSelecionada || safraAtualDaData(safrasDisponiveis);
 
   const [multiSafra, setMultiSafra] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [mesesAbertos, setMesesAbertos] = useState<Set<string>>(() => new Set());
 
-  const horizonte = useMemo(() => (safraAtiva ? horizonteMeses(safraAtiva) : []), [safraAtiva]);
+  const janelaSafras = useMemo(
+    () => (safraAtiva ? safrasDaJanela(safraAtiva, safrasDisponiveis) : []),
+    [safraAtiva, safrasDisponiveis]
+  );
+  const horizonte = useMemo(() => (janelaSafras.length > 0 ? horizonteMeses(janelaSafras[0]) : []), [janelaSafras]);
 
   const contratosBancarios: ContratoBancarioParcelaFluxo[] = useMemo(
     () => (fluxoDetalhado?.contratos ?? []).map((c) => ({ banco: c.banco, anos: c.anos })),
@@ -109,7 +114,7 @@ export const FluxoMensalView: React.FC<FluxoMensalViewProps> = ({
       quadroSafra: culturaSafras,
       pecuariaBovina,
       producaoAnimal,
-      safraSelecionada: safraAtiva,
+      safrasDaJanela: janelaSafras,
       multiSafra,
       horizonte
     });
@@ -118,13 +123,13 @@ export const FluxoMensalView: React.FC<FluxoMensalViewProps> = ({
       contratosBancarios,
       arrendamentos,
       aquisicoes,
-      safraSelecionada: safraAtiva,
-      multiSafra
+      safrasDaJanela: janelaSafras
     });
     const manuais = gerarLancamentosManuais(itensManuais.filter((i) => horizonte.some((h) => h.mes === i.mes && h.ano === i.ano)));
     return [...custeioSafraProjecao, ...vinculados, ...manuais];
   }, [
     safraAtiva,
+    janelaSafras,
     culturaSafras,
     pecuariaBovina,
     producaoAnimal,
@@ -148,10 +153,12 @@ export const FluxoMensalView: React.FC<FluxoMensalViewProps> = ({
     saldoAcumulado: m.saldoAcumulado
   }));
 
-  const categoriasPresentes = useMemo(() => {
-    const categorias = new Set(culturaSafras.map((r) => categoriaCalendarioDaCultura(r.cultura)));
-    if (categorias.size === 0) return CALENDARIO_AGRICOLA_CENTRO_OESTE;
-    return CALENDARIO_AGRICOLA_CENTRO_OESTE.filter((e) => categorias.has(e.categoria));
+  // Uma linha por cultura real do Quadro de Safra (com o nome dela); sem nenhuma cadastrada,
+  // mostra as categorias de referência.
+  const linhasCalendario = useMemo(() => {
+    const linhas = linhasCalendarioPorCultura(culturaSafras.map((r) => r.cultura));
+    if (linhas.length > 0) return linhas;
+    return CALENDARIO_AGRICOLA_CENTRO_OESTE.filter((e) => !e.distribuicaoContinua).map((e) => ({ cultura: e.label, etapa: e }));
   }, [culturaSafras]);
 
   const toggleMes = (chave: string) =>
@@ -184,7 +191,7 @@ export const FluxoMensalView: React.FC<FluxoMensalViewProps> = ({
                 ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
                 : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
             }`}
-            title="Consolida lançamentos de todas as safras cadastradas que caiam dentro deste calendário de 18 meses"
+            title="Desligado: só a lavoura. Ligado: soma também bovinos, suínos e aves (receitas e custos mensais) dentro da janela de 24 meses"
           >
             Multi-Safra {multiSafra ? 'ON' : 'OFF'}
           </button>
@@ -218,7 +225,7 @@ export const FluxoMensalView: React.FC<FluxoMensalViewProps> = ({
 
       <Card className="p-6">
         <h3 className="text-base font-bold text-slate-900 mb-1">Curva de Caixa</h3>
-        <p className="text-xs text-slate-500 mb-4">Safra {safraAtiva || '—'} — {horizonte.length} meses</p>
+        <p className="text-xs text-slate-500 mb-4">{janelaSafras.length > 0 ? `Safras ${janelaSafras.join(' e ')}` : 'Safra —'} — {horizonte.length} meses</p>
         <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
@@ -239,7 +246,7 @@ export const FluxoMensalView: React.FC<FluxoMensalViewProps> = ({
       </Card>
 
       <Card className="p-6">
-        <h3 className="text-base font-bold text-slate-900 mb-4">Calendário Agrícola — Centro-Oeste</h3>
+        <h3 className="text-base font-bold text-slate-900 mb-4">Calendário Agrícola</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -253,9 +260,9 @@ export const FluxoMensalView: React.FC<FluxoMensalViewProps> = ({
               </tr>
             </thead>
             <tbody className="text-xs text-slate-700">
-              {categoriasPresentes.map((etapa) => (
-                <tr key={etapa.categoria} className="border-t border-slate-100">
-                  <td className="py-2 px-3 font-semibold text-slate-800 whitespace-nowrap">{etapa.label}</td>
+              {linhasCalendario.map(({ cultura, etapa }) => (
+                <tr key={cultura} className="border-t border-slate-100">
+                  <td className="py-2 px-3 font-semibold text-slate-800 whitespace-nowrap">{cultura}</td>
                   {etapa.fasesPorMes.map((fase, idx) => (
                     <td key={idx} className="py-2 px-2 text-center">
                       <span

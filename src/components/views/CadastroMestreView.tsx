@@ -8,7 +8,7 @@ import { Card, Tabs, Button, Badge, KpiCard, Textarea, Input } from '../ui';
 import { IntegranteDrawer } from '../IntegranteDrawer';
 import { BemDireitoDrawer } from '../BemDireitoDrawer';
 import { SECOES_PERGUNTAS_GRUPO } from '../../lib/perfil-grupo-perguntas';
-import { TIPOS_BEM_DIREITO } from '../../lib/bens-direitos-constantes';
+import { TIPOS_BEM_DIREITO, rotuloTipoBem } from '../../lib/bens-direitos-constantes';
 import { ImovelRuralModal } from '../ImovelRuralModal';
 import { ImovelUrbanoModal } from '../ImovelUrbanoModal';
 import { GarantiaDrawer } from '../GarantiaDrawer';
@@ -636,7 +636,7 @@ export const CadastroMestreView: React.FC<CadastroMestreViewProps> = ({
                                 {/* Header do Grupo */}
                                 <div className="bg-slate-50/80 border-b border-slate-200 px-5 py-3 flex items-center justify-between">
                                   <div>
-                                    <h4 className="text-sm font-bold text-slate-900">{grupo}</h4>
+                                    <h4 className="text-sm font-bold text-slate-900">{rotuloTipoBem(grupo)}</h4>
                                     <p className="text-xs text-slate-600 mt-0.5">{bens.length} {bens.length === 1 ? 'bem' : 'bens'}</p>
                                   </div>
                                   <div className="text-right">

@@ -1,5 +1,6 @@
 'use client';
 
+import { safraAtualDaData } from '../../lib/safra-periodo';
 import React, { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Line, LineChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
@@ -167,7 +168,7 @@ export const CotacoesView: React.FC<CotacoesViewProps> = ({
   euro,
   commodities,
   indicadoresPainel,
-  safraAtual,
+  safraAtual: _safraAtual,
   precosDefinidos,
   culturaSafras
 }) => {
@@ -181,8 +182,7 @@ export const CotacoesView: React.FC<CotacoesViewProps> = ({
 
   const safrasDisponiveis = useMemo(() => Array.from(new Set(culturaSafras.map((r) => r.anoSafra))).sort(), [culturaSafras]);
   const [safraSelecionada, setSafraSelecionada] = useState('');
-  const safraPadrao =
-    safraAtual && safrasDisponiveis.includes(safraAtual) ? safraAtual : safrasDisponiveis[safrasDisponiveis.length - 1] ?? '';
+  const safraPadrao = safraAtualDaData(safrasDisponiveis);
   const safraAtiva = safraSelecionada || safraPadrao;
 
   const precoDefinidoPorCommodity = useMemo(

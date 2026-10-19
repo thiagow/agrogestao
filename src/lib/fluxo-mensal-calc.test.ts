@@ -4,8 +4,10 @@ import {
   gerarLancamentosCusteioSafraProjecao,
   gerarLancamentosManuais,
   gerarLancamentosVinculados,
-  horizonteMeses
+  horizonteMeses,
+  safrasDaJanela
 } from './fluxo-mensal-calc';
+import { calcularPecuariaBovina } from './pecuaria-calc';
 import type {
   Aquisicao,
   ContratoArrendamento,
@@ -71,34 +73,47 @@ function registroPecuariaBovina(overrides: Partial<PecuariaBovinaAno> = {}): Pec
   };
 }
 
-describe('horizonteMeses', () => {
-  it('cobre 18 meses de Jan do ano de início da safra a Jun do ano seguinte', () => {
+describe('horizonteMeses / safrasDaJanela (13/10/2026)', () => {
+  it('cobre 24 meses: 01/07 do ano de início da 1ª safra a 30/06 do fim da 2ª', () => {
     const horizonte = horizonteMeses(SAFRA);
-    expect(horizonte).toHaveLength(18);
-    expect(horizonte[0]).toEqual({ mes: 1, ano: 2026 });
-    expect(horizonte[11]).toEqual({ mes: 12, ano: 2026 });
-    expect(horizonte[12]).toEqual({ mes: 1, ano: 2027 });
-    expect(horizonte[17]).toEqual({ mes: 6, ano: 2027 });
+    expect(horizonte).toHaveLength(24);
+    expect(horizonte[0]).toEqual({ mes: 7, ano: 2026 });
+    expect(horizonte[5]).toEqual({ mes: 12, ano: 2026 });
+    expect(horizonte[6]).toEqual({ mes: 1, ano: 2027 });
+    expect(horizonte[12]).toEqual({ mes: 7, ano: 2027 });
+    expect(horizonte[23]).toEqual({ mes: 6, ano: 2028 });
+  });
+
+  it('safra intermediária: ela + a seguinte', () => {
+    expect(safrasDaJanela('2027/2028', ['2026/2027', '2027/2028', '2028/2029'])).toEqual(['2027/2028', '2028/2029']);
+  });
+
+  it('última safra cadastrada: a anterior + ela', () => {
+    expect(safrasDaJanela('2028/2029', ['2026/2027', '2027/2028', '2028/2029'])).toEqual(['2027/2028', '2028/2029']);
+  });
+
+  it('safra única cadastrada: ela + a seguinte', () => {
+    expect(safrasDaJanela('2026/2027', ['2026/2027'])).toEqual(['2026/2027', '2027/2028']);
   });
 });
 
 describe('gerarLancamentosCusteioSafraProjecao', () => {
-  it('distribui Custeio da Soja nos meses de plantio (Set-Nov do 1º ano da safra)', () => {
+  it('distribui Custeio da Soja nos meses de plantio (Set-Out do 1º ano da safra)', () => {
     const horizonte = horizonteMeses(SAFRA);
     const lancamentos = gerarLancamentosCusteioSafraProjecao({
       quadroSafra: [registroSoja()],
       pecuariaBovina: [],
       producaoAnimal: [],
-      safraSelecionada: SAFRA,
+      safrasDaJanela: [SAFRA, '2027/2028'],
       multiSafra: false,
       horizonte
     });
 
     const custeio = lancamentos.filter((l) => l.origem === 'CUSTEIO');
-    expect(custeio).toHaveLength(3); // Set, Out, Nov
-    expect(custeio.every((l) => l.ano === 2026 && [9, 10, 11].includes(l.mes))).toBe(true);
+    expect(custeio).toHaveLength(2); // Set, Out
+    expect(custeio.every((l) => l.ano === 2026 && [9, 10].includes(l.mes))).toBe(true);
     expect(custeio.every((l) => l.tipo === 'SAIDA' && l.contaComoCaixa)).toBe(true);
-    // despesa total = 100ha * 3000 = 300.000, dividida em 3 meses
+    // despesa total = 100ha * 3000 = 300.000, dividida em 2 meses
     expect(custeio.reduce((s, l) => s + l.valor, 0)).toBeCloseTo(300_000, 2);
   });
 
@@ -108,7 +123,7 @@ describe('gerarLancamentosCusteioSafraProjecao', () => {
       quadroSafra: [registroSoja()],
       pecuariaBovina: [],
       producaoAnimal: [],
-      safraSelecionada: SAFRA,
+      safrasDaJanela: [SAFRA, '2027/2028'],
       multiSafra: false,
       horizonte
     });
@@ -116,34 +131,42 @@ describe('gerarLancamentosCusteioSafraProjecao', () => {
     const safra = lancamentos.filter((l) => l.origem === 'SAFRA');
     const projecao = lancamentos.filter((l) => l.origem === 'PROJECAO');
 
-    expect(safra).toHaveLength(2); // Mar, Abr do 2º ano
-    expect(safra.every((l) => l.ano === 2027 && [3, 4].includes(l.mes))).toBe(true);
+    expect(safra).toHaveLength(3); // Fev, Mar, Abr do 2º ano
+    expect(safra.every((l) => l.ano === 2027 && [2, 3, 4].includes(l.mes))).toBe(true);
     expect(safra.every((l) => l.contaComoCaixa === false)).toBe(true);
 
-    expect(projecao).toHaveLength(2); // Abr, Mai (colheita + 1 mês)
-    expect(projecao.map((l) => l.mes).sort()).toEqual([4, 5]);
+    expect(projecao).toHaveLength(3); // Mar, Abr, Mai (colheita + 1 mês)
+    expect(projecao.map((l) => l.mes).sort()).toEqual([3, 4, 5]);
     expect(projecao.every((l) => l.contaComoCaixa === true)).toBe(true);
 
-    // receita total = 100ha * 60sc * 100 = 600.000, dividida em 2 meses de colheita
+    // receita total = 100ha * 60sc * 100 = 600.000, dividida em 3 meses de colheita
     expect(safra.reduce((s, l) => s + l.valor, 0)).toBeCloseTo(600_000, 2);
     expect(projecao.reduce((s, l) => s + l.valor, 0)).toBeCloseTo(600_000, 2);
   });
 
-  it('Pecuária (categoria contínua) distribui custeio/receita em todos os 18 meses do horizonte', () => {
+  it('Pecuária só entra com Multi-Safra ON, e cada ano civil distribui o valor anual UMA vez (12 meses, não os 24 da janela)', () => {
     const horizonte = horizonteMeses(SAFRA);
-    const lancamentos = gerarLancamentosCusteioSafraProjecao({
+    const base = {
       quadroSafra: [],
-      pecuariaBovina: [registroPecuariaBovina()],
+      pecuariaBovina: [registroPecuariaBovina({ anoCivil: 2027 })],
       producaoAnimal: [],
-      safraSelecionada: SAFRA,
-      multiSafra: false,
+      safrasDaJanela: [SAFRA, '2027/2028'],
       horizonte
-    });
+    };
 
-    const custeio = lancamentos.filter((l) => l.origem === 'CUSTEIO');
-    const safra = lancamentos.filter((l) => l.origem === 'SAFRA');
-    expect(custeio).toHaveLength(18);
-    expect(safra).toHaveLength(18);
+    const off = gerarLancamentosCusteioSafraProjecao({ ...base, multiSafra: false });
+    expect(off).toHaveLength(0);
+
+    const on = gerarLancamentosCusteioSafraProjecao({ ...base, multiSafra: true });
+    const custeio = on.filter((l) => l.origem === 'CUSTEIO');
+    const safra = on.filter((l) => l.origem === 'SAFRA');
+    expect(custeio).toHaveLength(12); // Jan-Dez/2027
+    expect(safra).toHaveLength(12);
+    expect(custeio.every((l) => l.ano === 2027)).toBe(true);
+    // soma = valor anual exato (nunca 2x por causa dos 24 meses)
+    const anual = calcularPecuariaBovina(base.pecuariaBovina[0]);
+    expect(custeio.reduce((s, l) => s + l.valor, 0)).toBeCloseTo(anual.despesa, 2);
+    expect(safra.reduce((s, l) => s + l.valor, 0)).toBeCloseTo(anual.receitaBruta, 2);
   });
 
   it('com datas reais de Custeio/Colheita cadastradas, ignora o calendário agrícola genérico e usa o período informado', () => {
@@ -151,17 +174,17 @@ describe('gerarLancamentosCusteioSafraProjecao', () => {
     const lancamentos = gerarLancamentosCusteioSafraProjecao({
       quadroSafra: [
         registroSoja({
-          // Fora da janela padrão do calendário genérico (Set-Nov custeio / Mar-Abr colheita) —
+          // Fora da janela padrão do calendário genérico (Set-Out custeio / Fev-Abr colheita) —
           // prova que a data real, quando presente, tem prioridade.
-          custoPlantioInicio: '2026-06-01',
-          custoPlantioFim: '2026-07-31',
+          custoPlantioInicio: '2026-07-01',
+          custoPlantioFim: '2026-08-31',
           colheitaInicio: '2026-12-01',
           colheitaFim: '2026-12-31'
         })
       ],
       pecuariaBovina: [],
       producaoAnimal: [],
-      safraSelecionada: SAFRA,
+      safrasDaJanela: [SAFRA, '2027/2028'],
       multiSafra: false,
       horizonte
     });
@@ -169,8 +192,8 @@ describe('gerarLancamentosCusteioSafraProjecao', () => {
     const custeio = lancamentos.filter((l) => l.origem === 'CUSTEIO');
     const safra = lancamentos.filter((l) => l.origem === 'SAFRA');
 
-    expect(custeio).toHaveLength(2); // Jun, Jul
-    expect(custeio.every((l) => l.ano === 2026 && [6, 7].includes(l.mes))).toBe(true);
+    expect(custeio).toHaveLength(2); // Jul, Ago
+    expect(custeio.every((l) => l.ano === 2026 && [7, 8].includes(l.mes))).toBe(true);
     expect(custeio.reduce((s, l) => s + l.valor, 0)).toBeCloseTo(300_000, 2);
 
     expect(safra).toHaveLength(1); // Dez
@@ -178,13 +201,13 @@ describe('gerarLancamentosCusteioSafraProjecao', () => {
     expect(safra.reduce((s, l) => s + l.valor, 0)).toBeCloseTo(600_000, 2);
   });
 
-  it('sem Multi-Safra, ignora registros de outras safras', () => {
+  it('ignora registros de lavoura de safras fora da janela', () => {
     const horizonte = horizonteMeses(SAFRA);
     const lancamentos = gerarLancamentosCusteioSafraProjecao({
       quadroSafra: [registroSoja({ id: 'outra', anoSafra: '2024/2025' })],
       pecuariaBovina: [],
       producaoAnimal: [],
-      safraSelecionada: SAFRA,
+      safrasDaJanela: [SAFRA, '2027/2028'],
       multiSafra: false,
       horizonte
     });
@@ -211,21 +234,19 @@ describe('gerarLancamentosVinculados', () => {
       contratosBancarios: [],
       arrendamentos: [],
       aquisicoes: [],
-      safraSelecionada: SAFRA,
-      multiSafra: false
+      safrasDaJanela: [SAFRA]
     });
     expect(lancamentos).toHaveLength(1);
     expect(lancamentos[0]).toMatchObject({ mes: 10, ano: 2026, tipo: 'SAIDA', origem: 'VINCULADO', valor: 50_000 });
   });
 
-  it('ignora fornecedor de outra safra quando Multi-Safra está desligado', () => {
+  it('ignora fornecedor de safra fora da janela', () => {
     const lancamentos = gerarLancamentosVinculados({
       suppliers: [{ ...supplier, safra: '2024/2025' }],
       contratosBancarios: [],
       arrendamentos: [],
       aquisicoes: [],
-      safraSelecionada: SAFRA,
-      multiSafra: false
+      safrasDaJanela: [SAFRA]
     });
     expect(lancamentos).toHaveLength(0);
   });
@@ -251,8 +272,7 @@ describe('gerarLancamentosVinculados', () => {
       contratosBancarios: [],
       arrendamentos: [contrato],
       aquisicoes: [],
-      safraSelecionada: SAFRA,
-      multiSafra: false
+      safrasDaJanela: [SAFRA]
     });
     expect(lancamentos).toHaveLength(0);
   });
@@ -278,8 +298,7 @@ describe('gerarLancamentosVinculados', () => {
       contratosBancarios: [],
       arrendamentos: [contrato],
       aquisicoes: [],
-      safraSelecionada: SAFRA,
-      multiSafra: false
+      safrasDaJanela: [SAFRA]
     });
     expect(lancamentos).toHaveLength(1);
     expect(lancamentos[0].tipo).toBe('ENTRADA');
@@ -287,7 +306,7 @@ describe('gerarLancamentosVinculados', () => {
     expect(lancamentos[0].valor).toBe(12_000);
   });
 
-  it('lança a parcela de Aquisição de Fazenda pela data real, sempre (independente de Multi-Safra)', () => {
+  it('lança a parcela de Aquisição de Fazenda pela data real, sempre', () => {
     const aquisicao: Aquisicao = {
       id: 'aq1',
       nomeFazenda: 'Fazenda Pedra',
@@ -309,8 +328,7 @@ describe('gerarLancamentosVinculados', () => {
       contratosBancarios: [],
       arrendamentos: [],
       aquisicoes: [aquisicao],
-      safraSelecionada: SAFRA,
-      multiSafra: false
+      safrasDaJanela: [SAFRA]
     });
     expect(lancamentos).toHaveLength(1);
     expect(lancamentos[0]).toMatchObject({ mes: 2, ano: 2027, valor: 19_170_000, tipo: 'SAIDA' });
@@ -343,7 +361,7 @@ describe('calcularFluxoMensal', () => {
       quadroSafra: [registroSoja()],
       pecuariaBovina: [],
       producaoAnimal: [],
-      safraSelecionada: SAFRA,
+      safrasDaJanela: [SAFRA, '2027/2028'],
       multiSafra: false,
       horizonte
     });
@@ -357,7 +375,7 @@ describe('calcularFluxoMensal', () => {
       quadroSafra: [registroSoja()],
       pecuariaBovina: [],
       producaoAnimal: [],
-      safraSelecionada: SAFRA,
+      safrasDaJanela: [SAFRA, '2027/2028'],
       multiSafra: false,
       horizonte
     });

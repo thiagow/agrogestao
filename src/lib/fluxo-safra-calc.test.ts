@@ -192,18 +192,19 @@ describe('montarFluxoSafraDTO — janela jul-jun (23/08/2026, review do cliente)
         ganhoPesoMedioDiarioKg: 0,
         diasConfinamentoPorLote: 0
       },
-      // ano civil fora da safra (2026 -> safra "2025/2026") não deve entrar
-      { id: 'p2', anoCivil: 2026, femeas0a12: 0, femeas12a24: 0, femeas24a36: 0, femeasAcima36: 0, machos0a12: 0, machos12a24: 0, machos24a36: 0, machosAcima36: 0, cicloProdutivo: '', areaPastagemPropria: 0, areaPastagemArrendada: 0, tipoTerminacao: '', custoAquisicaoPorCabeca: 0, custoPastagemPorHectare: 0, diariaConfinamento: 0, diasConfinamento: 0, qtdAnimaisConfinados: 0, qtdMachosComercializados: 999, pesoMedioMachos: 999, precoMedioMachos: 999, qtdFemeasComercializadas: 0, pesoMedioFemeas: 0, precoMedioFemeas: 0, qtdOutrasComercializadas: 0, pesoMedioOutras: 0, precoMedioOutras: 0, capacidadeLotacaoConfinamento: 0, ganhoPesoMedioDiarioKg: 0, diasConfinamentoPorLote: 0 }
+      // ano civil fora da safra (2099) não deve entrar
+      { id: 'p2', anoCivil: 2099, femeas0a12: 0, femeas12a24: 0, femeas24a36: 0, femeasAcima36: 0, machos0a12: 0, machos12a24: 0, machos24a36: 0, machosAcima36: 0, cicloProdutivo: '', areaPastagemPropria: 0, areaPastagemArrendada: 0, tipoTerminacao: '', custoAquisicaoPorCabeca: 0, custoPastagemPorHectare: 0, diariaConfinamento: 0, diasConfinamento: 0, qtdAnimaisConfinados: 0, qtdMachosComercializados: 999, pesoMedioMachos: 999, precoMedioMachos: 999, qtdFemeasComercializadas: 0, pesoMedioFemeas: 0, precoMedioFemeas: 0, qtdOutrasComercializadas: 0, pesoMedioOutras: 0, precoMedioOutras: 0, capacidadeLotacaoConfinamento: 0, ganhoPesoMedioDiarioKg: 0, diasConfinamentoPorLote: 0 }
     ];
     input.producaoAnimal = [
       { id: 'a1', tipo: 'Avicultura', anoCivil: 2027, producaoCabecas: 1000, precoMedioPorCabeca: 10, custoMedioPorCabeca: 6, plantel: 0 },
-      { id: 'a2', tipo: 'Suinocultura', anoCivil: 2026, producaoCabecas: 9999, precoMedioPorCabeca: 999, custoMedioPorCabeca: 999, plantel: 0 } // fora da safra
+      { id: 'a2', tipo: 'Suinocultura', anoCivil: 2099, producaoCabecas: 9999, precoMedioPorCabeca: 999, custoMedioPorCabeca: 999, plantel: 0 } // fora da safra
     ];
 
     const dto = montarFluxoSafraDTO(input);
     // Bovino: receita 10*1*500=5000, custo 100*10=1000. Aves: receita 1000*10=10000, custo 1000*6=6000.
-    expect(dto.receitaProjetada).toBe(5_000 + 10_000);
-    expect(dto.custoProducao).toBe(1_000 + 6_000);
+    // Cada ano civil pesa 50% na safra (blend, igual ao Resumo do Quadro de Safra): safra 2026/2027 = 50% de 2026 + 50% de 2027.
+    expect(dto.receitaProjetada).toBe((5_000 + 10_000) * 0.5);
+    expect(dto.custoProducao).toBe((1_000 + 6_000) * 0.5);
   });
 
   it('sem área de Soja no Quadro de Produção, despesaComercial é 0 e a fonte de preço não importa', () => {

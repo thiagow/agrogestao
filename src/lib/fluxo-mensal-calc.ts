@@ -18,7 +18,7 @@
 //    isolado (resolve o BUG #2 candidato da spec).
 
 import { calcularSafra, mesLabel } from '@/lib/agro';
-import { anoInicioSafra, safraDoAnoCivil } from '@/lib/safra-periodo';
+import { anoInicioSafra, safraAnterior, safraSeguinte } from '@/lib/safra-periodo';
 import { categoriaCalendarioDaCultura, etapaCalendarioDaCategoria, type FaseCalendarioAgricola } from '@/lib/calendario-agricola';
 import { calcularPecuariaBovina, calcularProducaoAnimal } from '@/lib/pecuaria-calc';
 import type {
@@ -92,12 +92,24 @@ export const CATEGORIA_LANCAMENTO_MENSAL_LABEL: Record<CategoriaLancamentoMensal
   OUTRAS_RECEITAS: 'Outras Receitas'
 };
 
-/** Jan do ano de início da safra até Jun do ano seguinte — 18 meses, mesma janela da spec (Jan/2026-Jun/2027 para a safra 2026/2027). */
-export function horizonteMeses(safra: string): MesHorizonte[] {
-  const anoInicio = anoInicioSafra(safra);
+/**
+ * As duas safras da Curva de Caixa (13/10/2026, validação do cliente): a
+ * selecionada + a seguinte; se a selecionada é a última cadastrada, a anterior
+ * + ela. Com uma única safra cadastrada não há "anterior", então usa a seguinte.
+ */
+export function safrasDaJanela(safraSelecionada: string, safrasDisponiveis: string[]): [string, string] {
+  const ehUltima = safrasDisponiveis.length > 1 && safrasDisponiveis[safrasDisponiveis.length - 1] === safraSelecionada;
+  return ehUltima ? [safraAnterior(safraSelecionada), safraSelecionada] : [safraSelecionada, safraSeguinte(safraSelecionada)];
+}
+
+/** 24 meses: 01/07 do ano de início da 1ª safra da janela até 30/06 do fim da 2ª (duas safras agrícolas completas). */
+export function horizonteMeses(primeiraSafra: string): MesHorizonte[] {
+  const anoInicio = anoInicioSafra(primeiraSafra);
   const meses: MesHorizonte[] = [];
-  for (let mes = 1; mes <= 12; mes++) meses.push({ mes, ano: anoInicio });
-  for (let mes = 1; mes <= 6; mes++) meses.push({ mes, ano: anoInicio + 1 });
+  for (let i = 0; i < 24; i++) {
+    const mesCorrido = 6 + i; // 0-indexado a partir de Julho
+    meses.push({ mes: (mesCorrido % 12) + 1, ano: anoInicio + Math.floor(mesCorrido / 12) });
+  }
   return meses;
 }
 
@@ -161,7 +173,7 @@ function mesesNoIntervalo(inicioISO: string, fimISO: string): MesHorizonte[] {
   return meses;
 }
 
-/** Gera os lançamentos CUSTEIO/SAFRA/PROJEÇÃO de uma linha de distribuição contínua (todo mês do horizonte, sem fase de plantio/colheita) — usado por Pecuária Bovina de Quadro Safra e pelos registros dedicados de Pecuária/Suinocultura/Avicultura. */
+/** Gera os lançamentos CUSTEIO/SAFRA/PROJEÇÃO de uma linha de distribuição contínua (1/12 do valor anual em cada mês do horizonte, sem fase de plantio/colheita). `horizonte` já vem restrito aos meses a que o valor anual se refere — nunca todos os meses da janela, senão o anual seria contado mais de uma vez (bug corrigido em 13/10/2026). `horizonteSet` é a janela completa, usada só para decidir se a PROJEÇÃO (+1 mês) cabe nela. */
 function gerarLancamentosContinuos(
   cultura: string,
   despesa: number,
@@ -230,43 +242,43 @@ const LABEL_TIPO_PRODUCAO_ANIMAL: Record<ProducaoAnimalAno['tipo'], string> = {
 
 interface GerarCusteioSafraInput {
   quadroSafra: CulturaSafraAno[];
-  /** Pecuária/Suinocultura/Avicultura — organizadas por ano civil (safraDoAnoCivil converte pra safra), sempre distribuição contínua (1/12 por mês, sem fase de plantio/colheita). */
+  /** Pecuária/Suinocultura/Avicultura — organizadas por ano civil, sempre distribuição contínua (1/12 por mês do ano civil, sem fase de plantio/colheita). */
   pecuariaBovina: PecuariaBovinaAno[];
   producaoAnimal: ProducaoAnimalAno[];
-  safraSelecionada: string;
+  /** As duas safras da janela da curva (ver `safrasDaJanela`) — a lavoura de ambas entra sempre. */
+  safrasDaJanela: string[];
+  /** Multi-Safra OFF = só lavoura; ON = lavoura + Bovino/Suinocultura/Avicultura (13/10/2026, validação do cliente). */
   multiSafra: boolean;
   horizonte: MesHorizonte[];
 }
 
 /** Gera os lançamentos CUSTEIO (saída)/SAFRA (entrada informativa)/PROJEÇÃO (entrada de caixa, +1 mês) a partir do Quadro de Safra + Calendário Agrícola + Pecuária/Suinocultura/Avicultura. */
 export function gerarLancamentosCusteioSafraProjecao(input: GerarCusteioSafraInput): LancamentoMensal[] {
-  const registros = input.multiSafra
-    ? input.quadroSafra
-    : input.quadroSafra.filter((q) => q.anoSafra === input.safraSelecionada);
+  const registros = input.quadroSafra.filter((q) => input.safrasDaJanela.includes(q.anoSafra));
 
   const horizonteSet = new Set(input.horizonte.map(chaveMes));
   const seqRef = { current: 1 };
   const lancamentos: LancamentoMensal[] = [];
 
-  const dentroDaSafra = (anoCivil: number) =>
-    input.multiSafra || safraDoAnoCivil(anoCivil) === input.safraSelecionada;
+  // Pecuária é atividade de ANO CIVIL (Jan-Dez): cada registro distribui o valor anual
+  // /12 só nos meses do próprio ano civil que caem na janela de 24 meses.
+  const mesesDoAnoCivil = (anoCivil: number) => input.horizonte.filter((m) => m.ano === anoCivil);
 
-  for (const registro of input.pecuariaBovina.filter((r) => dentroDaSafra(r.anoCivil))) {
-    const { despesa, receitaBruta } = calcularPecuariaBovina(registro);
-    lancamentos.push(...gerarLancamentosContinuos('Bovino', despesa, receitaBruta, input.horizonte, horizonteSet, seqRef));
-  }
-  for (const registro of input.producaoAnimal.filter((r) => dentroDaSafra(r.anoCivil))) {
-    const { despesa, receitaBruta } = calcularProducaoAnimal(registro);
-    lancamentos.push(
-      ...gerarLancamentosContinuos(
-        LABEL_TIPO_PRODUCAO_ANIMAL[registro.tipo],
-        despesa,
-        receitaBruta,
-        input.horizonte,
-        horizonteSet,
-        seqRef
-      )
-    );
+  if (input.multiSafra) {
+    for (const registro of input.pecuariaBovina) {
+      const meses = mesesDoAnoCivil(registro.anoCivil);
+      if (meses.length === 0) continue;
+      const { despesa, receitaBruta } = calcularPecuariaBovina(registro);
+      lancamentos.push(...gerarLancamentosContinuos('Bovino', despesa, receitaBruta, meses, horizonteSet, seqRef));
+    }
+    for (const registro of input.producaoAnimal) {
+      const meses = mesesDoAnoCivil(registro.anoCivil);
+      if (meses.length === 0) continue;
+      const { despesa, receitaBruta } = calcularProducaoAnimal(registro);
+      lancamentos.push(
+        ...gerarLancamentosContinuos(LABEL_TIPO_PRODUCAO_ANIMAL[registro.tipo], despesa, receitaBruta, meses, horizonteSet, seqRef)
+      );
+    }
   }
 
   for (const registro of registros) {
@@ -362,8 +374,8 @@ interface GerarVinculadosInput {
   contratosBancarios: ContratoBancarioParcelaFluxo[];
   arrendamentos: ContratoArrendamento[];
   aquisicoes: Aquisicao[];
-  safraSelecionada: string;
-  multiSafra: boolean;
+  /** Safras da janela de 24 meses (ver `safrasDaJanela`): Fornecedores e Arrendamentos só entram se a safra deles estiver aqui. */
+  safrasDaJanela: string[];
 }
 
 /** Gera os lançamentos VINCULADO — sincronizados ao vivo de Fornecedores/Bancos/Arrendamentos/Aquisição (BUG #1 da spec: nunca chamado "Manual"). */
@@ -372,7 +384,7 @@ export function gerarLancamentosVinculados(input: GerarVinculadosInput): Lancame
   let seq = 1;
 
   for (const s of input.suppliers) {
-    if (!input.multiSafra && s.safra !== input.safraSelecionada) continue;
+    if (!input.safrasDaJanela.includes(s.safra)) continue;
     const { ano, mes } = anoMesDeIso(s.vencimento);
     lancamentos.push({
       id: `vinc-forn-${seq++}`,
@@ -388,7 +400,7 @@ export function gerarLancamentosVinculados(input: GerarVinculadosInput): Lancame
     });
   }
 
-  // Bancos: sem tag de safra (parcela é só uma data real) — sempre entram pela data, com ou sem Multi-Safra.
+  // Bancos: sem tag de safra (parcela é só uma data real) — sempre entram pela data.
   for (const contrato of input.contratosBancarios) {
     const todasParcelas = contrato.anos.flatMap((a) => a.parcelas);
     todasParcelas.forEach((p, idx) => {
@@ -415,7 +427,7 @@ export function gerarLancamentosVinculados(input: GerarVinculadosInput): Lancame
   for (const contrato of input.arrendamentos) {
     const { mes: mesRef } = anoMesDeIso(contrato.dataVencimento);
     for (const parcela of contrato.parcelas) {
-      if (!input.multiSafra && parcela.safra !== input.safraSelecionada) continue;
+      if (!input.safrasDaJanela.includes(parcela.safra)) continue;
       // Preço de referência não definido -> sem valor a lançar (nunca um 0 que mente, mesmo critério do BUG #1 de Arrendamentos).
       if (parcela.valorTotal == null) continue;
       // Direção (23/08/2026): reaproveita as categorias ARRENDAMENTO_PAGO/

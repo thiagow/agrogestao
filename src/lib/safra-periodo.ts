@@ -94,6 +94,40 @@ export function anoCivilDaSafra(safra: string): number {
   return anoInicioSafra(safra) + 1;
 }
 
+/**
+ * Safras que um ano civil de pecuária alimenta no blend 50/50
+ * (`receitaCustoPecuariaSafraBlend`): a que começa nele e a que termina nele.
+ * 2028 -> ["2027/2028", "2028/2029"].
+ */
+export function safrasDoAnoCivilBlend(anoCivil: number): string[] {
+  return [safraDoAno(anoCivil - 1), safraDoAno(anoCivil)];
+}
+
+/** Safra seguinte. "2026/2027" -> "2027/2028". */
+export function safraSeguinte(safra: string): string {
+  return safraDoAno(anoInicioSafra(safra) + 1);
+}
+
+/** Safra anterior. "2026/2027" -> "2025/2026". */
+export function safraAnterior(safra: string): string {
+  return safraDoAno(anoInicioSafra(safra) - 1);
+}
+
+/**
+ * Safra pré-selecionada nas telas com seletor (13/10/2026, validação do
+ * cliente): a safra vigente pela DATA de hoje (jul-jun). Se ela não estiver
+ * entre as disponíveis, cai para a mais próxima (última anterior; senão a
+ * primeira posterior). `hojeISO` é injetável para testes.
+ */
+export function safraAtualDaData(safrasDisponiveis: string[], hojeISO: string = new Date().toISOString().slice(0, 10)): string {
+  if (safrasDisponiveis.length === 0) return '';
+  const atual = safraDaData(hojeISO);
+  if (safrasDisponiveis.includes(atual)) return atual;
+  const ordenadas = [...safrasDisponiveis].sort();
+  const anteriores = ordenadas.filter((s) => anoInicioSafra(s) < anoInicioSafra(atual));
+  return anteriores.length > 0 ? anteriores[anteriores.length - 1] : ordenadas[0];
+}
+
 // ── Classificação Realizado/Atual/Previsão (10/09/2026) ────────────────────
 //
 // Fonte única de "qual safra é a vigente": o model `Safra` (contaId+anoSafra,

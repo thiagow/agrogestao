@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { BemDireito, GrupoIrpfBem, LiquidezBem, Socio } from '../types';
 import { Drawer, Input, Select, Textarea, Button } from './ui';
 import { formatCurrency } from '../lib/format';
-import { TIPOS_BEM_DIREITO, isAnexoImovel } from '../lib/bens-direitos-constantes';
+import { TIPOS_BEM_DIREITO, isAnexoImovel, rotuloTipoBem } from '../lib/bens-direitos-constantes';
 
 interface BemDireitoDrawerProps {
   isOpen: boolean;
@@ -123,7 +123,7 @@ export const BemDireitoDrawer: React.FC<BemDireitoDrawerProps> = ({
         >
           {TIPOS_BEM_DIREITO.filter((g) => !editingBem || !isAnexoImovel(g)).map((g) => (
             <option key={g} value={g}>
-              {g}
+              {rotuloTipoBem(g)}
             </option>
           ))}
         </Select>
