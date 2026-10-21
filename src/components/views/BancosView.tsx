@@ -14,7 +14,8 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { ContratoBancario } from '../../types';
-import { formatCurrency, formatDateBR, isCurtoPrazo } from '../../data/initialData';
+import { formatCurrency, formatDateBR } from '../../data/initialData';
+import { calcularKpisBancos, type ContratoKpi } from '../../lib/bancos-kpis';
 import { Card, Tabs, Button, Badge, KpiCard } from '../ui';
 import { ContratoBancarioDrawer, LABEL_TIPO_TAXA } from '../ContratoBancarioDrawer';
 import type { CronogramaConsolidado, FluxoContrato, FluxoDetalhado, AnoFluxo } from '../../server/contratos-bancarios';
@@ -417,7 +418,11 @@ interface CredorGroup {
   percentual: number;
 }
 
-const PorCredorTab: React.FC<{ contratos: ContratoBancario[] }> = ({ contratos }) => {
+const PorCredorTab: React.FC<{ contratos: ContratoBancario[]; saldoBrlPorContrato: Map<string, ContratoKpi> }> = ({
+  contratos,
+  saldoBrlPorContrato
+}) => {
+  const saldoBrl = (c: ContratoBancario) => saldoBrlPorContrato.get(c.id)?.saldoBrl ?? c.saldoAtual;
   if (contratos.length === 0) {
     return (
       <div className="py-16 text-center text-slate-400">
@@ -435,12 +440,12 @@ const PorCredorTab: React.FC<{ contratos: ContratoBancario[] }> = ({ contratos }
   });
 
   // Calcular totais gerais
-  const saldoGeralTotal = contratos.reduce((sum, c) => sum + c.saldoAtual, 0);
+  const saldoGeralTotal = contratos.reduce((sum, c) => sum + saldoBrl(c), 0);
 
   // Montar dados de cada credor
   const credores: CredorGroup[] = Array.from(creditoresMap.entries())
     .map(([banco, contratosBanco]) => {
-      const saldoAtualTotal = contratosBanco.reduce((sum, c) => sum + c.saldoAtual, 0);
+      const saldoAtualTotal = contratosBanco.reduce((sum, c) => sum + saldoBrl(c), 0);
       const saldoInicialTotal = contratosBanco.reduce((sum, c) => sum + c.saldoInicial, 0);
       const tipos = Array.from(new Set(contratosBanco.map((c) => c.tipoOperacao)));
       const percentual = saldoGeralTotal > 0 ? (saldoAtualTotal / saldoGeralTotal) * 100 : 0;
@@ -531,31 +536,22 @@ export const BancosView: React.FC<BancosViewProps> = ({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<ContratoBancario | null>(null);
 
-  const saldoTotal = contratos.reduce((sum, c) => sum + c.saldoAtual, 0);
-  const curtoPrazo = contratos
-    .filter((c) => isCurtoPrazo(c.dataVencimento))
-    .reduce((sum, c) => sum + c.saldoAtual, 0);
-  const longoPrazo = saldoTotal - curtoPrazo;
+  // KPIs em BRL (21/10/2026): saldo/CP/LP vêm da amortização das parcelas do
+  // Fluxo Detalhado (já em BRL), nunca da soma crua de `saldoAtual`, que
+  // misturava US$ com R$. Custo ponderado pelo saldo em BRL, taxa EFETIVA
+  // (indexador + spread) — ver src/lib/bancos-kpis.ts.
+  const kpis = useMemo(() => {
+    const parcelasPorContrato = new Map(
+      fluxoDetalhado.contratos.map((f) => [
+        f.contratoId,
+        f.anos.flatMap((a) => a.parcelas.map((p) => ({ data: p.data, amortizacao: p.amortizacao })))
+      ])
+    );
+    const tipoTaxaPorContrato = new Map(contratos.map((c) => [c.id, c.tipoTaxa as string]));
+    return calcularKpisBancos(contratos, parcelasPorContrato, tipoTaxaPorContrato, indices.usdBrl);
+  }, [contratos, fluxoDetalhado, indices.usdBrl]);
 
-  // Custo do contrato = taxa EFETIVA (indexador + spread), não a taxa digitada:
-  // num contrato CDI + spread a taxa cadastrada é só o spread, e usá-la aqui
-  // subestimaria o custo da dívida. Cai para a taxa cadastrada só enquanto o
-  // cronograma nunca foi gerado.
-  const custoEfetivo = (c: ContratoBancario) => c.taxaEfetivaAplicada ?? c.taxaJuros;
-
-  const custoMedioPonderado =
-    saldoTotal > 0 ? contratos.reduce((sum, c) => sum + c.saldoAtual * custoEfetivo(c), 0) / saldoTotal : 0;
-
-  const gruposPorTaxa = useMemo(() => {
-    const grupos = new Map<string, { saldo: number; somaPonderada: number }>();
-    contratos.forEach((c) => {
-      const grupo = grupos.get(c.tipoTaxa) ?? { saldo: 0, somaPonderada: 0 };
-      grupo.saldo += c.saldoAtual;
-      grupo.somaPonderada += c.saldoAtual * custoEfetivo(c);
-      grupos.set(c.tipoTaxa, grupo);
-    });
-    return grupos;
-  }, [contratos]);
+  const { saldoTotal, curtoPrazo, longoPrazo, custoMedioPonderado, gruposPorTaxa } = kpis;
 
   const handleOpenNew = () => {
     setEditing(null);
@@ -584,7 +580,7 @@ export const BancosView: React.FC<BancosViewProps> = ({
           icon={<Landmark className="w-4 h-4 text-rose-700" />}
           title="Saldo Devedor Total"
           value={formatCurrency(saldoTotal)}
-          subtitle={`${contratos.length} contratos`}
+          subtitle={`${contratos.length} contratos · em R$ (US$ convertido)`}
           valueClassName="text-rose-800"
         />
         <KpiCard
@@ -624,7 +620,7 @@ export const BancosView: React.FC<BancosViewProps> = ({
             }
 
             if (activeTabId === 'credor') {
-              return <PorCredorTab contratos={contratos} />;
+              return <PorCredorTab contratos={contratos} saldoBrlPorContrato={kpis.porContrato} />;
             }
 
             if (activeTabId === 'fluxo') {
@@ -665,9 +661,20 @@ export const BancosView: React.FC<BancosViewProps> = ({
                         <td className="py-3 px-4">
                           <Badge tone="slate">{c.tipoOperacao}</Badge>
                         </td>
-                        <td className="py-3 px-4 font-extrabold text-slate-900">{formatCurrency(c.saldoAtual)}</td>
+                        <td className="py-3 px-4 font-extrabold text-slate-900">
+                          {c.moeda === 'USD' ? (
+                            <>
+                              {`US$ ${c.saldoAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                              <span className="block text-[10px] font-medium text-slate-500">
+                                ≈ {formatCurrency(kpis.porContrato.get(c.id)?.saldoBrl ?? c.saldoAtual)}
+                              </span>
+                            </>
+                          ) : (
+                            formatCurrency(c.saldoAtual)
+                          )}
+                        </td>
                         <td className="py-3 px-4 whitespace-nowrap">
-                          <span className="font-bold text-slate-800">{custoEfetivo(c).toFixed(2)}% a.a.</span>
+                          <span className="font-bold text-slate-800">{(c.taxaEfetivaAplicada ?? c.taxaJuros).toFixed(2)}% a.a.</span>
                           {c.taxaEfetivaAplicada != null && c.tipoTaxa !== 'Pré-fixado (% a.a.)' && (
                             <span className="block text-[10px] text-slate-500">
                               spread {c.taxaJuros.toFixed(2)}%

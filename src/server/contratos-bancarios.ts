@@ -311,7 +311,15 @@ export async function listFluxoDetalhado(): Promise<FluxoDetalhado> {
 
     const cenarioTaxa = cenarioTaxaDe(tipoTaxa, c.moeda as Currency, indisponivelTaxa);
 
-    let saldoAnterior = Number(c.saldoInicial);
+    // Contrato USD: as Parcelas já estão em BRL (convertidas pela cotação
+    // aplicada na geração, que fica em `indiceReferencia` no Dólar Puro). O
+    // saldo contratado/atual digitado continua em US$ — converte aqui pelo
+    // mesmo câmbio, senão a 1ª linha mostraria saldoInicial em US$ ao lado de
+    // saldoFinal em R$ (retorno do cliente, 21/10/2026).
+    const cambioUsd = c.moeda === 'USD' ? (indiceRef && indiceRef > 0 ? indiceRef : ptaxInicial && ptaxInicial > 0 ? ptaxInicial : null) : null;
+    const emBrl = (valor: number) => (cambioUsd ? valor * cambioUsd : valor);
+
+    let saldoAnterior = emBrl(Number(c.saldoInicial));
     const parcelas: ParcelaFluxo[] = c.parcelas.map((p) => {
       const linha: ParcelaFluxo = {
         numero: p.numero,
@@ -358,8 +366,8 @@ export async function listFluxoDetalhado(): Promise<FluxoDetalhado> {
       periodicidadeJuros:
         PERIODICIDADE_LIQUIDACAO_FROM_DB[c.periodicidadeJuros as keyof typeof PERIODICIDADE_LIQUIDACAO_FROM_DB],
       moeda: c.moeda,
-      saldoContratado: Number(c.saldoInicial),
-      saldoAtual: Number(c.saldoAtual),
+      saldoContratado: emBrl(Number(c.saldoInicial)),
+      saldoAtual: emBrl(Number(c.saldoAtual)),
       dataVencimento: c.dataVencimento.toISOString().slice(0, 10),
       tipoTaxa,
       taxaCadastrada,

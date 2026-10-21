@@ -7,6 +7,9 @@ import {
   consolidarProducaoTotal,
   custoTotalPorCabecaBovino,
   estoqueTotalBovino,
+  arrobasEstoqueBovino,
+  mediaDoisAnos,
+  valorEstoqueProducaoAnimal,
   receitaCustoPecuariaSafraBlend,
   valorEstoqueBovino,
   type PecuariaBovinaCalculavel
@@ -197,5 +200,35 @@ describe('consolidarProducaoTotal (item 2.5, 10/09/2026)', () => {
       { receitaBruta: 0, despesa: 0 }
     );
     expect(r.margemPercent).toBe(0);
+  });
+});
+
+describe('estoque de rebanho — arrobas por idade × valor da @ (retorno do cliente, 21/10/2026)', () => {
+  const zero = { femeas0a12: 0, femeas12a24: 0, femeas24a36: 0, femeasAcima36: 0, machos0a12: 0, machos12a24: 0, machos24a36: 0, machosAcima36: 0, custoAquisicaoPorCabeca: 2000 };
+
+  it('arrobas = Σ cabeças × peso da faixa, separado por sexo', () => {
+    const a = arrobasEstoqueBovino({ ...zero, femeas12a24: 10, machosAcima36: 2 });
+    expect(a.femeas).toBeCloseTo(83, 8); // 10 × 8,3
+    expect(a.machos).toBeCloseTo(34.6, 8); // 2 × 17,3
+  });
+
+  it('valor = arrobas × valor da @ do sexo', () => {
+    const v = valorEstoqueBovino({ ...zero, femeas12a24: 10, machosAcima36: 2, valorArrobaFemea: 300, valorArrobaMacho: 320 });
+    expect(v).toBe(Math.round(83 * 300 + 34.6 * 320));
+  });
+
+  it('sem valor da @ informado, cai no custo de aquisição × cabeças', () => {
+    expect(valorEstoqueBovino({ ...zero, femeas12a24: 10, machosAcima36: 2 })).toBe(24_000);
+  });
+
+  it('Suínos/Aves: plantel × preço médio por cabeça', () => {
+    expect(valorEstoqueProducaoAnimal({ plantel: 200, precoMedioPorCabeca: 35 })).toBe(7000);
+  });
+
+  it('média de dois anos usa o ano que existir quando só há um', () => {
+    expect(mediaDoisAnos(100, 300)).toBe(200);
+    expect(mediaDoisAnos(null, 300)).toBe(300);
+    expect(mediaDoisAnos(100, null)).toBe(100);
+    expect(mediaDoisAnos(null, null)).toBe(0);
   });
 });

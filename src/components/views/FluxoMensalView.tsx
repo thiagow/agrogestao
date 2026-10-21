@@ -186,14 +186,17 @@ export const FluxoMensalView: React.FC<FluxoMensalViewProps> = ({
           <button
             type="button"
             onClick={() => setMultiSafra((v) => !v)}
-            className={`h-[42px] rounded-xl border px-4 text-xs font-bold uppercase tracking-wide transition ${
+            className={`min-h-[42px] rounded-xl border px-4 py-1 text-xs font-bold uppercase tracking-wide transition ${
               multiSafra
                 ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
                 : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
             }`}
-            title="Desligado: só a lavoura. Ligado: soma também bovinos, suínos e aves (receitas e custos mensais) dentro da janela de 24 meses"
+            title="Desligado: receitas e custos só da lavoura. Ligado: soma também bovinos, suínos e aves (receitas e custos). Fornecedores, arrendamentos, bancos e aquisição aparecem sempre."
           >
             Multi-Safra {multiSafra ? 'ON' : 'OFF'}
+            <span className="block text-[10px] font-semibold normal-case tracking-normal opacity-80">
+              {multiSafra ? 'Lavoura + Pecuária' : 'Só Lavoura'}
+            </span>
           </button>
         </div>
         <Button

@@ -275,6 +275,10 @@ export interface PecuariaBovinaAno {
   diasConfinamento: number;
   qtdAnimaisConfinados: number;
 
+  /** R$/@ de estoque (fêmea/macho), digitado pelo cliente; 0 = não informado. */
+  valorArrobaFemea: number;
+  valorArrobaMacho: number;
+
   qtdMachosComercializados: number;
   pesoMedioMachos: number; // @
   precoMedioMachos: number; // R$/@
@@ -299,7 +303,7 @@ export interface ProducaoAnimalAno {
   producaoCabecas: number;
   precoMedioPorCabeca: number;
   custoMedioPorCabeca: number;
-  /** Entrada manual (10/09/2026) — Suíno/Ave não têm estoque por categoria como Bovino, só o total informado pelo cliente. Informativo, não entra em calcularProducaoAnimal(). */
+  /** Entrada manual (10/09/2026) — Suíno/Ave não têm estoque por categoria como Bovino, só o total informado pelo cliente. Não entra em calcularProducaoAnimal(); alimenta o estoque de rebanho do Balanço (plantel × preço médio por cabeça). */
   plantel: number;
 }
 
@@ -477,7 +481,8 @@ export interface AtivoCalculado {
   contasReceberSafra: number; // = Receita Bruta da safra (Quadro de Safra)
   estoqueGraos: number;
   estoqueInsumos: number;
-  estoqueRebanhoBovino: number; // Quadro Pecuária — cabeças em estoque x custo médio de aquisição (02/09/2026); Suínos/Aves não têm estoque
+  estoqueRebanhoBovino: number; // Quadro Pecuária — arrobas em estoque (peso por idade) × valor da @ por sexo, média de dois anos (21/10/2026)
+  estoqueRebanhoAnimal: number; // Suínos/Aves — plantel × preço médio por cabeça, média de dois anos (21/10/2026)
   outrosCreditosCp: number;
   totalCirculante: number;
 

@@ -1,14 +1,14 @@
-// Calendário Agrícola do Centro-Oeste (MT/GO/MS/TO) — referência estática,
-// conhecimento agronômico genérico e não editável por conta (mesmo critério
-// já registrado em CLAUDE.md para este bloco da tela Fluxo Mensal). Réplica
-// confirmada de docs/demandas/SPEC_TELA_FLUXO_MENSAL.md, seção 3 — os meses
-// citados explicitamente no print (Soja colheita Mar/Abr; Milho 1ª Safra
-// colheita Mar/Abr/Mai; Milho Safrinha plantio Jan/Fev e colheita Jun/Jul/Ago;
-// Algodão colheita Ago/Set; Pecuária Bovina contínua) foram mantidos tal qual;
-// os meses que a sessão de mapeamento não conseguiu capturar (ex.: plantio de
-// Soja, plantio de Milho 1ª Safra/Algodão) foram completados com o calendário
-// agronômico padrão da região — nunca inventados sem base, mas também não
-// confirmados por print.
+// Calendário Agrícola — referência estática, conhecimento agronômico genérico
+// e não editável por conta (mesmo critério já registrado em CLAUDE.md para
+// este bloco da tela Fluxo Mensal). Ponto de partida: réplica de
+// docs/demandas/SPEC_TELA_FLUXO_MENSAL.md, seção 3, depois ajustado pelo
+// cliente — Soja (13/10/2026): Set-Out custeio, Nov-Jan crescimento, Fev-Abr
+// colheita; Café (13/10/2026, aprovado em 21/10/2026): Mai-Jul custeio,
+// Ago-Abr colheita, sem crescimento. Os demais meses vêm da spec ou do
+// calendário agronômico padrão da região (Milho 1ª Safra colheita Mar/Abr/Mai;
+// Milho Safrinha plantio Jan/Fev e colheita Jun/Jul/Ago; Algodão colheita
+// Ago/Set; Pecuária Bovina contínua) — nunca inventados sem base, mas também
+// não confirmados por print.
 //
 // `fasesPorMes` é indexado 0=Janeiro..11=Dezembro.
 

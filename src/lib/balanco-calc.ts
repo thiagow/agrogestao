@@ -15,19 +15,25 @@
 // 3. BUG #4 corrigido: indicador com denominador zero por AUSÊNCIA de operação
 //    (sem arrendamento, sem estoque) vira `valor: null` + status 'Sem dados'
 //    (badge neutro), nunca 'Crítico'.
-// 4. CP/LP de Bancos e Aquisição de Fazenda calculado de verdade pelas datas
-//    reais das parcelas (vencimento ≤ 12 meses de hoje = Curto Prazo), reaproveitando
-//    isCurtoPrazo() — antes o schema não distinguia isso por contrato.
+// 4. CP/LP de Bancos, Aquisição de Fazenda e Fornecedores calculado pelas datas
+//    reais de vencimento: Circulante = até o fim da safra selecionada (jul-jun,
+//    mesma janela do Fluxo de Safra), Não Circulante = depois (21/10/2026,
+//    retorno do cliente — antes era "hoje + 360 dias", valor fixo errado).
 // 5. Radar "Saúde Financeira": fórmula definida pelo cliente (13/10/2026) —
 //    média ponderada de indicadores com rampas lineares por eixo.
 // 6. Despesa Comercial usa `despesaComercialScHa` da conta (default 3), não um
 //    "3" fixo — spec confirma que é configurável (corrige a suposição de
 //    SPEC_TELA_FLUXO_DE_SAFRA.md).
 
-import { calcularSafra, isCurtoPrazo } from '@/lib/agro';
-import { anoInicioSafra, anoCivilDaSafra } from '@/lib/safra-periodo';
+import { calcularSafra } from '@/lib/agro';
+import { anoInicioSafra, janelaSafra } from '@/lib/safra-periodo';
 import { commodityDaCultura } from '@/lib/cultura-commodity';
-import { receitaCustoPecuariaSafraBlend, valorEstoqueBovino } from '@/lib/pecuaria-calc';
+import {
+  mediaDoisAnos,
+  receitaCustoPecuariaSafraBlend,
+  valorEstoqueBovino,
+  valorEstoqueProducaoAnimal
+} from '@/lib/pecuaria-calc';
 import type { AnoFluxo, FluxoContrato } from '@/server/contratos-bancarios';
 import type {
   AtivoCalculado,
@@ -143,32 +149,66 @@ export function calcularPatrimonioIrpf(bens: BemDireito[], fazendasImobilizado: 
   };
 }
 
-/** Curto Prazo = parcelas com vencimento em até 12 meses de hoje (mesmo critério de isCurtoPrazo, reaproveitado); Longo Prazo = o resto. */
-function splitCpLp(parcelas: { data: string; valor: number }[]): { cp: number; lp: number } {
+/**
+ * Circulante = vence até o FIM da safra selecionada (30/06 do 2º ano, mesma
+ * janela de fluxo-safra-calc.ts — retorno do cliente, 21/10/2026); Não
+ * Circulante = depois do fim da safra. Data vazia ou já vencida fica no
+ * circulante (nunca vira "longo prazo esquecido").
+ */
+function noCirculante(dataISO: string, safra: string): boolean {
+  if (!dataISO) return true;
+  return dataISO.slice(0, 10) <= janelaSafra(safra).fim;
+}
+
+function splitCpLp(parcelas: { data: string; valor: number }[], safra: string): { cp: number; lp: number } {
   let cp = 0;
   let lp = 0;
   for (const p of parcelas) {
-    if (isCurtoPrazo(p.data)) cp += p.valor;
+    if (noCirculante(p.data, safra)) cp += p.valor;
     else lp += p.valor;
   }
   return { cp, lp };
 }
 
 /** CP/LP de Bancos a partir do Fluxo Detalhado já computado (listFluxoDetalhado) — soma só a amortização (principal), não a parcela total, pra CP+LP fechar exatamente com o saldo devedor. */
-export function splitBancosCpLp(contratos: Pick<FluxoContrato, 'anos'>[]): { cp: number; lp: number } {
+export function splitBancosCpLp(contratos: Pick<FluxoContrato, 'anos'>[], safra: string): { cp: number; lp: number } {
   const parcelas = contratos.flatMap((c) =>
     c.anos.flatMap((a: AnoFluxo) => a.parcelas.map((p) => ({ data: p.data, valor: p.amortizacao })))
   );
-  const { cp, lp: lpBrutoFuturo } = splitCpLp(parcelas);
   // A soma de todas as amortizações futuras já é o saldo devedor total (parcelas
   // passadas não entram na projeção gerada) — CP + LP = saldo devedor total.
-  return { cp, lp: lpBrutoFuturo };
+  return splitCpLp(parcelas, safra);
 }
 
 /** CP/LP de Aquisição de Fazenda a partir das parcelas já geradas (sem `pago`, mesmo critério de Bancos). */
-export function splitAquisicaoCpLp(aquisicoes: Pick<Aquisicao, 'parcelas'>[]): { cp: number; lp: number } {
+export function splitAquisicaoCpLp(aquisicoes: Pick<Aquisicao, 'parcelas'>[], safra: string): { cp: number; lp: number } {
   const parcelas = aquisicoes.flatMap((a) => a.parcelas.map((p) => ({ data: p.dataPagamento, valor: p.valorTotal })));
-  return splitCpLp(parcelas);
+  return splitCpLp(parcelas, safra);
+}
+
+/** Juros/amortização de Bancos dentro da janela jul-jun da safra, somados das parcelas do Fluxo Detalhado. */
+function bancosNaJanelaDaSafra(contratos: Pick<FluxoContrato, 'anos'>[], safra: string): { juros: number; amortizacao: number } {
+  const { inicio, fim } = janelaSafra(safra);
+  let juros = 0;
+  let amortizacao = 0;
+  for (const c of contratos) {
+    for (const a of c.anos) {
+      for (const p of a.parcelas) {
+        const d = p.data.slice(0, 10);
+        if (d >= inicio && d <= fim) {
+          juros += p.juros;
+          amortizacao += p.amortizacao;
+        }
+      }
+    }
+  }
+  return { juros, amortizacao };
+}
+
+/** Estoque de rebanho de um ano civil: soma dos registros do ano, null se não houver nenhum — alimenta a média de dois anos. */
+function estoqueDoAno<T extends { anoCivil: number }>(registros: T[], anoCivil: number, valor: (r: T) => number): number | null {
+  const doAno = registros.filter((r) => r.anoCivil === anoCivil);
+  return doAno.length === 0 ? null : doAno.reduce((s, r) => s + valor(r), 0);
 }
 
 const LIMIAR_SOJA_SCHA_DEFAULT = 3;
@@ -193,10 +233,18 @@ export interface MontarBalancoInput {
 export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
   const { safra, complementares } = input;
 
-  const anoBancario = anoInicioSafra(safra) + 1;
-  const anoCronograma = input.anosCronograma.find((a) => a.ano === anoBancario);
-  const jurosBancosAno = anoCronograma?.juros ?? 0;
-  const amortizacaoBancosAno = anoCronograma?.amortizacao ?? 0;
+  // Juros/amortização do ano: janela jul-jun da safra (mesmo racional do Fluxo
+  // de Safra), lida das parcelas do Fluxo Detalhado. Sem Fluxo Detalhado
+  // carregado, cai no cronograma consolidado por ano civil (2º ano da safra).
+  let jurosBancosAno: number;
+  let amortizacaoBancosAno: number;
+  if (input.fluxoDetalhadoBancos.length > 0) {
+    ({ juros: jurosBancosAno, amortizacao: amortizacaoBancosAno } = bancosNaJanelaDaSafra(input.fluxoDetalhadoBancos, safra));
+  } else {
+    const anoCronograma = input.anosCronograma.find((a) => a.ano === anoInicioSafra(safra) + 1);
+    jurosBancosAno = anoCronograma?.juros ?? 0;
+    amortizacaoBancosAno = anoCronograma?.amortizacao ?? 0;
+  }
 
   const registrosSafra = input.quadroSafra.filter((r) => r.anoSafra === safra);
   const areaTotalHa = registrosSafra.reduce((s, r) => s + r.hectares, 0);
@@ -204,12 +252,20 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
   const receitaBruta = registrosSafra.reduce((s, r) => s + calcularSafra(r).receitaBruta, 0) + pecuaria.receitaBruta;
   const custos = registrosSafra.reduce((s, r) => s + calcularSafra(r).despesa, 0) + pecuaria.despesa;
 
-  // Estoque de rebanho bovino do ano civil correspondente (2º ano da safra) —
-  // única fonte de "quantidade de animais" que alimenta o Ativo Circulante
-  // (decisão confirmada com o usuário: valorizado ao preço médio de
-  // aquisição já digitado no cadastro; Suínos/Aves não têm estoque).
-  const registroBovinoDoAno = input.pecuariaBovina.find((r) => r.anoCivil === anoCivilDaSafra(safra));
-  const estoqueRebanhoBovino = registroBovinoDoAno ? valorEstoqueBovino(registroBovinoDoAno) : 0;
+  // Estoque de rebanho do Ativo Circulante (retorno do cliente, 21/10/2026):
+  // MÉDIA DE DOIS ANOS (ano civil de início da safra e o seguinte) — vale só
+  // aqui, não na receita/custo. Bovino = arrobas × valor da @ por sexo;
+  // Suínos/Aves = plantel × preço médio por cabeça já cadastrado.
+  const anoCivil1 = anoInicioSafra(safra);
+  const anoCivil2 = anoCivil1 + 1;
+  const estoqueRebanhoBovino = mediaDoisAnos(
+    estoqueDoAno(input.pecuariaBovina, anoCivil1, valorEstoqueBovino),
+    estoqueDoAno(input.pecuariaBovina, anoCivil2, valorEstoqueBovino)
+  );
+  const estoqueRebanhoAnimal = mediaDoisAnos(
+    estoqueDoAno(input.producaoAnimal, anoCivil1, valorEstoqueProducaoAnimal),
+    estoqueDoAno(input.producaoAnimal, anoCivil2, valorEstoqueProducaoAnimal)
+  );
 
   // ---- DRE ----
   const deducoes = receitaBruta * (complementares.deducoesReceitaPercent / 100);
@@ -307,6 +363,7 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
     complementares.estoqueInsumos +
     patrimonioIrpf.estoqueBens.valor +
     estoqueRebanhoBovino +
+    estoqueRebanhoAnimal +
     complementares.outrosCreditosCp +
     patrimonioIrpf.contasReceberBens.valor;
 
@@ -327,6 +384,7 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
     estoqueGraos: complementares.estoqueGraos,
     estoqueInsumos: complementares.estoqueInsumos + patrimonioIrpf.estoqueBens.valor,
     estoqueRebanhoBovino,
+    estoqueRebanhoAnimal,
     outrosCreditosCp: complementares.outrosCreditosCp + patrimonioIrpf.contasReceberBens.valor,
     totalCirculante,
     contasReceberLp: complementares.contasReceberLp,
@@ -342,12 +400,12 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
   };
 
   // ---- Passivo ----
-  const { cp: bancosCp, lp: bancosLp } = splitBancosCpLp(input.fluxoDetalhadoBancos);
-  const { cp: aquisicaoFazendasCp, lp: aquisicaoFazendasLp } = splitAquisicaoCpLp(input.aquisicoes);
+  const { cp: bancosCp, lp: bancosLp } = splitBancosCpLp(input.fluxoDetalhadoBancos, safra);
+  const { cp: aquisicaoFazendasCp, lp: aquisicaoFazendasLp } = splitAquisicaoCpLp(input.aquisicoes, safra);
 
   const fornecedoresAtivos = input.suppliers;
-  const fornecedoresCp = fornecedoresAtivos.filter((s) => isCurtoPrazo(s.vencimento)).reduce((s, x) => s + x.dividaTotal, 0);
-  const fornecedoresLp = fornecedoresAtivos.filter((s) => !isCurtoPrazo(s.vencimento)).reduce((s, x) => s + x.dividaTotal, 0);
+  const fornecedoresCp = fornecedoresAtivos.filter((s) => noCirculante(s.vencimento, safra)).reduce((s, x) => s + x.dividaTotal, 0);
+  const fornecedoresLp = fornecedoresAtivos.filter((s) => !noCirculante(s.vencimento, safra)).reduce((s, x) => s + x.dividaTotal, 0);
 
   const totalPassivoCirculante =
     bancosCp +
@@ -449,6 +507,9 @@ function semDados(base: Omit<IndicadorCalculado, 'valor' | 'status'>): Indicador
   return { ...base, valor: null, status: 'Sem dados' };
 }
 
+/** Piso (R$) de dívida bancária/serviço da dívida/juros nos denominadores — sem dívida, o indicador existe e bonifica. */
+const PISO_DIVIDA_BANCARIA = 1;
+
 interface CalcularIndicadoresInput {
   ativo: AtivoCalculado;
   passivo: PassivoCalculado;
@@ -470,7 +531,7 @@ export function calcularIndicadores(input: CalcularIndicadoresInput): IndicadorC
   const push = (i: IndicadorCalculado) => indicadores.push(i);
 
   // GRUPO 1 — Liquidez
-  const estoques = ativo.estoqueGraos + ativo.estoqueInsumos + ativo.estoqueRebanhoBovino;
+  const estoques = ativo.estoqueGraos + ativo.estoqueInsumos + ativo.estoqueRebanhoBovino + ativo.estoqueRebanhoAnimal;
   const liquidezCorrente = passivo.totalCirculante > 0 ? ativo.totalCirculante / passivo.totalCirculante : 0;
   const liquidezSeca = passivo.totalCirculante > 0 ? (ativo.totalCirculante - estoques) / passivo.totalCirculante : 0;
   const liquidezImediata = passivo.totalCirculante > 0 ? ativo.caixaEquivalentes / passivo.totalCirculante : 0;
@@ -488,11 +549,16 @@ export function calcularIndicadores(input: CalcularIndicadoresInput): IndicadorC
   const endividamentoGeral = ativoTotal > 0 ? (passivoTotal / ativoTotal) * 100 : 0;
   const composicaoCpLp = passivoTotal > 0 ? (passivo.totalCirculante / passivoTotal) * 100 : 0;
   const dividaTotal = passivo.bancosCp + passivo.bancosLp + passivo.aquisicaoFazendasCp + passivo.aquisicaoFazendasLp;
-  const dividaEbitda = dre.ebitda > 0 ? Math.max(dividaTotal - ativo.caixaEquivalentes, 0) / dre.ebitda : null;
+  // Sem dívida bancária (= 0) vale o piso de R$ 1,00 (retorno do cliente,
+  // decisão 5): o indicador continua existindo e bonificando o cliente em vez
+  // de virar "Sem dados". EBITDA ≤ 0 continua sem indicador (problema de
+  // resultado, não de ausência de dívida).
+  const dividaLiquida = Math.max(dividaTotal - ativo.caixaEquivalentes, 0);
+  const dividaEbitda = dre.ebitda > 0 ? Math.max(dividaLiquida, PISO_DIVIDA_BANCARIA) / dre.ebitda : null;
   const imobilizacaoPl = plTotal > 0 ? (ativo.totalNaoCirculante / plTotal) * 100 : 0;
   const grauEndividamento = plTotal > 0 ? passivoTotal / plTotal : 0;
   const alavancagem = plTotal > 0 ? ativoTotal / plTotal : 0;
-  const coberturaJuros = dre.custoFinanceiro > 0 ? dre.ebit / dre.custoFinanceiro : null;
+  const coberturaJuros = dre.ebit / Math.max(dre.custoFinanceiro, PISO_DIVIDA_BANCARIA);
 
   push({ id: 'endividamento-geral', grupo: 'Estrutura de Capital', nome: 'Endividamento Geral', valor: endividamentoGeral, unidade: '%', status: classificar(endividamentoGeral, [15, 30, 40, 50], true), formula: 'Passivo Total / Ativo Total', referencia: 'Agro: ≤ 50% (bom)' });
   push({ id: 'composicao-cp-lp', grupo: 'Estrutura de Capital', nome: 'Composição CP/LP', valor: composicaoCpLp, unidade: '%', status: classificar(composicaoCpLp, [20, 40, 50, 60], true), formula: 'Passivo CP / Passivo Total', referencia: '≤ 40% (bom)' });
@@ -504,11 +570,7 @@ export function calcularIndicadores(input: CalcularIndicadoresInput): IndicadorC
   push({ id: 'imobilizacao-pl', grupo: 'Estrutura de Capital', nome: 'Imobilização do PL', valor: imobilizacaoPl, unidade: '%', status: classificar(imobilizacaoPl, [50, 70, 90, 110], true), formula: 'Ativo Imobilizado / PL', referencia: '≤ 70% (bom)' });
   push({ id: 'grau-endividamento', grupo: 'Estrutura de Capital', nome: 'Grau de Endividamento', valor: grauEndividamento, unidade: 'x', status: classificar(grauEndividamento, [0.3, 1.0, 1.5, 2.0], true), formula: 'Passivo Total / PL', referencia: '≤ 1,0x (bom)' });
   push({ id: 'alavancagem', grupo: 'Estrutura de Capital', nome: 'Alavancagem Financeira', valor: alavancagem, unidade: 'x', status: classificar(alavancagem, [1.2, 2.5, 3.0, 3.5], true), formula: 'Ativo Total / PL', referencia: '≤ 2,5x (bom)' });
-  if (coberturaJuros === null) {
-    push(semDados({ id: 'cobertura-juros', grupo: 'Estrutura de Capital', nome: 'Cobertura de Juros', unidade: 'x', formula: 'EBIT / Despesas Financeiras', referencia: '≥ 3,0x (bom)' }));
-  } else {
-    push({ id: 'cobertura-juros', grupo: 'Estrutura de Capital', nome: 'Cobertura de Juros', valor: coberturaJuros, unidade: 'x', status: classificar(coberturaJuros, [8, 3, 2, 1], false), formula: 'EBIT / Despesas Financeiras', referencia: '≥ 3,0x (bom)' });
-  }
+  push({ id: 'cobertura-juros', grupo: 'Estrutura de Capital', nome: 'Cobertura de Juros', valor: coberturaJuros, unidade: 'x', status: classificar(coberturaJuros, [8, 3, 2, 1], false), formula: 'EBIT / Despesas Financeiras', referencia: '≥ 3,0x (bom)' });
   push({ id: 'endividamento-cp', grupo: 'Estrutura de Capital', nome: 'Endividamento CP', valor: composicaoCpLp, unidade: '%', status: classificar(composicaoCpLp, [15, 25, 30, 35], true), formula: 'Passivo CP / Passivo Total', referencia: '≤ 35% (bom)' });
 
   // GRUPO 3 — Rentabilidade e Lucratividade
@@ -532,22 +594,15 @@ export function calcularIndicadores(input: CalcularIndicadoresInput): IndicadorC
   push({ id: 'giro-ativo', grupo: 'Rentabilidade', nome: 'Giro do Ativo', valor: giroAtivo, unidade: 'x', status: classificar(giroAtivo, [0.8, 0.4, 0.25, 0.1]), formula: 'Receita Líquida / Ativo Total', referencia: 'Agro: 0,4-0,8x' });
 
   // GRUPO 4 — Cobertura e Capacidade de Pagamento
-  const dscr = servicoDivida > 0 ? dre.ebitda / servicoDivida : null;
+  const servicoDividaBase = Math.max(servicoDivida, PISO_DIVIDA_BANCARIA);
+  const dscr = dre.ebitda / servicoDividaBase;
   const coberturaCp = passivo.totalCirculante > 0 ? (ativo.caixaEquivalentes + ativo.contasReceberSafra) / passivo.totalCirculante : 0;
-  const capacidadePagamento = servicoDivida > 0 ? (dre.ebitda - capex) / servicoDivida : null;
+  const capacidadePagamento = (dre.ebitda - capex) / servicoDividaBase;
   const coberturaArrendamento = passivo.arrendamentos > 0 ? dre.ebitda / passivo.arrendamentos : null;
 
-  if (dscr === null) {
-    push(semDados({ id: 'dscr', grupo: 'Cobertura', nome: 'DSCR (Cobertura Dívida)', unidade: 'x', formula: 'EBITDA / Serviço da Dívida', referencia: 'Bancos: ≥ 1,3x' }));
-  } else {
-    push({ id: 'dscr', grupo: 'Cobertura', nome: 'DSCR (Cobertura Dívida)', valor: dscr, unidade: 'x', status: classificar(dscr, [2.5, 1.3, 1.1, 1.0]), formula: 'EBITDA / Serviço da Dívida', referencia: 'Bancos: ≥ 1,3x' });
-  }
+  push({ id: 'dscr', grupo: 'Cobertura', nome: 'DSCR (Cobertura Dívida)', valor: dscr, unidade: 'x', status: classificar(dscr, [2.5, 1.3, 1.1, 1.0]), formula: 'EBITDA / Serviço da Dívida', referencia: 'Bancos: ≥ 1,3x' });
   push({ id: 'cobertura-cp', grupo: 'Cobertura', nome: 'Cobertura CP', valor: coberturaCp, unidade: 'x', status: classificar(coberturaCp, [2.0, 1.0, 0.8, 0.5]), formula: '(Caixa + CR) / Passivo CP', referencia: '≥ 1,0x (bom)' });
-  if (capacidadePagamento === null) {
-    push(semDados({ id: 'capacidade-pagamento', grupo: 'Cobertura', nome: 'Capacidade de Pagamento', unidade: 'x', formula: '(EBITDA - CAPEX) / Serviço da Dívida', referencia: '≥ 1,2x (bom)' }));
-  } else {
-    push({ id: 'capacidade-pagamento', grupo: 'Cobertura', nome: 'Capacidade de Pagamento', valor: capacidadePagamento, unidade: 'x', status: classificar(capacidadePagamento, [2.0, 1.2, 1.0, 0.8]), formula: '(EBITDA - CAPEX) / Serviço da Dívida', referencia: '≥ 1,2x (bom)' });
-  }
+  push({ id: 'capacidade-pagamento', grupo: 'Cobertura', nome: 'Capacidade de Pagamento', valor: capacidadePagamento, unidade: 'x', status: classificar(capacidadePagamento, [2.0, 1.2, 1.0, 0.8]), formula: '(EBITDA - CAPEX) / Serviço da Dívida', referencia: '≥ 1,2x (bom)' });
   if (coberturaArrendamento === null) {
     push(semDados({ id: 'cobertura-arrendamento', grupo: 'Cobertura', nome: 'Cobertura Arrendamento', unidade: 'x', formula: 'EBITDA / Custo Arrendamento', referencia: '≥ 2,5x (bom)' }));
   } else {
@@ -619,8 +674,9 @@ export function fracaoRampa(valor: number, meta: number, zero: number): number {
 /**
  * Score 0-100 de cada eixo. Indicador sem valor (null, ex. DSCR sem serviço da
  * dívida) sai da conta e os pesos dos demais são redistribuídos; eixo sem
- * nenhum indicador disponível fica em 0. Regra de "sem dado" sugerida ao
- * cliente — ver documento de decisões.
+ * nenhum indicador disponível fica em 0. Dívida/serviço da dívida/juros = 0
+ * NÃO é "sem dado": usam o piso de R$ 1,00 (ver PISO_DIVIDA_BANCARIA) e
+ * bonificam o cliente — decisão 5 do retorno do cliente (21/10/2026).
  */
 export function calcularScoreRadar(indicadores: IndicadorCalculado[]): { dimensao: string; valor: number }[] {
   const porId = new Map(indicadores.map((i) => [i.id, i]));

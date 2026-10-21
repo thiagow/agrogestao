@@ -2,7 +2,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { PecuariaBovinaAno } from '../types';
-import { calcularPecuariaBovina, custoTotalPorCabecaBovino, estoqueTotalBovino } from '../lib/pecuaria-calc';
+import {
+  calcularPecuariaBovina,
+  custoTotalPorCabecaBovino,
+  estoqueTotalBovino,
+  valorEstoqueBovino,
+  PESO_ARROBA_POR_IDADE
+} from '../lib/pecuaria-calc';
 import { formatCurrency } from '../data/initialData';
 import { Drawer, Input, Select, Button } from './ui';
 
@@ -35,6 +41,8 @@ const CAMPOS_NUMERICOS = [
   'diariaConfinamento',
   'diasConfinamento',
   'qtdAnimaisConfinados',
+  'valorArrobaFemea',
+  'valorArrobaMacho',
   'qtdMachosComercializados',
   'pesoMedioMachos',
   'precoMedioMachos',
@@ -122,6 +130,19 @@ export const PecuariaBovinaDrawer: React.FC<PecuariaBovinaDrawerProps> = ({
     machos24a36: num('machos24a36'),
     machosAcima36: num('machosAcima36')
   });
+  const valorEstoque = valorEstoqueBovino({
+    femeas0a12: num('femeas0a12'),
+    femeas12a24: num('femeas12a24'),
+    femeas24a36: num('femeas24a36'),
+    femeasAcima36: num('femeasAcima36'),
+    machos0a12: num('machos0a12'),
+    machos12a24: num('machos12a24'),
+    machos24a36: num('machos24a36'),
+    machosAcima36: num('machosAcima36'),
+    custoAquisicaoPorCabeca: num('custoAquisicaoPorCabeca'),
+    valorArrobaFemea: num('valorArrobaFemea'),
+    valorArrobaMacho: num('valorArrobaMacho')
+  });
   const custoTotalPorCabeca = custoTotalPorCabecaBovino({
     custoAquisicaoPorCabeca: num('custoAquisicaoPorCabeca'),
     custoPastagemPorHectare: num('custoPastagemPorHectare'),
@@ -193,6 +214,22 @@ export const PecuariaBovinaDrawer: React.FC<PecuariaBovinaDrawerProps> = ({
             <span>Estoque Total</span>
             <span className="font-semibold text-slate-800">{estoqueTotal.toLocaleString('pt-BR')} cabeças</span>
           </div>
+        </div>
+
+        <div>
+          <p className="text-[11px] font-bold uppercase text-slate-500 mb-2">Valor da @ do Estoque (R$/@)</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Fêmeas" type="number" min={0} step="0.01" value={campos.valorArrobaFemea} onChange={(e) => setCampo('valorArrobaFemea', e.target.value)} />
+            <Input label="Machos" type="number" min={0} step="0.01" value={campos.valorArrobaMacho} onChange={(e) => setCampo('valorArrobaMacho', e.target.value)} />
+          </div>
+          <div className="flex justify-between text-xs mt-2 text-slate-600">
+            <span>Valor do Estoque (Balanço)</span>
+            <span className="font-semibold text-slate-800">{formatCurrency(valorEstoque)}</span>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+            Valor do estoque = cabeças × peso médio por idade (@) × valor da @. Pesos padrão — Fêmeas: {PESO_ARROBA_POR_IDADE.femeas.join(' / ')} @; Machos:{' '}
+            {PESO_ARROBA_POR_IDADE.machos.join(' / ')} @ (faixas 0-12 / 12-24 / 24-36 / +36 meses). Sem o valor da @ informado, o Balanço usa o custo de aquisição.
+          </p>
         </div>
 
         <div>

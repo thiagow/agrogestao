@@ -282,8 +282,9 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
             if (activeTabId === 'balanco') {
               return (
                 <div className="space-y-6">
+                  {/* Ativo | Passivo na 1ª linha; DRE | Patrimônio Líquido na 2ª (retorno do cliente, 21/10/2026) */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card className="p-5">
+                    <Card className="p-5 order-1">
                       <h3 className="text-sm font-bold text-slate-900 mb-3">ATIVO — Safra {safraAtiva || '—'}</h3>
                       <p className="text-[11px] font-bold uppercase text-slate-500 mb-1.5">Ativo Circulante</p>
                       <div className="space-y-1 text-sm mb-4">
@@ -293,6 +294,7 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                         {linha('Estoque de Grãos', balanco.ativo.estoqueGraos)}
                         {linha('Estoque de Insumos', balanco.ativo.estoqueInsumos)}
                         {linha('Estoque de Rebanho (Bovino)', balanco.ativo.estoqueRebanhoBovino)}
+                        {linha('Estoque de Rebanho (Suínos/Aves)', balanco.ativo.estoqueRebanhoAnimal)}
                         {linha('Outros Créditos CP', balanco.ativo.outrosCreditosCp)}
                         {linha('Total Ativo Circulante', balanco.ativo.totalCirculante, false, true)}
                       </div>
@@ -320,7 +322,7 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                       </div>
                     </Card>
 
-                    <Card className="p-5">
+                    <Card className="p-5 order-3">
                       <h3 className="text-sm font-bold text-slate-900 mb-3">DRE — Safra {safraAtiva || '—'}</h3>
                       <div className="space-y-1 text-sm">
                         {linha('(+) Receita Bruta', balanco.dre.receitaBruta)}
@@ -356,10 +358,8 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                         {linha('= Resultado Líquido', balanco.dre.resultadoLiquido, false, true)}
                       </div>
                     </Card>
-                  </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card className="p-5">
+                    <Card className="p-5 order-2">
                       <h3 className="text-sm font-bold text-slate-900 mb-3">PASSIVO — Safra {safraAtiva || '—'}</h3>
                       <p className="text-[11px] font-bold uppercase text-slate-500 mb-1.5">Passivo Circulante</p>
                       <div className="space-y-1 text-sm mb-4">
@@ -388,7 +388,7 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                       </div>
                     </Card>
 
-                    <Card className="p-5">
+                    <Card className="p-5 order-4">
                       <h3 className="text-sm font-bold text-slate-900 mb-3">PATRIMÔNIO LÍQUIDO</h3>
                       <div className="space-y-1 text-sm">
                         {linha('Capital Social', balanco.pl.capitalSocial)}

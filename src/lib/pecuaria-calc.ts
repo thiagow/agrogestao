@@ -62,12 +62,63 @@ export function estoqueTotalBovino(
 }
 
 /**
- * Valor do estoque de rebanho para o Ativo Circulante do Balanço — cabeças em
- * estoque × preço médio de aquisição já digitado no cadastro (decisão
- * confirmada com o usuário: não depende de cotação nem de preço de venda).
+ * Peso médio por cabeça (@) em cada faixa de idade — padrão informado pelo
+ * cliente (retorno de 21/10/2026). Ordem das faixas: 0-12 / 12-24 / 24-36 / +36 meses.
  */
-export function valorEstoqueBovino(registro: PecuariaBovinaCalculavel): number {
-  return Math.round(estoqueTotalBovino(registro) * registro.custoAquisicaoPorCabeca);
+export const PESO_ARROBA_POR_IDADE = {
+  femeas: [4.9, 8.3, 11.1, 13.2],
+  machos: [5.5, 10.4, 14.6, 17.3]
+} as const;
+
+type EstoqueBovino = Pick<
+  PecuariaBovinaCalculavel,
+  'femeas0a12' | 'femeas12a24' | 'femeas24a36' | 'femeasAcima36' | 'machos0a12' | 'machos12a24' | 'machos24a36' | 'machosAcima36'
+>;
+
+/** Arrobas totais em estoque por sexo = Σ cabeças da faixa × peso médio (@) da faixa. */
+export function arrobasEstoqueBovino(registro: EstoqueBovino): { femeas: number; machos: number } {
+  const f = PESO_ARROBA_POR_IDADE.femeas;
+  const m = PESO_ARROBA_POR_IDADE.machos;
+  return {
+    femeas: registro.femeas0a12 * f[0] + registro.femeas12a24 * f[1] + registro.femeas24a36 * f[2] + registro.femeasAcima36 * f[3],
+    machos: registro.machos0a12 * m[0] + registro.machos12a24 * m[1] + registro.machos24a36 * m[2] + registro.machosAcima36 * m[3]
+  };
+}
+
+/**
+ * Valor do estoque de rebanho para o Ativo Circulante do Balanço — arrobas em
+ * estoque (cabeças × peso médio por idade) × valor da @ do sexo, digitado pelo
+ * cliente. Sem nenhum valor de @ informado, cai no custo de aquisição por
+ * cabeça (regra anterior), pra não zerar o estoque de quem ainda não preencheu.
+ */
+export function valorEstoqueBovino(
+  registro: EstoqueBovino &
+    Pick<PecuariaBovinaCalculavel, 'custoAquisicaoPorCabeca'> & { valorArrobaFemea?: number; valorArrobaMacho?: number }
+): number {
+  const valorFemea = registro.valorArrobaFemea ?? 0;
+  const valorMacho = registro.valorArrobaMacho ?? 0;
+  if (valorFemea <= 0 && valorMacho <= 0) {
+    return Math.round(estoqueTotalBovino(registro) * registro.custoAquisicaoPorCabeca);
+  }
+  const arrobas = arrobasEstoqueBovino(registro);
+  return Math.round(arrobas.femeas * valorFemea + arrobas.machos * valorMacho);
+}
+
+/** Estoque de Suínos/Aves = plantel × preço médio por cabeça (já cadastrado). */
+export function valorEstoqueProducaoAnimal(registro: { plantel: number; precoMedioPorCabeca: number }): number {
+  return Math.round(registro.plantel * registro.precoMedioPorCabeca);
+}
+
+/**
+ * Média de dois anos do estoque — só do rebanho do Balanço (retorno do
+ * cliente, decisão 4): ano civil de início da safra e o seguinte. Se só um dos
+ * dois anos tem registro, usa esse; nenhum registro = 0.
+ */
+export function mediaDoisAnos(valorAno1: number | null, valorAno2: number | null): number {
+  if (valorAno1 === null && valorAno2 === null) return 0;
+  if (valorAno1 === null) return valorAno2 as number;
+  if (valorAno2 === null) return valorAno1;
+  return Math.round((valorAno1 + valorAno2) / 2);
 }
 
 /**

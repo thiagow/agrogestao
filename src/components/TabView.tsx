@@ -369,6 +369,8 @@ export const TabView: React.FC<TabViewProps> = ({
         diariaConfinamento: data.diariaConfinamento || 0,
         diasConfinamento: data.diasConfinamento || 0,
         qtdAnimaisConfinados: data.qtdAnimaisConfinados || 0,
+        valorArrobaFemea: data.valorArrobaFemea || 0,
+        valorArrobaMacho: data.valorArrobaMacho || 0,
         qtdMachosComercializados: data.qtdMachosComercializados || 0,
         pesoMedioMachos: data.pesoMedioMachos || 0,
         precoMedioMachos: data.precoMedioMachos || 0,

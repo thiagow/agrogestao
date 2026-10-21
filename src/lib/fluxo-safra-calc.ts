@@ -132,7 +132,13 @@ export function montarFluxoSafraDTO(input: MontarFluxoSafraInput): FluxoSafraDTO
   const parcelasBancosDaSafra = input.parcelasBancos.filter((p) => p.data >= janela.inicio && p.data <= janela.fim);
   const amortizacaoBancos = parcelasBancosDaSafra.reduce((sum, p) => sum + p.amortizacao, 0);
   const jurosBancos = parcelasBancosDaSafra.reduce((sum, p) => sum + p.juros, 0);
-  const saldoDevedorBancos = input.contratosBancarios.reduce((sum, c) => sum + c.saldoAtual, 0);
+  // Saldo devedor em BRL = amortização das parcelas futuras (já convertidas pra
+  // BRL; ver src/lib/bancos-kpis.ts) — somar `saldoAtual` cru misturava US$ com
+  // R$ (retorno do cliente, 21/10/2026). Sem parcelas geradas, cai no saldo cadastrado.
+  const saldoDevedorBancos =
+    input.parcelasBancos.length > 0
+      ? input.parcelasBancos.reduce((sum, p) => sum + p.amortizacao, 0)
+      : input.contratosBancarios.reduce((sum, c) => sum + c.saldoAtual, 0);
 
   const linhasArrendamentoSafra = input.linhasArrendamento.filter((l) => l.safra === safra);
   const arrendamentos = linhasArrendamentoSafra

@@ -38,6 +38,8 @@ interface SaveQuadroPecuariaBovinaInput {
   diariaConfinamento: number;
   diasConfinamento: number;
   qtdAnimaisConfinados: number;
+  valorArrobaFemea: number;
+  valorArrobaMacho: number;
   qtdMachosComercializados: number;
   pesoMedioMachos: number;
   precoMedioMachos: number;
@@ -119,6 +121,8 @@ type QuadroPecuariaBovinaRow = {
   diariaConfinamento: unknown;
   diasConfinamento: number;
   qtdAnimaisConfinados: number;
+  valorArrobaFemea: unknown;
+  valorArrobaMacho: unknown;
   qtdMachosComercializados: number;
   pesoMedioMachos: unknown;
   precoMedioMachos: unknown;
@@ -154,6 +158,8 @@ function toPecuariaBovinaDTO(row: QuadroPecuariaBovinaRow): PecuariaBovinaAno {
     diariaConfinamento: Number(row.diariaConfinamento),
     diasConfinamento: row.diasConfinamento,
     qtdAnimaisConfinados: row.qtdAnimaisConfinados,
+    valorArrobaFemea: Number(row.valorArrobaFemea),
+    valorArrobaMacho: Number(row.valorArrobaMacho),
     qtdMachosComercializados: row.qtdMachosComercializados,
     pesoMedioMachos: Number(row.pesoMedioMachos),
     precoMedioMachos: Number(row.precoMedioMachos),

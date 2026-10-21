@@ -329,6 +329,11 @@ model QuadroPecuariaBovina {
   diasConfinamento        Int     @default(0)
   qtdAnimaisConfinados    Int     @default(0)
 
+  // Valor da @ de ESTOQUE (R$/@), digitado pelo cliente, só diferencia fêmea/macho
+  // (retorno do cliente, 21/10/2026). 0 = não informado -> Balanço cai no custo de aquisição.
+  valorArrobaFemea Decimal @default(0) @db.Decimal(12, 2)
+  valorArrobaMacho Decimal @default(0) @db.Decimal(12, 2)
+
   // Animais comercializados
   qtdMachosComercializados Int     @default(0)
   pesoMedioMachos          Decimal @default(0) @db.Decimal(8, 2) // @ (arrobas)

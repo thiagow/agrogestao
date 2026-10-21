@@ -57,6 +57,8 @@ function registroPecuariaBovina(overrides: Partial<PecuariaBovinaAno> = {}): Pec
     diariaConfinamento: 0,
     diasConfinamento: 0,
     qtdAnimaisConfinados: 0,
+    valorArrobaFemea: 0,
+    valorArrobaMacho: 0,
     qtdMachosComercializados: 50,
     pesoMedioMachos: 10,
     precoMedioMachos: 300,

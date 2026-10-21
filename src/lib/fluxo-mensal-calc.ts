@@ -422,8 +422,8 @@ export function gerarLancamentosVinculados(input: GerarVinculadosInput): Lancame
   }
 
   // Arrendamentos: ParcelaArrendamento não tem data própria — usa o mês do
-  // vencimento do contrato (evento anual) + o ano do 2º ano da safra da
-  // parcela (mesma convenção de dataReferenciaDaSafra()).
+  // vencimento do contrato (evento anual), no ano civil que esse mês ocupa
+  // dentro da safra da parcela (Jul-Dez = 1º ano, Jan-Jun = 2º; ver anoDoMesDeFase).
   for (const contrato of input.arrendamentos) {
     const { mes: mesRef } = anoMesDeIso(contrato.dataVencimento);
     for (const parcela of contrato.parcelas) {
@@ -436,7 +436,7 @@ export function gerarLancamentosVinculados(input: GerarVinculadosInput): Lancame
       lancamentos.push({
         id: `vinc-arr-${seq++}`,
         mes: mesRef,
-        ano: anoInicioSafra(parcela.safra) + 1,
+        ano: anoDoMesDeFase(mesRef, anoInicioSafra(parcela.safra)),
         tipo: aReceber ? 'ENTRADA' : 'SAIDA',
         origem: 'VINCULADO',
         categoriaLabel: aReceber ? 'Arrendamento Recebido' : 'Arrendamento Pago',
@@ -536,7 +536,9 @@ export function calcularFluxoMensal(lancamentos: LancamentoMensal[], horizonte: 
 
   const totalEntradas = resumoPorMes.reduce((s, m) => s + m.entradas, 0);
   const totalSaidas = resumoPorMes.reduce((s, m) => s + m.saidas, 0);
-  const totalLancamentos = lancamentos.length;
+  // Só conta o que cai dentro do horizonte exibido — lançamento fora da janela
+  // não aparece em nenhum mês, então não pode entrar na contagem da tela.
+  const totalLancamentos = resumoPorMes.reduce((s, m) => s + m.lancamentos.length, 0);
 
   return {
     resumoPorMes,

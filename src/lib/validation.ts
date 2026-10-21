@@ -265,6 +265,9 @@ export const quadroPecuariaBovinaSchema = z.object({
   diasConfinamento: z.coerce.number().int().nonnegative(),
   qtdAnimaisConfinados: z.coerce.number().int().nonnegative(),
 
+  valorArrobaFemea: z.coerce.number().nonnegative(),
+  valorArrobaMacho: z.coerce.number().nonnegative(),
+
   qtdMachosComercializados: z.coerce.number().int().nonnegative(),
   pesoMedioMachos: z.coerce.number().nonnegative(),
   precoMedioMachos: z.coerce.number().nonnegative(),

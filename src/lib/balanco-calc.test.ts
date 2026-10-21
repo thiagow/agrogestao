@@ -49,7 +49,7 @@ function inputBase() {
     pecuariaBovina: [] as PecuariaBovinaAno[],
     producaoAnimal: [] as ProducaoAnimalAno[],
     suppliers: [] as Supplier[],
-    fluxoDetalhadoBancos: [],
+    fluxoDetalhadoBancos: [] as { anos: any[] }[],
     anosCronograma: [] as { ano: number; juros: number; amortizacao: number }[],
     arrendamentos: [] as ContratoArrendamento[],
     aquisicoes: [] as Aquisicao[],
@@ -190,27 +190,68 @@ describe('calcularPatrimonioIrpf — resolve BUGs #2/#3 da spec', () => {
   });
 });
 
-describe('splitBancosCpLp / splitAquisicaoCpLp', () => {
-  it('CP + LP fecha exatamente com a soma de todas as parcelas', () => {
-    const hoje = new Date();
-    const daqui6Meses = new Date(hoje.getTime() + 180 * 86400000).toISOString().slice(0, 10);
-    const daqui3Anos = new Date(hoje.getTime() + 3 * 365 * 86400000).toISOString().slice(0, 10);
-
-    const { cp, lp } = splitBancosCpLp([
-      { anos: [{ parcelas: [{ data: daqui6Meses, amortizacao: 1000 } as any, { data: daqui3Anos, amortizacao: 5000 } as any] } as any] }
-    ]);
-    expect(cp).toBe(1000);
+describe('splitBancosCpLp / splitAquisicaoCpLp — circulante = até o fim da safra (30/06/2027)', () => {
+  it('CP + LP fecha exatamente com a soma de todas as parcelas; 30/06 ainda é circulante, 01/07 já não é', () => {
+    const { cp, lp } = splitBancosCpLp(
+      [
+        {
+          anos: [
+            {
+              parcelas: [
+                { data: '2027-03-01', amortizacao: 1000 } as any,
+                { data: '2027-06-30', amortizacao: 200 } as any,
+                { data: '2027-07-01', amortizacao: 5000 } as any
+              ]
+            } as any
+          ]
+        }
+      ],
+      SAFRA
+    );
+    expect(cp).toBe(1200);
     expect(lp).toBe(5000);
-    expect(cp + lp).toBe(6000);
+    expect(cp + lp).toBe(6200);
   });
 
   it('Aquisição de Fazenda: parcela vencida cai em Curto Prazo (nunca vira "Longo Prazo esquecido")', () => {
     const passado = '2020-01-01';
-    const { cp, lp } = splitAquisicaoCpLp([
-      { parcelas: [{ dataPagamento: passado, valorTotal: 10_000 } as any] }
-    ]);
+    const { cp, lp } = splitAquisicaoCpLp([{ parcelas: [{ dataPagamento: passado, valorTotal: 10_000 } as any] }], SAFRA);
     expect(cp).toBe(10_000);
     expect(lp).toBe(0);
+  });
+});
+
+describe('montarBalanco — Fornecedores CP/LP e DRE pela janela jul-jun da safra', () => {
+  it('Fornecedor que vence depois do fim da safra vai para Passivo Não Circulante', () => {
+    const input = inputBase();
+    input.suppliers = [
+      { id: 's1', nome: 'A', categoria: 'INSUMOS' as any, cultura: 'Soja', safra: SAFRA, dividaTotal: 1000, moeda: 'BRL', vencimento: '2027-05-10', status: 'PENDENTE' },
+      { id: 's2', nome: 'B', categoria: 'INSUMOS' as any, cultura: 'Soja', safra: SAFRA, dividaTotal: 4000, moeda: 'BRL', vencimento: '2027-08-10', status: 'PENDENTE' }
+    ];
+    const balanco = montarBalanco(input);
+    expect(balanco.passivo.fornecedoresCp).toBe(1000);
+    expect(balanco.passivo.fornecedoresLp).toBe(4000);
+  });
+
+  it('juros/amortização do DRE vêm só das parcelas dentro de 01/07/2026–30/06/2027', () => {
+    const input = inputBase();
+    input.fluxoDetalhadoBancos = [
+      {
+        anos: [
+          {
+            parcelas: [
+              { data: '2026-06-30', juros: 999, amortizacao: 999 },
+              { data: '2026-12-15', juros: 100, amortizacao: 400 },
+              { data: '2027-06-30', juros: 50, amortizacao: 150 },
+              { data: '2027-07-01', juros: 999, amortizacao: 999 }
+            ]
+          }
+        ]
+      }
+    ];
+    const balanco = montarBalanco(input);
+    expect(balanco.dre.custoFinanceiro).toBe(150);
+    expect(balanco.servicoDividaDetalhe.automatico).toBe(700);
   });
 });
 
@@ -334,6 +375,8 @@ describe('Pecuária/Suinocultura/Avicultura (02/09/2026)', () => {
       diariaConfinamento: 0,
       diasConfinamento: 0,
       qtdAnimaisConfinados: 0,
+      valorArrobaFemea: 0,
+      valorArrobaMacho: 0,
       qtdMachosComercializados: 10,
       pesoMedioMachos: 1,
       precoMedioMachos: 500,
@@ -350,7 +393,7 @@ describe('Pecuária/Suinocultura/Avicultura (02/09/2026)', () => {
     };
   }
 
-  it('estoque de rebanho (cabeças x custo de aquisição) soma no Ativo Circulante', () => {
+  it('estoque de rebanho (sem valor da @: cabeças x custo de aquisição) soma no Ativo Circulante', () => {
     const sem = montarBalanco(inputBase());
 
     const input = inputBase();
@@ -388,13 +431,42 @@ describe('Pecuária/Suinocultura/Avicultura (02/09/2026)', () => {
     expect(com.dre.custos).toBeCloseTo(sem.dre.custos + (10_000 + 1_200) * 0.5, 2);
   });
 
-  it('Suínos/Aves não têm estoque — não entram no Ativo Circulante além da receita/custo', () => {
+  it('Suínos/Aves: estoque = plantel × preço médio por cabeça, média de dois anos', () => {
     const input = inputBase();
     input.producaoAnimal = [
-      { id: 'a1', tipo: 'Suinocultura', anoCivil: 2027, producaoCabecas: 500, precoMedioPorCabeca: 30, custoMedioPorCabeca: 20, plantel: 0 }
+      { id: 'a1', tipo: 'Suinocultura', anoCivil: 2026, producaoCabecas: 500, precoMedioPorCabeca: 30, custoMedioPorCabeca: 20, plantel: 100 },
+      { id: 'a2', tipo: 'Suinocultura', anoCivil: 2027, producaoCabecas: 500, precoMedioPorCabeca: 30, custoMedioPorCabeca: 20, plantel: 300 }
     ];
     const balanco = montarBalanco(input);
+    // 2026: 100 × 30 = 3.000; 2027: 300 × 30 = 9.000 -> média 6.000
+    expect(balanco.ativo.estoqueRebanhoAnimal).toBe(6_000);
     expect(balanco.ativo.estoqueRebanhoBovino).toBe(0);
+  });
+
+  it('Bovino: arrobas (peso por idade) × valor da @ por sexo, média de dois anos', () => {
+    const input = inputBase();
+    input.pecuariaBovina = [
+      pecuariaBovina({ anoCivil: 2026, femeas0a12: 10, machos0a12: 10, valorArrobaFemea: 300, valorArrobaMacho: 320 }),
+      pecuariaBovina({ anoCivil: 2027, femeas0a12: 0, machos0a12: 0, machos24a36: 10, valorArrobaMacho: 320 })
+    ];
+    const balanco = montarBalanco(input);
+    // 2026: 10×4,9×300 + 10×5,5×320 = 14.700 + 17.600 = 32.300; 2027: 10×14,6×320 = 46.720 -> média 39.510
+    expect(balanco.ativo.estoqueRebanhoBovino).toBe(39_510);
+  });
+});
+
+describe('Radar — dívida bancária = 0 usa piso de R$ 1,00 (decisão 5)', () => {
+  it('sem dívida/serviço/juros, DSCR, Capacidade, Cobertura de Juros e Dívida/EBITDA continuam existindo', () => {
+    const input = inputBase();
+    const balanco = montarBalanco(input);
+    const id = (i: string) => balanco.indicadores.find((x) => x.id === i)!;
+    expect(id('dscr').valor).not.toBeNull();
+    expect(id('capacidade-pagamento').valor).not.toBeNull();
+    expect(id('cobertura-juros').valor).not.toBeNull();
+    expect(id('divida-ebitda').valor).not.toBeNull();
+    expect(id('divida-ebitda').valor).toBeCloseTo(1 / balanco.dre.ebitda, 8);
+    const cobertura = balanco.radar.find((e) => e.dimensao === 'Cobertura')!.valor;
+    expect(cobertura).toBeGreaterThan(0);
   });
 });
 

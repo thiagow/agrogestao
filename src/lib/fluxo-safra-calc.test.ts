@@ -179,6 +179,8 @@ describe('montarFluxoSafraDTO — janela jul-jun (23/08/2026, review do cliente)
         diariaConfinamento: 0,
         diasConfinamento: 0,
         qtdAnimaisConfinados: 0,
+        valorArrobaFemea: 0,
+        valorArrobaMacho: 0,
         qtdMachosComercializados: 10,
         pesoMedioMachos: 1,
         precoMedioMachos: 500,
@@ -193,7 +195,7 @@ describe('montarFluxoSafraDTO — janela jul-jun (23/08/2026, review do cliente)
         diasConfinamentoPorLote: 0
       },
       // ano civil fora da safra (2099) não deve entrar
-      { id: 'p2', anoCivil: 2099, femeas0a12: 0, femeas12a24: 0, femeas24a36: 0, femeasAcima36: 0, machos0a12: 0, machos12a24: 0, machos24a36: 0, machosAcima36: 0, cicloProdutivo: '', areaPastagemPropria: 0, areaPastagemArrendada: 0, tipoTerminacao: '', custoAquisicaoPorCabeca: 0, custoPastagemPorHectare: 0, diariaConfinamento: 0, diasConfinamento: 0, qtdAnimaisConfinados: 0, qtdMachosComercializados: 999, pesoMedioMachos: 999, precoMedioMachos: 999, qtdFemeasComercializadas: 0, pesoMedioFemeas: 0, precoMedioFemeas: 0, qtdOutrasComercializadas: 0, pesoMedioOutras: 0, precoMedioOutras: 0, capacidadeLotacaoConfinamento: 0, ganhoPesoMedioDiarioKg: 0, diasConfinamentoPorLote: 0 }
+      { id: 'p2', anoCivil: 2099, femeas0a12: 0, femeas12a24: 0, femeas24a36: 0, femeasAcima36: 0, machos0a12: 0, machos12a24: 0, machos24a36: 0, machosAcima36: 0, cicloProdutivo: '', areaPastagemPropria: 0, areaPastagemArrendada: 0, tipoTerminacao: '', custoAquisicaoPorCabeca: 0, custoPastagemPorHectare: 0, diariaConfinamento: 0, diasConfinamento: 0, qtdAnimaisConfinados: 0, valorArrobaFemea: 0, valorArrobaMacho: 0, qtdMachosComercializados: 999, pesoMedioMachos: 999, precoMedioMachos: 999, qtdFemeasComercializadas: 0, pesoMedioFemeas: 0, precoMedioFemeas: 0, qtdOutrasComercializadas: 0, pesoMedioOutras: 0, precoMedioOutras: 0, capacidadeLotacaoConfinamento: 0, ganhoPesoMedioDiarioKg: 0, diasConfinamentoPorLote: 0 }
     ];
     input.producaoAnimal = [
       { id: 'a1', tipo: 'Avicultura', anoCivil: 2027, producaoCabecas: 1000, precoMedioPorCabeca: 10, custoMedioPorCabeca: 6, plantel: 0 },
