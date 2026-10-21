@@ -16,9 +16,10 @@
 //    (sem arrendamento, sem estoque) vira `valor: null` + status 'Sem dados'
 //    (badge neutro), nunca 'Crítico'.
 // 4. CP/LP de Bancos, Aquisição de Fazenda e Fornecedores calculado pelas datas
-//    reais de vencimento: Circulante = até o fim da safra selecionada (jul-jun,
-//    mesma janela do Fluxo de Safra), Não Circulante = depois (21/10/2026,
-//    retorno do cliente — antes era "hoje + 360 dias", valor fixo errado).
+//    reais de vencimento, com a safra selecionada como referência (jul-jun,
+//    mesma janela do Fluxo de Safra): antes do início = sai do balanço, dentro
+//    = Circulante, depois = Não Circulante — vale também pra Arrendamentos a
+//    Pagar/Receber (22/10/2026, retorno do cliente; ver classificarNaSafra).
 // 5. Radar "Saúde Financeira": fórmula definida pelo cliente (13/10/2026) —
 //    média ponderada de indicadores com rampas lineares por eixo.
 // 6. Despesa Comercial usa `despesaComercialScHa` da conta (default 3), não um
@@ -149,23 +150,39 @@ export function calcularPatrimonioIrpf(bens: BemDireito[], fazendasImobilizado: 
   };
 }
 
+type PosicaoNaSafra = 'passado' | 'cp' | 'lp';
+
 /**
- * Circulante = vence até o FIM da safra selecionada (30/06 do 2º ano, mesma
- * janela de fluxo-safra-calc.ts — retorno do cliente, 21/10/2026); Não
- * Circulante = depois do fim da safra. Data vazia ou já vencida fica no
- * circulante (nunca vira "longo prazo esquecido").
+ * Balanço dinâmico por safra (retorno do cliente, 22/10/2026) — a safra
+ * selecionada é a referência, mesma janela jul-jun de fluxo-safra-calc.ts:
+ * vence ANTES do início da safra = já pago/recebido, sai do balanço; dentro
+ * da safra = Circulante; depois do fim = Não Circulante. Avançando a safra, o
+ * que era Não Circulante migra sozinho pro Circulante e o que venceu morre.
+ * Sem data = Circulante (nunca some uma dívida sem vencimento).
  */
-function noCirculante(dataISO: string, safra: string): boolean {
-  if (!dataISO) return true;
-  return dataISO.slice(0, 10) <= janelaSafra(safra).fim;
+export function classificarNaSafra(dataISO: string, safra: string): PosicaoNaSafra {
+  if (!dataISO) return 'cp';
+  const { inicio, fim } = janelaSafra(safra);
+  const d = dataISO.slice(0, 10);
+  if (d < inicio) return 'passado';
+  return d <= fim ? 'cp' : 'lp';
+}
+
+/** Mesma regra, para itens que só carregam a safra (ex.: parcelas de Arrendamento). */
+function classificarSafraDoItem(safraItem: string, safra: string): PosicaoNaSafra {
+  const item = anoInicioSafra(safraItem);
+  const ref = anoInicioSafra(safra);
+  if (item < ref) return 'passado';
+  return item === ref ? 'cp' : 'lp';
 }
 
 function splitCpLp(parcelas: { data: string; valor: number }[], safra: string): { cp: number; lp: number } {
   let cp = 0;
   let lp = 0;
   for (const p of parcelas) {
-    if (noCirculante(p.data, safra)) cp += p.valor;
-    else lp += p.valor;
+    const pos = classificarNaSafra(p.data, safra);
+    if (pos === 'cp') cp += p.valor;
+    else if (pos === 'lp') lp += p.valor;
   }
   return { cp, lp };
 }
@@ -175,8 +192,7 @@ export function splitBancosCpLp(contratos: Pick<FluxoContrato, 'anos'>[], safra:
   const parcelas = contratos.flatMap((c) =>
     c.anos.flatMap((a: AnoFluxo) => a.parcelas.map((p) => ({ data: p.data, valor: p.amortizacao })))
   );
-  // A soma de todas as amortizações futuras já é o saldo devedor total (parcelas
-  // passadas não entram na projeção gerada) — CP + LP = saldo devedor total.
+  // Só amortização (principal): CP + LP = saldo devedor a partir do início da safra.
   return splitCpLp(parcelas, safra);
 }
 
@@ -286,6 +302,21 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
 
   const lucroBruto = receitaLiquida + arrendamentosReceberDre - custos - arrendamentosDre;
 
+  // Arrendamentos no Balanço (22/10/2026): a safra selecionada vai pro
+  // Circulante, safras futuras pro Não Circulante, safras passadas saem.
+  // A Pagar = Passivo; A Receber = Ativo (contas a receber). O DRE acima
+  // continua só com a safra selecionada.
+  const arrendamentosBalanco = { pagarCp: 0, pagarLp: 0, receberCp: 0, receberLp: 0 };
+  for (const c of input.arrendamentos) {
+    for (const p of c.parcelas) {
+      if (p.valorTotal == null) continue;
+      const pos = classificarSafraDoItem(p.safra, safra);
+      if (pos === 'passado') continue;
+      const chave = `${c.direcao === 'A_RECEBER' ? 'receber' : 'pagar'}${pos === 'cp' ? 'Cp' : 'Lp'}` as keyof typeof arrendamentosBalanco;
+      arrendamentosBalanco[chave] += p.valorTotal;
+    }
+  }
+
   const areaSoja = registrosSafra.filter((r) => r.cultura.toLowerCase().includes('soja')).reduce((s, r) => s + r.hectares, 0);
   const nomeCommoditySoja = commodityDaCultura('Soja');
   const precoSoja = nomeCommoditySoja
@@ -365,10 +396,12 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
     estoqueRebanhoBovino +
     estoqueRebanhoAnimal +
     complementares.outrosCreditosCp +
-    patrimonioIrpf.contasReceberBens.valor;
+    patrimonioIrpf.contasReceberBens.valor +
+    arrendamentosBalanco.receberCp;
 
   const totalNaoCirculante =
     complementares.contasReceberLp +
+    arrendamentosBalanco.receberLp +
     complementares.outrosCreditosLp +
     complementares.investimentos +
     complementares.maquinasEquipamentos +
@@ -386,8 +419,10 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
     estoqueRebanhoBovino,
     estoqueRebanhoAnimal,
     outrosCreditosCp: complementares.outrosCreditosCp + patrimonioIrpf.contasReceberBens.valor,
+    arrendamentosReceberCp: arrendamentosBalanco.receberCp,
     totalCirculante,
     contasReceberLp: complementares.contasReceberLp,
+    arrendamentosReceberLp: arrendamentosBalanco.receberLp,
     outrosCreditosLp: complementares.outrosCreditosLp,
     investimentos: complementares.investimentos,
     maquinasEquipamentos: complementares.maquinasEquipamentos,
@@ -404,13 +439,15 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
   const { cp: aquisicaoFazendasCp, lp: aquisicaoFazendasLp } = splitAquisicaoCpLp(input.aquisicoes, safra);
 
   const fornecedoresAtivos = input.suppliers;
-  const fornecedoresCp = fornecedoresAtivos.filter((s) => noCirculante(s.vencimento, safra)).reduce((s, x) => s + x.dividaTotal, 0);
-  const fornecedoresLp = fornecedoresAtivos.filter((s) => !noCirculante(s.vencimento, safra)).reduce((s, x) => s + x.dividaTotal, 0);
+  const { cp: fornecedoresCp, lp: fornecedoresLp } = splitCpLp(
+    fornecedoresAtivos.map((s) => ({ data: s.vencimento, valor: s.dividaTotal })),
+    safra
+  );
 
   const totalPassivoCirculante =
     bancosCp +
     fornecedoresCp +
-    arrendamentosDre +
+    arrendamentosBalanco.pagarCp +
     aquisicaoFazendasCp +
     complementares.obrigTrabalhistasCp +
     complementares.obrigFiscaisCp +
@@ -420,6 +457,7 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
     bancosLp +
     aquisicaoFazendasLp +
     fornecedoresLp +
+    arrendamentosBalanco.pagarLp +
     complementares.obrigFiscaisLp +
     complementares.outrasObrigLp +
     complementares.partesRelacionadas;
@@ -427,7 +465,7 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
   const passivo: PassivoCalculado = {
     bancosCp,
     fornecedoresCp,
-    arrendamentos: arrendamentosDre,
+    arrendamentos: arrendamentosBalanco.pagarCp,
     aquisicaoFazendasCp,
     obrigTrabalhistasCp: complementares.obrigTrabalhistasCp,
     obrigFiscaisCp: complementares.obrigFiscaisCp,
@@ -436,6 +474,7 @@ export function montarBalanco(input: MontarBalancoInput): BalancoCalculado {
     bancosLp,
     aquisicaoFazendasLp,
     fornecedoresLp,
+    arrendamentosLp: arrendamentosBalanco.pagarLp,
     obrigFiscaisLp: complementares.obrigFiscaisLp,
     outrasObrigLp: complementares.outrasObrigLp,
     partesRelacionadas: complementares.partesRelacionadas,

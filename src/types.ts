@@ -484,9 +484,11 @@ export interface AtivoCalculado {
   estoqueRebanhoBovino: number; // Quadro Pecuária — arrobas em estoque (peso por idade) × valor da @ por sexo, média de dois anos (21/10/2026)
   estoqueRebanhoAnimal: number; // Suínos/Aves — plantel × preço médio por cabeça, média de dois anos (21/10/2026)
   outrosCreditosCp: number;
+  arrendamentosReceberCp: number; // Arrendamentos A_RECEBER da safra selecionada (22/10/2026)
   totalCirculante: number;
 
   contasReceberLp: number;
+  arrendamentosReceberLp: number; // Arrendamentos A_RECEBER de safras futuras
   outrosCreditosLp: number;
   investimentos: number;
   maquinasEquipamentos: number;
@@ -502,7 +504,7 @@ export interface AtivoCalculado {
 export interface PassivoCalculado {
   bancosCp: number;
   fornecedoresCp: number;
-  arrendamentos: number; // só Circulante — spec seção 4.3
+  arrendamentos: number; // Arrendamentos A_PAGAR da safra selecionada (Circulante)
   aquisicaoFazendasCp: number;
   obrigTrabalhistasCp: number;
   obrigFiscaisCp: number;
@@ -512,6 +514,7 @@ export interface PassivoCalculado {
   bancosLp: number;
   aquisicaoFazendasLp: number;
   fornecedoresLp: number;
+  arrendamentosLp: number; // Arrendamentos A_PAGAR de safras futuras (22/10/2026)
   obrigFiscaisLp: number;
   outrasObrigLp: number;
   partesRelacionadas: number;

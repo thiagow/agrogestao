@@ -295,12 +295,14 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                         {linha('Estoque de Insumos', balanco.ativo.estoqueInsumos)}
                         {linha('Estoque de Rebanho (Bovino)', balanco.ativo.estoqueRebanhoBovino)}
                         {linha('Estoque de Rebanho (Suínos/Aves)', balanco.ativo.estoqueRebanhoAnimal)}
+                        {linha('Arrendamentos a Receber (safra)', balanco.ativo.arrendamentosReceberCp)}
                         {linha('Outros Créditos CP', balanco.ativo.outrosCreditosCp)}
                         {linha('Total Ativo Circulante', balanco.ativo.totalCirculante, false, true)}
                       </div>
                       <p className="text-[11px] font-bold uppercase text-slate-500 mb-1.5">Ativo Não Circulante</p>
                       <div className="space-y-1 text-sm">
                         {linha('Contas a Receber LP', balanco.ativo.contasReceberLp)}
+                        {linha('Arrendamentos a Receber LP', balanco.ativo.arrendamentosReceberLp)}
                         {linha('Outros Créditos LP', balanco.ativo.outrosCreditosLp)}
                         {linha('Investimentos', balanco.ativo.investimentos)}
                         {linha('Máquinas e Equipamentos', balanco.ativo.maquinasEquipamentos)}
@@ -365,7 +367,7 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                       <div className="space-y-1 text-sm mb-4">
                         {linha('Bancos CP', balanco.passivo.bancosCp)}
                         {linha('Fornecedores CP', balanco.passivo.fornecedoresCp)}
-                        {linha('Arrendamentos a Pagar (anual)', balanco.passivo.arrendamentos)}
+                        {linha('Arrendamentos a Pagar (safra)', balanco.passivo.arrendamentos)}
                         {linha('Aquisição de Fazendas CP', balanco.passivo.aquisicaoFazendasCp)}
                         {linha('Obrigações Trabalhistas', balanco.passivo.obrigTrabalhistasCp)}
                         {linha('Obrigações Fiscais CP', balanco.passivo.obrigFiscaisCp)}
@@ -377,6 +379,7 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                         {linha('Bancos LP', balanco.passivo.bancosLp)}
                         {linha('Aquisição de Fazendas LP', balanco.passivo.aquisicaoFazendasLp)}
                         {linha('Fornecedores LP', balanco.passivo.fornecedoresLp)}
+                        {linha('Arrendamentos a Pagar LP', balanco.passivo.arrendamentosLp)}
                         {linha('Obrigações Fiscais LP', balanco.passivo.obrigFiscaisLp)}
                         {linha('Outras Obrigações LP', balanco.passivo.outrasObrigLp)}
                         {linha('Partes Relacionadas', balanco.passivo.partesRelacionadas)}
@@ -431,8 +434,10 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                             </span>
                           </div>
                           <div className="flex justify-between">
-                            <span>Arrendamentos (anual)</span>
-                            <span className="font-semibold text-slate-700">{formatCurrency(balanco.passivo.arrendamentos)}</span>
+                            <span>Arrendamentos a Pagar CP / LP</span>
+                            <span className="font-semibold text-slate-700">
+                              {formatCurrency(balanco.passivo.arrendamentos)} / {formatCurrency(balanco.passivo.arrendamentosLp)}
+                            </span>
                           </div>
                           <div className="flex justify-between">
                             <span>Fazendas (imobilizado)</span>

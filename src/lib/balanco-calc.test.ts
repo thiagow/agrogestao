@@ -213,11 +213,85 @@ describe('splitBancosCpLp / splitAquisicaoCpLp — circulante = até o fim da sa
     expect(cp + lp).toBe(6200);
   });
 
-  it('Aquisição de Fazenda: parcela vencida cai em Curto Prazo (nunca vira "Longo Prazo esquecido")', () => {
-    const passado = '2020-01-01';
-    const { cp, lp } = splitAquisicaoCpLp([{ parcelas: [{ dataPagamento: passado, valorTotal: 10_000 } as any] }], SAFRA);
-    expect(cp).toBe(10_000);
+  it('parcela que vence antes do início da safra (01/07/2026) já foi paga e sai do balanço', () => {
+    const { cp, lp } = splitAquisicaoCpLp(
+      [{ parcelas: [{ dataPagamento: '2026-06-30', valorTotal: 10_000 } as any, { dataPagamento: '2026-07-01', valorTotal: 3_000 } as any] }],
+      SAFRA
+    );
+    expect(cp).toBe(3_000);
     expect(lp).toBe(0);
+  });
+
+  it('Bancos: parcela anterior à safra sai; o que era LP vira CP ao avançar a safra', () => {
+    const contratos = [
+      {
+        anos: [
+          {
+            parcelas: [
+              { data: '2026-03-01', amortizacao: 700 } as any,
+              { data: '2027-03-01', amortizacao: 1000 } as any,
+              { data: '2028-03-01', amortizacao: 2000 } as any
+            ]
+          } as any
+        ]
+      }
+    ];
+    expect(splitBancosCpLp(contratos, '2026/2027')).toEqual({ cp: 1000, lp: 2000 });
+    expect(splitBancosCpLp(contratos, '2027/2028')).toEqual({ cp: 2000, lp: 0 });
+  });
+});
+
+describe('Balanço dinâmico por safra (22/10/2026) — Fornecedores', () => {
+  const fornecedor = (id: string, dividaTotal: number, vencimento: string) =>
+    ({ id, nome: id, categoria: 'INSUMOS' as any, cultura: 'Soja', safra: SAFRA, dividaTotal, moeda: 'BRL', vencimento, status: 'PENDENTE' }) as Supplier;
+
+  it('dívida da safra 26/27 some na 27/28; a de 27/28 migra de LP pra CP', () => {
+    const input = inputBase();
+    input.suppliers = [fornecedor('a', 100_000, '2027-02-10'), fornecedor('b', 10_000_000, '2027-09-10')];
+
+    const na2627 = montarBalanco(input);
+    expect(na2627.passivo.fornecedoresCp).toBe(100_000);
+    expect(na2627.passivo.fornecedoresLp).toBe(10_000_000);
+
+    const na2728 = montarBalanco({ ...input, safra: '2027/2028', complementares: complementaresVazio('2027/2028') });
+    expect(na2728.passivo.fornecedoresCp).toBe(10_000_000);
+    expect(na2728.passivo.fornecedoresLp).toBe(0);
+  });
+
+  it('o balanço continua fechando (Ativo = Passivo + PL) com contas que saíram', () => {
+    const input = inputBase();
+    input.suppliers = [fornecedor('a', 5_000, '2025-01-01'), fornecedor('b', 7_000, '2030-01-01')];
+    const b = montarBalanco(input);
+    expect(b.passivo.fornecedoresCp + b.passivo.fornecedoresLp).toBe(7_000);
+    expect(b.ativo.total).toBeCloseTo(b.passivo.total + b.pl.total, 2);
+  });
+});
+
+describe('Balanço dinâmico por safra (22/10/2026) — Arrendamentos', () => {
+  const parcelas = [
+    { id: 'p1', safra: '2025/2026', sacasBrutas: 0, sacasAntecipadas: 0, sacasLiquidas: 0, valorTotal: 1_000 },
+    { id: 'p2', safra: SAFRA, sacasBrutas: 0, sacasAntecipadas: 0, sacasLiquidas: 0, valorTotal: 2_000 },
+    { id: 'p3', safra: '2027/2028', sacasBrutas: 0, sacasAntecipadas: 0, sacasLiquidas: 0, valorTotal: 3_000 },
+    { id: 'p4', safra: '2028/2029', sacasBrutas: 0, sacasAntecipadas: 0, sacasLiquidas: 0, valorTotal: 4_000 }
+  ];
+
+  it('A Pagar: passada sai, safra = Passivo Circulante, futuras = Não Circulante', () => {
+    const input = inputBase();
+    input.arrendamentos = [contratoArrendamento({ parcelas })];
+    const b = montarBalanco(input);
+    expect(b.passivo.arrendamentos).toBe(2_000);
+    expect(b.passivo.arrendamentosLp).toBe(7_000);
+    expect(b.dre.arrendamentos).toBe(2_000); // DRE só com a safra
+  });
+
+  it('A Receber: safra = Ativo Circulante, futuras = Ativo Não Circulante', () => {
+    const input = inputBase();
+    input.arrendamentos = [contratoArrendamento({ direcao: 'A_RECEBER', parcelas })];
+    const b = montarBalanco(input);
+    expect(b.ativo.arrendamentosReceberCp).toBe(2_000);
+    expect(b.ativo.arrendamentosReceberLp).toBe(7_000);
+    expect(b.passivo.arrendamentos + b.passivo.arrendamentosLp).toBe(0);
+    expect(b.ativo.total).toBeCloseTo(b.passivo.total + b.pl.total, 2);
   });
 });
 
