@@ -101,6 +101,9 @@ export default async function TabPage({ params }: TabPageProps) {
   const [cronogramaConsolidado, indices, fluxoDetalhadoBancos] =
     tab === 'bancos'
       ? await Promise.all([listCronogramaConsolidado(), listIndices(), listFluxoDetalhado()])
+      : tab === 'resumo'
+      ? // Resumo só precisa de Fluxo Detalhado (parcelas em BRL) + índices (câmbio) pro Endividamento Bancário em R$.
+        await Promise.all([Promise.resolve(undefined), listIndices(), listFluxoDetalhado()])
       : [undefined, undefined, undefined];
   // Fluxo Mensal e Análise Financeira também consomem o Fluxo Detalhado
   // (parcelas de cada contrato ativo, já com data real) — Fluxo Mensal pras

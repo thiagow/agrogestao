@@ -707,6 +707,8 @@ export const TabView: React.FC<TabViewProps> = ({
           suppliers={suppliers}
           culturaSafras={culturaSafras}
           contratosBancarios={contratosBancarios}
+          fluxoDetalhado={fluxoDetalhado}
+          usdBrl={indices?.usdBrl ?? null}
           aquisicoes={aquisicoes}
           arrendamentos={arrendamentos}
         />

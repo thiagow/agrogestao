@@ -5,6 +5,8 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { Supplier, CulturaSafraAno, ContratoBancario, Aquisicao, ContratoArrendamento } from '../../types';
 import { formatCurrency, calcularSafra } from '../../data/initialData';
 import { dataReferenciaDaSafra } from '../../lib/safra-periodo';
+import { calcularKpisBancos } from '../../lib/bancos-kpis';
+import type { FluxoDetalhado } from '../../server/contratos-bancarios';
 import { Card } from '../ui';
 import { TrendingDown, TrendingUp, Landmark, Scale } from 'lucide-react';
 
@@ -12,6 +14,9 @@ interface ResumoViewProps {
   suppliers: Supplier[];
   culturaSafras: CulturaSafraAno[];
   contratosBancarios: ContratoBancario[];
+  /** Parcelas (BRL) de cada contrato — base do Endividamento Bancário em R$. */
+  fluxoDetalhado?: FluxoDetalhado;
+  usdBrl?: number | null;
   aquisicoes: Aquisicao[];
   arrendamentos: ContratoArrendamento[];
 }
@@ -23,6 +28,8 @@ export const ResumoView: React.FC<ResumoViewProps> = ({
   suppliers,
   culturaSafras,
   contratosBancarios,
+  fluxoDetalhado,
+  usdBrl = null,
   aquisicoes,
   arrendamentos
 }) => {
@@ -66,7 +73,19 @@ export const ResumoView: React.FC<ResumoViewProps> = ({
   }, 0);
   const receitaLiquidaTotal = receitaBrutaTotal - despesaTotal;
 
-  const endividamentoBancos = contratosBancarios.reduce((sum, c) => sum + c.saldoAtual, 0);
+  // Em R$ (US$ convertido): amortização das parcelas já em BRL, mesma fonte de
+  // Bancos (src/lib/bancos-kpis.ts) — somar `saldoAtual` cru misturava dólar com real.
+  const endividamentoBancos = calcularKpisBancos(
+    contratosBancarios,
+    new Map(
+      (fluxoDetalhado?.contratos ?? []).map((f) => [
+        f.contratoId,
+        f.anos.flatMap((a) => a.parcelas.map((p) => ({ data: p.data, amortizacao: p.amortizacao })))
+      ])
+    ),
+    new Map(),
+    usdBrl
+  ).saldoTotal;
   const endividamentoFornecedores = suppliers.reduce((sum, s) => sum + s.dividaTotal, 0);
   // Soma o valor das parcelas de Aquisição Fazenda ainda não vencidas — mesmo
   // critério de "saldo devedor" usado em Bancos, corrige o BUG #4 da spec
