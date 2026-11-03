@@ -711,6 +711,9 @@ export const TabView: React.FC<TabViewProps> = ({
           usdBrl={indices?.usdBrl ?? null}
           aquisicoes={aquisicoes}
           arrendamentos={arrendamentos}
+          pecuariaBovina={pecuariaBovina}
+          producaoAnimal={producaoAnimal}
+          itensLancamentoManual={itensLancamentoManualMensal}
         />
       )}
       {tab === 'cadastro_mestre' && (

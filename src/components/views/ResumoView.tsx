@@ -1,14 +1,35 @@
 'use client';
 
-import React from 'react';
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Supplier, CulturaSafraAno, ContratoBancario, Aquisicao, ContratoArrendamento } from '../../types';
+import React, { useMemo } from 'react';
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import {
+  Supplier,
+  CulturaSafraAno,
+  ContratoBancario,
+  Aquisicao,
+  ContratoArrendamento,
+  PecuariaBovinaAno,
+  ProducaoAnimalAno,
+  ItemLancamentoManualMensal
+} from '../../types';
 import { formatCurrency, calcularSafra } from '../../data/initialData';
-import { dataReferenciaDaSafra } from '../../lib/safra-periodo';
+import { dataReferenciaDaSafra, safraAtualDaData, safraDoAnoCivil } from '../../lib/safra-periodo';
 import { calcularKpisBancos } from '../../lib/bancos-kpis';
+import { perfilDividaCpLp, rankingParticipacao, type LinhaParticipacao } from '../../lib/resumo-calc';
+import { CHART_COLORS } from '../../lib/chart-theme';
+import {
+  calcularFluxoMensal,
+  gerarLancamentosCusteioSafraProjecao,
+  gerarLancamentosManuais,
+  gerarLancamentosVinculados,
+  horizonteMeses,
+  safrasDaJanela,
+  type ContratoBancarioParcelaFluxo
+} from '../../lib/fluxo-mensal-calc';
 import type { FluxoDetalhado } from '../../server/contratos-bancarios';
 import { Card } from '../ui';
-import { TrendingDown, TrendingUp, Landmark, Scale } from 'lucide-react';
+import { FluxoCaixaMensalChart, type PontoFluxoMensal } from '../FluxoCaixaMensalChart';
+import { TrendingDown, TrendingUp, Landmark, Scale, Users, Activity, BarChart3 } from 'lucide-react';
 
 interface ResumoViewProps {
   suppliers: Supplier[];
@@ -19,7 +40,49 @@ interface ResumoViewProps {
   usdBrl?: number | null;
   aquisicoes: Aquisicao[];
   arrendamentos: ContratoArrendamento[];
+  pecuariaBovina: PecuariaBovinaAno[];
+  producaoAnimal: ProducaoAnimalAno[];
+  itensLancamentoManual: ItemLancamentoManualMensal[];
 }
+
+/** Lista de participação (banco/fornecedor): nome, valor, % e barra proporcional. */
+const ListaParticipacao: React.FC<{ linhas: LinhaParticipacao[]; total: number; cor: string; vazio: string }> = ({
+  linhas,
+  total,
+  cor,
+  vazio
+}) =>
+  linhas.length === 0 ? (
+    <p className="text-xs text-slate-400">{vazio}</p>
+  ) : (
+    <>
+      <ol className="space-y-3">
+        {linhas.map((l, i) => (
+          <li key={l.nome}>
+            <div className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="text-slate-700 truncate">
+                <span className="text-slate-400 mr-1.5">{i + 1}.</span>
+                {l.nome}
+              </span>
+              <span className="flex items-baseline gap-3 shrink-0">
+                <span className="font-mono text-xs text-slate-500 tabular-nums">{formatCurrency(l.valor)}</span>
+                <span className="font-bold text-slate-900 tabular-nums w-14 text-right">{l.percentual.toFixed(1)}%</span>
+              </span>
+            </div>
+            <div className="mt-1 h-1.5 rounded-full bg-slate-100">
+              <div className="h-full rounded-full" style={{ width: `${Math.min(100, l.percentual)}%`, backgroundColor: cor }} />
+            </div>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-4 pt-3 border-t border-slate-200 flex justify-between text-sm">
+        <span className="font-bold text-slate-800">Total</span>
+        <span className="font-extrabold tabular-nums" style={{ color: cor }}>
+          {formatCurrency(total)}
+        </span>
+      </div>
+    </>
+  );
 
 const ANO_REFERENCIA = '2026/2027';
 const COLUNAS_ANO = ['2025/2026', '2026/2027', '2027/2028'];
@@ -31,7 +94,10 @@ export const ResumoView: React.FC<ResumoViewProps> = ({
   fluxoDetalhado,
   usdBrl = null,
   aquisicoes,
-  arrendamentos
+  arrendamentos,
+  pecuariaBovina,
+  producaoAnimal,
+  itensLancamentoManual
 }) => {
   const culturas = Array.from(new Set(culturaSafras.map((s) => s.cultura)));
 
@@ -75,7 +141,7 @@ export const ResumoView: React.FC<ResumoViewProps> = ({
 
   // Em R$ (US$ convertido): amortização das parcelas já em BRL, mesma fonte de
   // Bancos (src/lib/bancos-kpis.ts) — somar `saldoAtual` cru misturava dólar com real.
-  const endividamentoBancos = calcularKpisBancos(
+  const kpisBancos = calcularKpisBancos(
     contratosBancarios,
     new Map(
       (fluxoDetalhado?.contratos ?? []).map((f) => [
@@ -85,7 +151,81 @@ export const ResumoView: React.FC<ResumoViewProps> = ({
     ),
     new Map(),
     usdBrl
-  ).saldoTotal;
+  );
+  const endividamentoBancos = kpisBancos.saldoTotal;
+
+  // Ranking de credores (mesmos saldos em R$ de Bancos/Fornecedores, só reagrupados por nome).
+  const rankingBancos = rankingParticipacao(
+    contratosBancarios.map((c) => ({ nome: c.banco, valor: kpisBancos.porContrato.get(c.id)?.saldoBrl ?? 0 }))
+  );
+  const rankingFornecedores = rankingParticipacao(suppliers.map((s) => ({ nome: s.nome, valor: s.dividaTotal })));
+  const perfilDivida = perfilDividaCpLp(kpisBancos.curtoPrazo, kpisBancos.longoPrazo);
+
+  // Fluxo de Caixa Mensal: mesmo pipeline do Fluxo Mensal, safra vigente pela data, só lavoura
+  // (Multi-Safra OFF — o padrão da tela de origem).
+  const safrasDisponiveis = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...culturaSafras.map((r) => r.anoSafra),
+          ...pecuariaBovina.map((r) => safraDoAnoCivil(r.anoCivil)),
+          ...producaoAnimal.map((r) => safraDoAnoCivil(r.anoCivil))
+        ])
+      ).sort(),
+    [culturaSafras, pecuariaBovina, producaoAnimal]
+  );
+  const safraFluxo = safraAtualDaData(safrasDisponiveis);
+  const fluxoMensal = useMemo(() => {
+    if (!safraFluxo) return { chart: [] as PontoFluxoMensal[], entradas: 0, saidas: 0, saldo: 0, safras: [] as string[] };
+    const janela = safrasDaJanela(safraFluxo, safrasDisponiveis);
+    const horizonte = janela.length > 0 ? horizonteMeses(janela[0]) : [];
+    const contratos: ContratoBancarioParcelaFluxo[] = (fluxoDetalhado?.contratos ?? []).map((c) => ({
+      banco: c.banco,
+      anos: c.anos
+    }));
+    const lancamentos = [
+      ...gerarLancamentosCusteioSafraProjecao({
+        quadroSafra: culturaSafras,
+        pecuariaBovina,
+        producaoAnimal,
+        safrasDaJanela: janela,
+        multiSafra: false,
+        horizonte
+      }),
+      ...gerarLancamentosVinculados({
+        suppliers,
+        contratosBancarios: contratos,
+        arrendamentos,
+        aquisicoes,
+        safrasDaJanela: janela
+      }),
+      ...gerarLancamentosManuais(itensLancamentoManual.filter((i) => horizonte.some((h) => h.mes === i.mes && h.ano === i.ano)))
+    ];
+    const calc = calcularFluxoMensal(lancamentos, horizonte);
+    return {
+      chart: calc.resumoPorMes.map((m) => ({
+        mes: m.label,
+        entradas: m.entradas,
+        saidas: -m.saidas,
+        saldoAcumulado: m.saldoAcumulado
+      })),
+      entradas: calc.totalEntradas,
+      saidas: calc.totalSaidas,
+      saldo: calc.resultadoLiquido,
+      safras: janela
+    };
+  }, [
+    safraFluxo,
+    safrasDisponiveis,
+    culturaSafras,
+    pecuariaBovina,
+    producaoAnimal,
+    suppliers,
+    arrendamentos,
+    aquisicoes,
+    fluxoDetalhado,
+    itensLancamentoManual
+  ]);
   const endividamentoFornecedores = suppliers.reduce((sum, s) => sum + s.dividaTotal, 0);
   // Soma o valor das parcelas de Aquisição Fazenda ainda não vencidas — mesmo
   // critério de "saldo devedor" usado em Bancos, corrige o BUG #4 da spec
@@ -184,7 +324,20 @@ export const ResumoView: React.FC<ResumoViewProps> = ({
                     {formatCurrency(linha.faturamento)}
                   </td>
                   <td className="py-3 px-4 text-right text-slate-600">
-                    {faturamentoTotal > 0 ? ((linha.faturamento / faturamentoTotal) * 100).toFixed(1) : '0.0'}%
+                    {(() => {
+                      const pct = faturamentoTotal > 0 ? (linha.faturamento / faturamentoTotal) * 100 : 0;
+                      return (
+                        <div className="ml-auto w-24">
+                          <span className="font-semibold tabular-nums">{pct.toFixed(1)}%</span>
+                          <div className="mt-1 h-1.5 rounded-full bg-slate-100">
+                            <div
+                              className="h-full rounded-full"
+                              style={{ width: `${Math.min(100, pct)}%`, backgroundColor: CHART_COLORS.marca }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="py-3 px-4 text-right text-slate-600">
                     {linha.producaoFixada.toLocaleString('pt-BR')} {linha.referencia?.unidadeProducao}
@@ -289,11 +442,115 @@ export const ResumoView: React.FC<ResumoViewProps> = ({
                 tickFormatter={(v) => `${(v / 1_000_000).toFixed(0)}M`}
               />
               <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-              <Bar dataKey="valor" radius={[8, 8, 0, 0]} fill="#4a6700" />
+              <Bar dataKey="valor" radius={[8, 8, 0, 0]}>
+                <Cell fill={CHART_COLORS.positivo} />
+                <Cell fill={CHART_COLORS.negativo} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
+          <div className="mt-2 flex gap-4 text-[11px] text-slate-500">
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-600" />Receita</span>
+            <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-rose-600" />Endividamento</span>
+          </div>
         </Card>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="p-6">
+          <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <Landmark className="w-4 h-4 text-slate-500" />
+            Principais Bancos
+          </h3>
+          <ListaParticipacao
+            linhas={rankingBancos.linhas}
+            total={rankingBancos.total}
+            cor={CHART_COLORS.negativo}
+            vazio="Nenhum contrato bancário com saldo."
+          />
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <Users className="w-4 h-4 text-slate-500" />
+            Principais Fornecedores
+          </h3>
+          <ListaParticipacao
+            linhas={rankingFornecedores.linhas}
+            total={rankingFornecedores.total}
+            cor={CHART_COLORS.curtoPrazo}
+            vazio="Nenhum fornecedor com dívida."
+          />
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <Activity className="w-4 h-4 text-slate-500" />
+            Perfil da Dívida Bancária
+          </h3>
+          {perfilDivida.total === 0 ? (
+            <p className="text-xs text-slate-400">Nenhum contrato bancário com saldo.</p>
+          ) : (
+            <div className="space-y-4">
+              {[
+                { sigla: 'CP', nome: 'Curto Prazo', detalhe: '≤ 12 meses', valor: perfilDivida.cp, pct: perfilDivida.cpPercentual, cor: CHART_COLORS.curtoPrazo },
+                { sigla: 'LP', nome: 'Longo Prazo', detalhe: '> 12 meses', valor: perfilDivida.lp, pct: perfilDivida.lpPercentual, cor: CHART_COLORS.longoPrazo }
+              ].map((p) => (
+                <div key={p.sigla}>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="rounded px-1.5 py-0.5 text-[10px] font-extrabold text-white"
+                        style={{ backgroundColor: p.cor }}
+                      >
+                        {p.sigla}
+                      </span>
+                      <span className="font-semibold text-slate-800">{p.nome}</span>
+                      <span className="text-[11px] text-slate-400">({p.detalhe})</span>
+                    </span>
+                    <span className="font-extrabold tabular-nums" style={{ color: p.cor }}>
+                      {p.pct.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-2 rounded-full bg-slate-100">
+                    <div className="h-full rounded-full" style={{ width: `${p.pct}%`, backgroundColor: p.cor }} />
+                  </div>
+                  <p className="mt-1 text-right text-xs text-slate-500 tabular-nums">{formatCurrency(p.valor)}</p>
+                </div>
+              ))}
+              <div className="pt-3 border-t border-slate-200 flex justify-between text-sm">
+                <span className="font-bold text-slate-800">Total</span>
+                <span className="font-extrabold text-rose-700 tabular-nums">{formatCurrency(perfilDivida.total)}</span>
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <Card className="p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-slate-500" />
+              Fluxo de Caixa Mensal{fluxoMensal.safras.length > 0 ? ` — Safras ${fluxoMensal.safras.join(' e ')}` : ''}
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Inclui custeio e safra da lavoura, bancos, arrendamentos, fornecedores e aquisições.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs font-bold tabular-nums">
+            <span className="text-emerald-700">Entradas: {formatCurrency(fluxoMensal.entradas)}</span>
+            <span className="text-rose-700">Saídas: {formatCurrency(fluxoMensal.saidas)}</span>
+            <span className={fluxoMensal.saldo >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+              Saldo: {formatCurrency(fluxoMensal.saldo)}
+            </span>
+          </div>
+        </div>
+        {fluxoMensal.chart.length === 0 ? (
+          <p className="text-xs text-slate-400">Cadastre uma safra no Quadro de Safra para ver o fluxo de caixa mensal.</p>
+        ) : (
+          <FluxoCaixaMensalChart data={fluxoMensal.chart} height={300} />
+        )}
+      </Card>
     </div>
   );
 };

@@ -32,7 +32,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ suppliers }) => {
           <span className="text-xs font-semibold text-slate-600">Dívida Total</span>
         </div>
         <div>
-          <div className="text-2xl lg:text-3xl font-extrabold text-[#991b1b] tracking-tight font-sans">
+          <div className="text-[22px] leading-tight font-extrabold text-[#991b1b] tracking-tight font-sans">
             {formatCurrency(totalDebt)}
           </div>
         </div>
@@ -50,7 +50,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ suppliers }) => {
           </span>
         </div>
         <div>
-          <div className="text-2xl lg:text-3xl font-extrabold text-amber-700 tracking-tight font-sans">
+          <div className="text-[22px] leading-tight font-extrabold text-amber-700 tracking-tight font-sans">
             {formatCurrency(curtoPrazoTotal)}
           </div>
         </div>
@@ -68,7 +68,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ suppliers }) => {
           </span>
         </div>
         <div>
-          <div className="text-2xl lg:text-3xl font-extrabold text-blue-700 tracking-tight font-sans">
+          <div className="text-[22px] leading-tight font-extrabold text-blue-700 tracking-tight font-sans">
             {formatCurrency(longoPrazoTotal)}
           </div>
         </div>
@@ -81,7 +81,7 @@ export const MetricCards: React.FC<MetricCardsProps> = ({ suppliers }) => {
           <span className="text-xs font-semibold text-slate-600">Pendentes/Vencidos</span>
         </div>
         <div>
-          <div className="text-2xl lg:text-3xl font-extrabold text-slate-800 tracking-tight font-sans">
+          <div className="text-[22px] leading-tight font-extrabold text-slate-800 tracking-tight font-sans">
             {pendingCount}
           </div>
         </div>

@@ -15,8 +15,9 @@ import type {
   Supplier
 } from '../../types';
 import { formatCurrency } from '../../data/initialData';
-import { montarFluxoSafraDTO, calcularFluxoSafra } from '../../lib/fluxo-safra-calc';
+import { montarFluxoSafraDTO, calcularFluxoSafra, CATEGORIA_ITEM_FLUXO_LABEL } from '../../lib/fluxo-safra-calc';
 import { safraAtualDaData, safrasDoAnoCivilBlend } from '../../lib/safra-periodo';
+import { CHART_COLORS } from '../../lib/chart-theme';
 import { commodityDaCultura } from '../../lib/cultura-commodity';
 import { Card, KpiCard, Badge, Select, Button, Tooltip } from '../ui';
 import { FluxoManualItemModal } from '../FluxoManualItemModal';
@@ -146,16 +147,9 @@ export const FluxoSafraView: React.FC<FluxoSafraViewProps> = ({
   const badge = BADGE_ANALISE[calculado.statusCobertura];
 
   const chartData = [
-    { nome: 'Receita', valor: dto.receitaProjetada, entrada: true },
-    ...(dto.arrendamentosReceber > 0 ? [{ nome: 'Arrend. a Receber', valor: dto.arrendamentosReceber, entrada: true }] : []),
-    { nome: 'Custo Safra', valor: dto.custoProducao, entrada: false },
-    { nome: 'Fornecedores', valor: dto.fornecedores, entrada: false },
-    { nome: 'Amort. Bancos', valor: dto.amortizacaoBancos, entrada: false },
-    { nome: 'Juros', valor: dto.jurosBancos, entrada: false },
-    { nome: 'Arrendamentos', valor: dto.arrendamentos, entrada: false },
-    { nome: 'Desp. Comercial', valor: dto.despesaComercial ?? 0, entrada: false },
-    { nome: 'Aquisições', valor: dto.parcelasAquisicao, entrada: false }
-  ];
+    ...calculado.entradas.map((l) => ({ id: l.id, nome: l.label, valor: l.valor ?? 0, entrada: true })),
+    ...calculado.saidas.map((l) => ({ id: l.id, nome: l.label, valor: l.valor ?? 0, entrada: false }))
+  ].filter((d) => d.valor > 0);
 
   return (
     <div className="space-y-6">
@@ -210,196 +204,238 @@ export const FluxoSafraView: React.FC<FluxoSafraViewProps> = ({
         />
       </div>
 
-      <Card className="p-6">
-        <h3 className="text-base font-bold text-slate-900 mb-1">Demonstrativo de Fluxo de Safra</h3>
-        <p className="text-xs text-slate-500 mb-4">Safra {safraAtiva || '—'}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-6 items-start">
+        <div className="space-y-6 min-w-0">
+          <Card className="p-6">
+            <h3 className="text-base font-bold text-slate-900 mb-1">Demonstrativo de Fluxo de Safra</h3>
+            <p className="text-xs text-slate-500 mb-4">Safra {safraAtiva || '—'}</p>
 
-        <div className="space-y-5 max-w-2xl">
-          <div>
-            <button
-              type="button"
-              onClick={() => setEntradasAbertas((v) => !v)}
-              className="flex w-full items-center justify-between text-left"
-            >
-              <span className="text-[11px] font-bold uppercase text-emerald-700">
-                (+) Entradas ({formatCurrency(calculado.totalEntradas)})
-              </span>
-              <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${entradasAbertas ? 'rotate-180' : ''}`} />
-            </button>
-            {entradasAbertas && (
-              <div className="mt-2 space-y-1.5">
-                {calculado.entradas.map((linha) => (
-                  <div key={linha.id} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="flex items-center gap-1.5 text-slate-600">
-                      {linha.label}
-                      <Tooltip text={linha.origem} />
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <span className="font-bold text-emerald-700">{formatCurrency(linha.valor ?? 0)}</span>
-                      {/* Linhas fixas/calculadas (não são ItemFluxoManual real) — excluir aqui seria um
-                          no-op silencioso, então o botão nem aparece. */}
-                      {!['receita_projetada', 'arrendamentos_receber'].includes(linha.id) && (
-                        <button
-                          type="button"
-                          onClick={() => onDeleteItem(linha.id)}
-                          className="text-slate-300 hover:text-rose-600 transition"
-                          aria-label="Excluir item"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </span>
+            <div className="space-y-4">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setEntradasAbertas((v) => !v)}
+                  className="flex w-full items-center justify-between text-left bg-emerald-50 px-4 py-2.5"
+                >
+                  <span className="text-xs font-bold uppercase text-emerald-800">(+) Entradas</span>
+                  <span className="flex items-center gap-2">
+                    <span className="font-extrabold text-emerald-700 tabular-nums">{formatCurrency(calculado.totalEntradas)}</span>
+                    <ChevronDown className={`h-4 w-4 text-emerald-600 transition-transform ${entradasAbertas ? 'rotate-180' : ''}`} />
+                  </span>
+                </button>
+                {entradasAbertas && (
+                  <div className="px-4 py-2 divide-y divide-emerald-100">
+                    {calculado.entradas.map((linha) => (
+                      <div key={linha.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                        <span className="flex items-center gap-1.5 text-slate-600">
+                          {linha.label}
+                          <Tooltip text={linha.origem} />
+                        </span>
+                        <span className="font-bold text-emerald-700 tabular-nums">{formatCurrency(linha.valor ?? 0)}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
 
-          <div>
-            <button
-              type="button"
-              onClick={() => setSaidasAbertas((v) => !v)}
-              className="flex w-full items-center justify-between text-left"
-            >
-              <span className="text-[11px] font-bold uppercase text-rose-700">
-                (-) Saídas ({formatCurrency(calculado.totalSaidas)})
-              </span>
-              <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${saidasAbertas ? 'rotate-180' : ''}`} />
-            </button>
-            {saidasAbertas && (
-              <div className="mt-2 space-y-1.5">
-                {calculado.saidas.map((linha) => {
-                  const fixa = [
-                    'custo_producao',
-                    'fornecedores',
-                    'amortizacao_bancos',
-                    'juros_bancos',
-                    'arrendamentos',
-                    'despesa_comercial',
-                    'parcelas_aquisicao'
-                  ].includes(linha.id);
-                  return (
-                    <div key={linha.id} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="flex items-center gap-1.5 text-slate-600">
-                        {linha.label}
-                        <Tooltip text={linha.origem} />
-                      </span>
-                      <span className="flex items-center gap-2">
-                        <span className="font-semibold text-rose-700">
+              <div className="rounded-xl border border-rose-200 bg-rose-50/40 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setSaidasAbertas((v) => !v)}
+                  className="flex w-full items-center justify-between text-left bg-rose-50 px-4 py-2.5"
+                >
+                  <span className="text-xs font-bold uppercase text-rose-800">(-) Saídas</span>
+                  <span className="flex items-center gap-2">
+                    <span className="font-extrabold text-rose-700 tabular-nums">({formatCurrency(calculado.totalSaidas)})</span>
+                    <ChevronDown className={`h-4 w-4 text-rose-600 transition-transform ${saidasAbertas ? 'rotate-180' : ''}`} />
+                  </span>
+                </button>
+                {saidasAbertas && (
+                  <div className="px-4 py-2 divide-y divide-rose-100">
+                    {calculado.saidas.map((linha) => (
+                      <div key={linha.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                        <span className="flex items-center gap-1.5 text-slate-600">
+                          {linha.label}
+                          <Tooltip text={linha.origem} />
+                        </span>
+                        <span className="font-semibold text-rose-700 tabular-nums">
                           {linha.valor === null ? (
                             <span className="text-slate-400 font-medium">indisponível</span>
                           ) : (
                             `(${formatCurrency(linha.valor)})`
                           )}
                         </span>
-                        {!fixa && (
-                          <button
-                            type="button"
-                            onClick={() => onDeleteItem(linha.id)}
-                            className="text-slate-300 hover:text-rose-600 transition"
-                            aria-label="Excluir item"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div
+                className={`rounded-xl border-2 px-5 py-4 flex items-center justify-between gap-4 ${
+                  calculado.fluxoLiquido >= 0 ? 'border-emerald-300 bg-emerald-50' : 'border-rose-300 bg-rose-50'
+                }`}
+              >
+                <div>
+                  <p className={`text-sm font-bold ${calculado.fluxoLiquido >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+                    Fluxo de Caixa Líquido
+                  </p>
+                  <p className={`text-xs ${calculado.fluxoLiquido >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    {calculado.fluxoLiquido >= 0
+                      ? '✓ Operação auto-sustentável nesta safra'
+                      : '⚠ Operação requer financiamento externo nesta safra'}
+                  </p>
+                </div>
+                <span
+                  className={`text-[22px] leading-tight font-extrabold tabular-nums ${
+                    calculado.fluxoLiquido >= 0 ? 'text-emerald-700' : 'text-rose-700'
+                  }`}
+                >
+                  {formatCurrency(calculado.fluxoLiquido)}
+                </span>
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="text-sm font-bold text-slate-900 mb-3 flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-slate-500" /> Estrutura de Financiamento Necessária
+            </h3>
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="flex items-center gap-1.5 text-slate-500">
+                  Renovação de Dívidas Bancárias (CP + LP)
+                  <Tooltip text="Soma do saldo devedor atual de todos os contratos bancários ativos. O sistema ainda não distingue curto de longo prazo por contrato — a soma cobre os dois." />
+                </span>
+                <span className="font-semibold text-slate-800 tabular-nums">{formatCurrency(dto.saldoDevedorBancos)}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="flex items-center gap-1.5 text-slate-500">
+                  Fornecedores Previstos (próxima safra)
+                  <Tooltip text="Dívidas com fornecedores já cadastradas com a safra seguinte." />
+                </span>
+                <span className="font-semibold text-slate-800 tabular-nums">{formatCurrency(dto.fornecedoresProximaSafra)}</span>
+              </div>
+              <div className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 mt-2">
+                <span className="font-bold text-slate-800">Total de Recursos a Estruturar</span>
+                <span className="font-extrabold text-slate-900 tabular-nums">{formatCurrency(calculado.totalRecursosEstruturar)}</span>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div className="space-y-6 min-w-0">
+          <Card className="p-6">
+            <h3 className="text-sm font-bold text-slate-900 mb-3">Composição do Fluxo</h3>
+            <ResponsiveContainer width="100%" height={Math.max(220, chartData.length * 34)}>
+              <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 16 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} horizontal={false} />
+                <XAxis
+                  type="number"
+                  tick={{ fontSize: 10, fill: CHART_COLORS.eixo }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `${(v / 1_000_000).toFixed(0)}M`}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="nome"
+                  width={130}
+                  tick={{ fontSize: 10, fill: CHART_COLORS.eixo }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} />
+                <Bar dataKey="valor" radius={[0, 6, 6, 0]}>
+                  {chartData.map((entry) => (
+                    <Cell key={entry.id} fill={entry.entrada ? CHART_COLORS.positivo : CHART_COLORS.negativo} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="mt-2 flex gap-4 text-[11px] text-slate-500">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-600" />Entradas</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-rose-600" />Saídas</span>
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="text-sm font-bold text-slate-900 mb-3">Análise — Próxima Safra</h3>
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Fluxo Disponível</span>
+                <span className="font-semibold text-emerald-700 tabular-nums">{formatCurrency(calculado.fluxoLiquido)}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Custo Projetado Safra</span>
+                <span className="font-semibold text-rose-700 tabular-nums">{formatCurrency(calculado.custoProximaSafra)}</span>
+              </div>
+              <div className="flex justify-between pt-1.5">
+                <span className="font-bold text-slate-800">Déficit/Superávit</span>
+                <span
+                  className={`font-extrabold tabular-nums ${calculado.deficitSuperavitProximaSafra >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}
+                >
+                  {formatCurrency(calculado.deficitSuperavitProximaSafra)}
+                </span>
+              </div>
+            </div>
+            <div className="mt-3">
+              <Badge tone={badge.tone}>{badge.label}</Badge>
+              <p className="mt-1.5 text-[11px] text-slate-400">
+                Critério: Índice de Cobertura da safra atual ({calculado.indiceCobertura.toFixed(2)}x) — não o déficit isolado da
+                próxima safra.
+              </p>
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="text-sm font-bold text-slate-900 mb-3">Itens Adicionais Cadastrados</h3>
+            {dto.itensManuais.length === 0 ? (
+              <p className="text-xs text-slate-400">
+                Nenhum item adicional nesta safra. Use o botão Adicionar Item para incluir dividendos, estoques, retiradas ou manutenções.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {dto.itensManuais.map((item) => {
+                  const entrada = item.tipo === 'ENTRADA';
+                  return (
+                    <li
+                      key={item.id}
+                      className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 ${
+                        entrada ? 'border-emerald-200 bg-emerald-50/50' : 'border-rose-200 bg-rose-50/50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {entrada ? (
+                          <ArrowUpRight className="h-4 w-4 shrink-0 text-emerald-600" />
+                        ) : (
+                          <ArrowDownRight className="h-4 w-4 shrink-0 text-rose-600" />
                         )}
-                      </span>
-                    </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-semibold text-slate-700">
+                            {item.descricao || CATEGORIA_ITEM_FLUXO_LABEL[item.categoria]}
+                          </p>
+                          <p className={`text-sm font-extrabold tabular-nums ${entrada ? 'text-emerald-700' : 'text-rose-700'}`}>
+                            {formatCurrency(item.valor)}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteItem(item.id)}
+                        className="text-slate-300 hover:text-rose-600 transition"
+                        aria-label="Excluir item"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </li>
                   );
                 })}
-              </div>
+              </ul>
             )}
-          </div>
-
-          <div className="flex justify-between border-t border-slate-200 pt-3">
-            <span className="font-bold text-slate-800">Fluxo de Caixa Líquido</span>
-            <span className={`font-extrabold ${calculado.fluxoLiquido >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-              {formatCurrency(calculado.fluxoLiquido)}
-            </span>
-          </div>
-          <p className={`text-xs ${calculado.fluxoLiquido >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-            {calculado.fluxoLiquido >= 0
-              ? '✓ Operação auto-sustentável nesta safra'
-              : '⚠ Operação requer financiamento externo nesta safra'}
-          </p>
+          </Card>
         </div>
-      </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-6">
-          <h3 className="text-sm font-bold text-slate-900 mb-3">Estrutura de Financiamento Necessária</h3>
-          <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between">
-              <span className="flex items-center gap-1.5 text-slate-500">
-                Renovação de Dívidas Bancárias (CP + LP)
-                <Tooltip text="Soma do saldo devedor atual de todos os contratos bancários ativos. O sistema ainda não distingue curto de longo prazo por contrato — a soma cobre os dois." />
-              </span>
-              <span className="font-semibold text-slate-800">{formatCurrency(dto.saldoDevedorBancos)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="flex items-center gap-1.5 text-slate-500">
-                Fornecedores Previstos (próxima safra)
-                <Tooltip text="Dívidas com fornecedores já cadastradas com a safra seguinte." />
-              </span>
-              <span className="font-semibold text-slate-800">{formatCurrency(dto.fornecedoresProximaSafra)}</span>
-            </div>
-            <div className="flex justify-between border-t border-slate-200 pt-1.5">
-              <span className="font-bold text-slate-800">Total de Recursos a Estruturar</span>
-              <span className="font-extrabold text-slate-900">{formatCurrency(calculado.totalRecursosEstruturar)}</span>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <h3 className="text-sm font-bold text-slate-900 mb-3">Análise — Próxima Safra</h3>
-          <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Fluxo Disponível</span>
-              <span className="font-semibold text-slate-800">{formatCurrency(calculado.fluxoLiquido)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Custo Projetado Safra</span>
-              <span className="font-semibold text-slate-800">{formatCurrency(calculado.custoProximaSafra)}</span>
-            </div>
-            <div className="flex justify-between border-t border-slate-200 pt-1.5">
-              <span className="font-bold text-slate-800">Déficit/Superávit</span>
-              <span
-                className={`font-extrabold ${calculado.deficitSuperavitProximaSafra >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}
-              >
-                {formatCurrency(calculado.deficitSuperavitProximaSafra)}
-              </span>
-            </div>
-          </div>
-          <div className="mt-3">
-            <Badge tone={badge.tone}>{badge.label}</Badge>
-            <p className="mt-1.5 text-[11px] text-slate-400">
-              Critério: Índice de Cobertura da safra atual ({calculado.indiceCobertura.toFixed(2)}x) — não o déficit isolado da
-              próxima safra.
-            </p>
-          </div>
-        </Card>
       </div>
-
-      <Card className="p-6">
-        <h3 className="text-base font-bold text-slate-900 mb-4">Composição do Fluxo</h3>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-            <XAxis dataKey="nome" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} interval={0} angle={-15} textAnchor="end" height={50} />
-            <YAxis
-              tick={{ fontSize: 10, fill: '#64748b' }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-            />
-            <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} />
-            <Bar dataKey="valor" radius={[8, 8, 0, 0]}>
-              {chartData.map((entry) => (
-                <Cell key={entry.nome} fill={entry.entrada ? '#4a6700' : '#be123c'} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </Card>
 
       <FluxoManualItemModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={onSaveItem} safra={safraAtiva} />
     </div>

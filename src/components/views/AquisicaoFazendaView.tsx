@@ -214,7 +214,7 @@ const TabAnaliseImpacto: React.FC<{ dados: ImpactoSafra[] }> = ({ dados }) => {
             <p className="text-[11px] text-slate-500">Safra</p>
             <p className="font-bold text-slate-900 mb-2">{d.safra}</p>
 
-            <p className={`text-3xl font-extrabold ${alerta ? 'text-rose-600' : 'text-slate-900'}`}>
+            <p className={`text-[22px] leading-tight font-extrabold ${alerta ? 'text-rose-600' : 'text-slate-900'}`}>
               {d.percentualImpacto !== null ? `${d.percentualImpacto.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%` : 'N/D'}
             </p>
             <p className="text-[11px] text-slate-500 mb-3">

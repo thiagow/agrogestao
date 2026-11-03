@@ -1,17 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import {
-  Bar,
-  CartesianGrid,
-  ComposedChart,
-  Legend,
-  Line,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis
-} from 'recharts';
+import { FluxoCaixaMensalChart } from '../FluxoCaixaMensalChart';
 import { AlertTriangle, ChevronDown, Plus } from 'lucide-react';
 import type {
   Aquisicao,
@@ -229,23 +219,8 @@ export const FluxoMensalView: React.FC<FluxoMensalViewProps> = ({
       <Card className="p-6">
         <h3 className="text-base font-bold text-slate-900 mb-1">Curva de Caixa</h3>
         <p className="text-xs text-slate-500 mb-4">{janelaSafras.length > 0 ? `Safras ${janelaSafras.join(' e ')}` : 'Safra —'} — {horizonte.length} meses</p>
-        <ResponsiveContainer width="100%" height={300}>
-          <ComposedChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-            <XAxis dataKey="mes" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} interval={0} angle={-45} textAnchor="end" height={50} />
-            <YAxis
-              tick={{ fontSize: 10, fill: '#64748b' }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={(v) => `${(v / 1_000_000).toFixed(0)}M`}
-            />
-            <RechartsTooltip formatter={(value, name) => [formatCurrency(Math.abs(Number(value))), name]} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="entradas" name="Entradas" fill="#16a34a" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="saidas" name="Saídas" fill="#dc2626" radius={[0, 0, 4, 4]} />
-            <Line type="monotone" dataKey="saldoAcumulado" name="Saldo Acum." stroke="#1d4ed8" strokeWidth={2} dot={false} />
-          </ComposedChart>
-        </ResponsiveContainer>
+        <FluxoCaixaMensalChart data={chartData} />
+
       </Card>
 
       <Card className="p-6">

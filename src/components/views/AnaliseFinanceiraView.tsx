@@ -30,6 +30,7 @@ import type {
 } from '../../types';
 import { formatCurrency } from '../../data/initialData';
 import { montarBalanco, complementaresVazio } from '../../lib/balanco-calc';
+import { CHART_COLORS } from '../../lib/chart-theme';
 import { safraAtualDaData, safrasDoAnoCivilBlend } from '../../lib/safra-periodo';
 import { Card, KpiCard, Badge, Select, Tabs, Tooltip } from '../ui';
 import { DadosComplementaresForm } from '../DadosComplementaresForm';
@@ -50,13 +51,50 @@ interface AnaliseFinanceiraViewProps {
   onSaveDadosComplementares: (data: DadosComplementaresFinanceiro) => void;
 }
 
-const linha = (label: string, valor: number, negativo = false, destaque = false) => (
-  <div className={`flex justify-between ${destaque ? 'border-t border-slate-200 pt-1.5 mt-1' : ''}`}>
-    <span className={destaque ? 'font-bold text-slate-800' : 'text-slate-500'}>{label}</span>
-    <span className={destaque ? 'font-extrabold text-slate-900' : 'font-semibold text-slate-800'}>
-      {negativo && valor !== 0 ? `(${formatCurrency(valor)})` : formatCurrency(valor)}
-    </span>
-  </div>
+// Cores semânticas do Balanço/DRE (pedido do cliente): Ativo azul, Passivo vermelho, PL verde;
+// DRE: resultados verdes, despesas vermelhas, EBITDA azul.
+type TomLinha = 'ativo' | 'passivo' | 'pl' | 'resultado' | 'ebitda';
+
+const TOM_TEXTO: Record<Exclude<TomLinha, 'resultado'>, { rotulo: string; valor: string }> = {
+  ativo: { rotulo: 'text-blue-800', valor: 'text-blue-700' },
+  passivo: { rotulo: 'text-rose-800', valor: 'text-rose-700' },
+  pl: { rotulo: 'text-emerald-800', valor: 'text-emerald-700' },
+  ebitda: { rotulo: 'text-blue-800', valor: 'text-blue-700' }
+};
+
+const linha = (label: string, valor: number, negativo = false, destaque = false, tom?: TomLinha) => {
+  const despesa = negativo && valor !== 0;
+  const tomEfetivo = tom === 'resultado' ? (valor < 0 ? 'passivo' : 'pl') : tom;
+  const cores = tomEfetivo ? TOM_TEXTO[tomEfetivo] : undefined;
+  const classeRotulo = destaque ? `font-bold ${cores?.rotulo ?? 'text-slate-800'}` : despesa ? 'text-rose-700' : 'text-slate-500';
+  const classeValor = destaque
+    ? `font-extrabold ${cores?.valor ?? 'text-slate-900'}`
+    : despesa
+      ? 'font-semibold text-rose-700'
+      : 'font-semibold text-slate-800';
+  return (
+    <div className={`flex justify-between ${destaque ? 'border-t border-slate-200 pt-1.5 mt-1' : 'py-0.5 border-b border-slate-100 last:border-b-0'}`}>
+      <span className={classeRotulo}>{label}</span>
+      <span className={`tabular-nums ${classeValor}`}>
+        {despesa ? `(${formatCurrency(valor)})` : formatCurrency(valor)}
+      </span>
+    </div>
+  );
+};
+
+// DRE: resultados em verde (vermelho se negativos), EBITDA em azul.
+const corBarraDre = (nome: string, valor: number) =>
+  valor < 0 ? CHART_COLORS.negativo : nome === 'EBITDA' ? CHART_COLORS.longoPrazo : CHART_COLORS.positivo;
+
+// Faixa de título dos cards do Balanço.
+const FAIXA: Record<'ativo' | 'passivo' | 'pl' | 'dre', string> = {
+  ativo: 'bg-blue-50 text-blue-800 border-blue-100',
+  passivo: 'bg-rose-50 text-rose-800 border-rose-100',
+  pl: 'bg-emerald-50 text-emerald-800 border-emerald-100',
+  dre: 'bg-slate-50 text-slate-800 border-slate-200'
+};
+const TituloFaixa: React.FC<{ tom: keyof typeof FAIXA; children: React.ReactNode }> = ({ tom, children }) => (
+  <h3 className={`text-sm font-bold -mx-5 -mt-5 mb-4 px-5 py-3 border-b ${FAIXA[tom]}`}>{children}</h3>
 );
 
 export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
@@ -192,23 +230,23 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                       <h3 className="text-sm font-bold text-slate-900 mb-3">Balanço Resumido — Safra {safraAtiva || '—'}</h3>
                       <div className="space-y-4 text-sm">
                         <div>
-                          <p className="text-[11px] font-bold uppercase text-slate-500 mb-1.5">Ativo</p>
+                          <p className="text-[11px] font-bold uppercase text-blue-700 mb-1.5">Ativo</p>
                           <div className="space-y-1">
                             {linha('Circulante', balanco.ativo.totalCirculante)}
                             {linha('Não Circulante', balanco.ativo.totalNaoCirculante)}
-                            {linha('Total Ativo', balanco.ativo.total, false, true)}
+                            {linha('Total Ativo', balanco.ativo.total, false, true, 'ativo')}
                           </div>
                         </div>
                         <div>
-                          <p className="text-[11px] font-bold uppercase text-slate-500 mb-1.5">Passivo</p>
+                          <p className="text-[11px] font-bold uppercase text-rose-700 mb-1.5">Passivo</p>
                           <div className="space-y-1">
                             {linha('Circulante', balanco.passivo.totalCirculante)}
                             {linha('Não Circulante', balanco.passivo.totalNaoCirculante)}
-                            {linha('Total Passivo', balanco.passivo.total, false, true)}
+                            {linha('Total Passivo', balanco.passivo.total, false, true, 'passivo')}
                           </div>
                         </div>
                         <div>
-                          <p className="text-[11px] font-bold uppercase text-slate-500 mb-1.5">Patrimônio</p>
+                          <p className="text-[11px] font-bold uppercase text-emerald-700 mb-1.5">Patrimônio</p>
                           <div className="space-y-1">
                             {linha('Capital + Reservas', balanco.pl.capitalSocial + balanco.pl.reservasLucrosAcumulados)}
                             {linha('Resultado Safra', balanco.pl.resultadoSafra)}
@@ -271,7 +309,11 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                         <XAxis dataKey="nome" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} interval={0} angle={-15} textAnchor="end" height={50} />
                         <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1_000_000).toFixed(0)}M`} />
                         <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} />
-                        <Bar dataKey="valor" fill="#4a6700" radius={[8, 8, 0, 0]} />
+                        <Bar dataKey="valor" radius={[8, 8, 0, 0]}>
+                          {dreChart.map((d) => (
+                            <Cell key={d.nome} fill={corBarraDre(d.nome, d.valor)} />
+                          ))}
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </Card>
@@ -285,7 +327,7 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                   {/* Ativo | Passivo na 1ª linha; DRE | Patrimônio Líquido na 2ª (retorno do cliente, 21/10/2026) */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <Card className="p-5 order-1">
-                      <h3 className="text-sm font-bold text-slate-900 mb-3">ATIVO — Safra {safraAtiva || '—'}</h3>
+                      <TituloFaixa tom="ativo">ATIVO — Safra {safraAtiva || '—'}</TituloFaixa>
                       <p className="text-[11px] font-bold uppercase text-slate-500 mb-1.5">Ativo Circulante</p>
                       <div className="space-y-1 text-sm mb-4">
                         {linha('Caixa e Equivalentes', balanco.ativo.caixaEquivalentes)}
@@ -297,7 +339,7 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                         {linha('Estoque de Rebanho (Suínos/Aves)', balanco.ativo.estoqueRebanhoAnimal)}
                         {linha('Arrendamentos a Receber (safra)', balanco.ativo.arrendamentosReceberCp)}
                         {linha('Outros Créditos CP', balanco.ativo.outrosCreditosCp)}
-                        {linha('Total Ativo Circulante', balanco.ativo.totalCirculante, false, true)}
+                        {linha('Total Ativo Circulante', balanco.ativo.totalCirculante, false, true, 'ativo')}
                       </div>
                       <p className="text-[11px] font-bold uppercase text-slate-500 mb-1.5">Ativo Não Circulante</p>
                       <div className="space-y-1 text-sm">
@@ -316,33 +358,33 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                           </span>
                           <span className="font-semibold text-slate-800">{formatCurrency(balanco.ativo.bensIrpf)}</span>
                         </div>
-                        {linha('Total Ativo Não Circulante', balanco.ativo.totalNaoCirculante, false, true)}
+                        {linha('Total Ativo Não Circulante', balanco.ativo.totalNaoCirculante, false, true, 'ativo')}
                         <div className="flex justify-between border-t border-slate-300 pt-1.5 mt-1">
-                          <span className="font-extrabold text-slate-900">TOTAL DO ATIVO</span>
-                          <span className="font-extrabold text-slate-900">{formatCurrency(balanco.ativo.total)}</span>
+                          <span className="font-extrabold text-blue-800">TOTAL DO ATIVO</span>
+                          <span className="font-extrabold text-blue-700">{formatCurrency(balanco.ativo.total)}</span>
                         </div>
                       </div>
                     </Card>
 
                     <Card className="p-5 order-3">
-                      <h3 className="text-sm font-bold text-slate-900 mb-3">DRE — Safra {safraAtiva || '—'}</h3>
+                      <TituloFaixa tom="dre">DRE — Safra {safraAtiva || '—'}</TituloFaixa>
                       <div className="space-y-1 text-sm">
                         {linha('(+) Receita Bruta', balanco.dre.receitaBruta)}
                         {linha('(-) Impostos / Deduções', balanco.dre.deducoes, true)}
-                        {linha('= Receita Líquida', balanco.dre.receitaLiquida, false, true)}
+                        {linha('= Receita Líquida', balanco.dre.receitaLiquida, false, true, 'resultado')}
                         {linha('(-) Custos (CPV / Custo Safra)', balanco.dre.custos, true)}
                         {linha('(-) Arrendamentos a Pagar (safra)', balanco.dre.arrendamentos, true)}
                         {balanco.dre.arrendamentosReceber > 0 &&
                           linha('(+) Arrendamentos a Receber (safra)', balanco.dre.arrendamentosReceber)}
-                        {linha('= Lucro Bruto', balanco.dre.lucroBruto, false, true)}
+                        {linha('= Lucro Bruto', balanco.dre.lucroBruto, false, true, 'resultado')}
                         {linha('(-) Despesas Operacionais', balanco.dre.despesasOperacionais, true)}
                         {linha('(-) Despesas Administrativas', balanco.dre.despesasAdministrativas, true)}
                         <div className="flex justify-between">
-                          <span className="flex items-center gap-1.5 text-slate-500">
+                          <span className="flex items-center gap-1.5 text-rose-700">
                             (-) Despesas Comerciais (sc/ha)
                             <Tooltip text="3 sacas de soja por hectare (configurável na aba Dados Complementares) ao preço de Soja definido em Cotações; usa o fallback manual quando não há cotação." />
                           </span>
-                          <span className="font-semibold text-slate-800">
+                          <span className="font-semibold text-rose-700">
                             {balanco.dre.despesaComercial === null ? (
                               <span className="text-slate-400 font-medium">indisponível</span>
                             ) : (
@@ -350,19 +392,19 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                             )}
                           </span>
                         </div>
-                        {linha('= Resultado Operacional', balanco.dre.resultadoOperacional, false, true)}
+                        {linha('= Resultado Operacional', balanco.dre.resultadoOperacional, false, true, 'resultado')}
                         {linha('(-) Dividendos', balanco.dre.dividendos, true)}
-                        {linha('= EBITDA', balanco.dre.ebitda, false, true)}
+                        {linha('= EBITDA', balanco.dre.ebitda, false, true, 'ebitda')}
                         {linha('(-) Custo Financeiro (Juros / Bancos)', balanco.dre.custoFinanceiro, true)}
                         {linha('(-) Depreciação e Amortização', balanco.dre.depreciacao, true)}
-                        {linha('= LAIR', balanco.dre.lair, false, true)}
+                        {linha('= LAIR', balanco.dre.lair, false, true, 'resultado')}
                         {linha('(-) IR/CSLL', balanco.dre.irCsll, true)}
-                        {linha('= Resultado Líquido', balanco.dre.resultadoLiquido, false, true)}
+                        {linha('= Resultado Líquido', balanco.dre.resultadoLiquido, false, true, 'resultado')}
                       </div>
                     </Card>
 
                     <Card className="p-5 order-2">
-                      <h3 className="text-sm font-bold text-slate-900 mb-3">PASSIVO — Safra {safraAtiva || '—'}</h3>
+                      <TituloFaixa tom="passivo">PASSIVO — Safra {safraAtiva || '—'}</TituloFaixa>
                       <p className="text-[11px] font-bold uppercase text-slate-500 mb-1.5">Passivo Circulante</p>
                       <div className="space-y-1 text-sm mb-4">
                         {linha('Bancos CP', balanco.passivo.bancosCp)}
@@ -372,7 +414,7 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                         {linha('Obrigações Trabalhistas', balanco.passivo.obrigTrabalhistasCp)}
                         {linha('Obrigações Fiscais CP', balanco.passivo.obrigFiscaisCp)}
                         {linha('Outras Obrigações CP', balanco.passivo.outrasObrigCp)}
-                        {linha('Total Passivo Circulante', balanco.passivo.totalCirculante, false, true)}
+                        {linha('Total Passivo Circulante', balanco.passivo.totalCirculante, false, true, 'passivo')}
                       </div>
                       <p className="text-[11px] font-bold uppercase text-slate-500 mb-1.5">Passivo Não Circulante</p>
                       <div className="space-y-1 text-sm">
@@ -383,16 +425,16 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                         {linha('Obrigações Fiscais LP', balanco.passivo.obrigFiscaisLp)}
                         {linha('Outras Obrigações LP', balanco.passivo.outrasObrigLp)}
                         {linha('Partes Relacionadas', balanco.passivo.partesRelacionadas)}
-                        {linha('Total Passivo Não Circulante', balanco.passivo.totalNaoCirculante, false, true)}
+                        {linha('Total Passivo Não Circulante', balanco.passivo.totalNaoCirculante, false, true, 'passivo')}
                         <div className="flex justify-between border-t border-slate-300 pt-1.5 mt-1">
-                          <span className="font-extrabold text-slate-900">TOTAL DO PASSIVO</span>
-                          <span className="font-extrabold text-slate-900">{formatCurrency(balanco.passivo.total)}</span>
+                          <span className="font-extrabold text-rose-800">TOTAL DO PASSIVO</span>
+                          <span className="font-extrabold text-rose-700">{formatCurrency(balanco.passivo.total)}</span>
                         </div>
                       </div>
                     </Card>
 
                     <Card className="p-5 order-4">
-                      <h3 className="text-sm font-bold text-slate-900 mb-3">PATRIMÔNIO LÍQUIDO</h3>
+                      <TituloFaixa tom="pl">PATRIMÔNIO LÍQUIDO</TituloFaixa>
                       <div className="space-y-1 text-sm">
                         {linha('Capital Social', balanco.pl.capitalSocial)}
                         {linha('Reservas e Lucros Acumulados', balanco.pl.reservasLucrosAcumulados)}
@@ -405,7 +447,7 @@ export const AnaliseFinanceiraView: React.FC<AnaliseFinanceiraViewProps> = ({
                           <span className="font-semibold text-slate-800">{formatCurrency(balanco.pl.bensIrpf)}</span>
                         </div>
                         <div className="flex justify-between border-t border-slate-300 pt-1.5 mt-1">
-                          <span className="font-extrabold text-slate-900">PATRIMÔNIO LÍQUIDO</span>
+                          <span className="font-extrabold text-emerald-800">PATRIMÔNIO LÍQUIDO</span>
                           <span className="font-extrabold text-emerald-700">{formatCurrency(balanco.pl.total)}</span>
                         </div>
                         <div className="flex justify-between pt-1">
