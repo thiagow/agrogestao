@@ -3,20 +3,23 @@ import { Badge } from './Badge';
 
 type KpiStatus = 'Excelente' | 'Bom' | 'Adequado' | 'Atenção' | 'Crítico' | 'Sem dados';
 
-const statusTone: Record<KpiStatus, 'emerald' | 'blue' | 'indigo' | 'amber' | 'rose' | 'slate'> = {
+const statusTone: Record<KpiStatus, 'emerald' | 'lime' | 'blue' | 'orange' | 'rose' | 'slate'> = {
   Excelente: 'emerald',
-  Bom: 'blue',
+  Bom: 'lime',
   Adequado: 'blue',
-  Atenção: 'amber',
+  Atenção: 'orange',
   Crítico: 'rose',
   'Sem dados': 'slate'
 };
 
-// Só os status que o cliente definiu tingem o card inteiro (verde/azul/vermelho).
-// Bom/Atenção/Sem dados seguem só com o Badge, até haver definição de cor.
+// Cores confirmadas pelo cliente: Excelente verde, Bom verde-claro, Adequado azul,
+// Atenção laranja (sugestão aprovada em 06/11/2026), Crítico vermelho.
+// "Sem dados" não tinge o card — é ausência de operação, não um julgamento.
 const statusCard: Partial<Record<KpiStatus, string>> = {
   Excelente: 'bg-emerald-50/70 border-emerald-200',
+  Bom: 'bg-lime-50/70 border-lime-200',
   Adequado: 'bg-blue-50/70 border-blue-200',
+  Atenção: 'bg-orange-50/70 border-orange-200',
   Crítico: 'bg-rose-50/70 border-rose-200'
 };
 

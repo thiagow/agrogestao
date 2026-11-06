@@ -43,6 +43,10 @@ interface ResumoViewProps {
   pecuariaBovina: PecuariaBovinaAno[];
   producaoAnimal: ProducaoAnimalAno[];
   itensLancamentoManual: ItemLancamentoManualMensal[];
+  /** Nome do grupo (Conta.nome, cadastrado pelo Admin Master). */
+  contaNome?: string;
+  /** Sede informada no Grupo Econômico (Cadastro Mestre) — exibida como cidade. */
+  sedeGrupo?: string;
 }
 
 /** Lista de participação (banco/fornecedor): nome, valor, % e barra proporcional. */
@@ -97,7 +101,9 @@ export const ResumoView: React.FC<ResumoViewProps> = ({
   arrendamentos,
   pecuariaBovina,
   producaoAnimal,
-  itensLancamentoManual
+  itensLancamentoManual,
+  contaNome,
+  sedeGrupo
 }) => {
   const culturas = Array.from(new Set(culturaSafras.map((s) => s.cultura)));
 
@@ -275,8 +281,8 @@ export const ResumoView: React.FC<ResumoViewProps> = ({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight font-sans">Grupo Pereira</h1>
-        <p className="text-xs md:text-sm text-slate-500 mt-1">Goiânia - GO</p>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight font-sans">{contaNome || 'Resumo'}</h1>
+        {sedeGrupo?.trim() && <p className="text-xs md:text-sm text-slate-500 mt-1">{sedeGrupo.trim()}</p>}
       </div>
 
       <Card>
