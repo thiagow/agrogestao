@@ -27,7 +27,13 @@ const TEMPLATES = [
   }
 ];
 
-export const ApresentacaoGrupoView: React.FC = () => {
+interface ApresentacaoGrupoViewProps {
+  /** Nome do grupo (Conta.nome). */
+  contaNome?: string;
+}
+
+export const ApresentacaoGrupoView: React.FC<ApresentacaoGrupoViewProps> = ({ contaNome }) => {
+  const nomeGrupo = contaNome || 'Grupo';
   const [ano, setAno] = useState('2025/26');
   const [estado, setEstado] = useState<EstadoApresentacao>('idle');
 
@@ -57,8 +63,8 @@ export const ApresentacaoGrupoView: React.FC = () => {
             <option value="2025/26">2025/26</option>
             <option value="2026/27">2026/27</option>
           </Select>
-          <Select label="Grupo" value="Grupo Pereira" onChange={() => {}} className="w-auto" disabled>
-            <option value="Grupo Pereira">Grupo Pereira</option>
+          <Select label="Grupo" value={nomeGrupo} onChange={() => {}} className="w-auto" disabled>
+            <option value={nomeGrupo}>{nomeGrupo}</option>
           </Select>
           <Button
             variant="primary"
@@ -90,14 +96,14 @@ export const ApresentacaoGrupoView: React.FC = () => {
           <>
             <Loader2 className="w-6 h-6 text-emerald-600 animate-spin mx-auto mb-2" />
             <p className="text-sm font-semibold text-slate-700">Gerando apresentação...</p>
-            <p className="text-xs text-slate-500 mt-1">Coletando dados da safra {ano} do Grupo Pereira</p>
+            <p className="text-xs text-slate-500 mt-1">Coletando dados da safra {ano} de {nomeGrupo}</p>
           </>
         )}
         {estado === 'pronta' && (
           <>
             <p className="text-sm font-semibold text-emerald-700">Apresentação pronta</p>
             <p className="text-xs text-slate-500 mt-1 mb-4">
-              12 slides gerados para o Grupo Pereira — safra {ano}
+              12 slides gerados para {nomeGrupo} — safra {ano}
             </p>
             <Button variant="primary" className="w-auto mx-auto flex items-center gap-2 px-4 py-2 text-xs">
               <FileDown className="w-4 h-4" /> Baixar Apresentação (.pptx)

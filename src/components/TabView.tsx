@@ -850,7 +850,7 @@ export const TabView: React.FC<TabViewProps> = ({
           onDeleteItem={handleDeleteLancamentoManualMensal}
         />
       )}
-      {tab === 'apresentacao_grupo' && <ApresentacaoGrupoView />}
+      {tab === 'apresentacao_grupo' && <ApresentacaoGrupoView contaNome={contaNome} />}
 
       {tab !== 'fornecedores' &&
         tab !== 'resumo' &&
